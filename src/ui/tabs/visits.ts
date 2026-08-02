@@ -16,6 +16,7 @@ import { createVirtualList } from "../components/virtualGrid";
 import type { VirtualHandle } from "../components/virtualGrid";
 import { iconButton } from "../components/toolbar";
 import { renderDishThumbs } from "../components/dishPhotos";
+import { openGalleryModal } from "../modals/gallery";
 import { openDetailModal } from "../modals/detail";
 import { openLogVisitPicker } from "../modals/logVisit";
 
@@ -45,6 +46,12 @@ export function mountVisitsTab(container: HTMLElement, plugin: FoodSpotPluginApi
   const header = root.createDiv({ cls: "fs-visits-header" });
   header.createDiv({ cls: "fs-visits-title", text: "Visit timeline" });
   const countEl = header.createSpan({ cls: "fs-visits-count" });
+  iconButton(header, {
+    icon: "images",
+    label: "Browse dish photos",
+    cls: "fs-visits-gallery",
+    onClick: () => openGalleryModal(plugin),
+  });
   iconButton(header, {
     icon: "calendar-plus",
     label: "Log visit",

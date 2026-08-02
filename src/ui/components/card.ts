@@ -22,6 +22,7 @@ import { openState } from "./hours";
 import { openDetailModal } from "../modals/detail";
 import { openEditModal } from "../modals/addEdit";
 import { openLogVisitPicker } from "../modals/logVisit";
+import { openGalleryModal } from "../modals/gallery";
 import { confirmModalWithOption } from "../modals/confirm";
 
 // ---------------------------------------------------------------------------
@@ -390,6 +391,15 @@ export function spotMenu(plugin: FoodSpotPluginApi, spot: FoodSpot): Menu {
       .setIcon("map-pin")
       .onClick(() => window.open(mapsUrl(spot), "_blank"))
   );
+  const dishCount = spot.visits.reduce((n, v) => n + (v.photos?.length ?? 0), 0);
+  if (dishCount > 0) {
+    menu.addItem((i) =>
+      i
+        .setTitle(`Dish photos (${dishCount})`)
+        .setIcon("images")
+        .onClick(() => openGalleryModal(plugin, spot.path))
+    );
+  }
   menu.addItem((i) =>
     i
       .setTitle("Pull info from Google")

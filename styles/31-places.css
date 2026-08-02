@@ -125,3 +125,42 @@
     width: 56px;
   }
 }
+
+/* --- per-city guide button ------------------------------------------------- */
+.fs-place-guide {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease, background-color 0.12s ease;
+}
+
+.fs-place-guide svg {
+  width: 15px;
+  height: 15px;
+}
+
+.fs-place-row:hover .fs-place-guide,
+.fs-place-guide:focus-visible {
+  opacity: 1;
+}
+
+.fs-place-guide:hover {
+  color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
+}
+
+@media (hover: none) {
+  .fs-place-guide {
+    opacity: 1;
+  }
+}

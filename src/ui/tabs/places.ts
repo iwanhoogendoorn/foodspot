@@ -7,6 +7,7 @@
  * node jumps to the Spots tab with that location filter applied.
  */
 import { setIcon } from "obsidian";
+import { openCityGuideModal } from "../modals/cityGuide";
 import { VIEW_TYPE } from "../../types";
 import type { FoodSpot, FoodSpotPluginApi, TabHandle } from "../../types";
 import type { LocationFilter } from "./spots";
@@ -118,6 +119,22 @@ export function mountPlacesTab(container: HTMLElement, plugin: FoodSpotPluginApi
     const pct = node.total > 0 ? Math.round((node.visited / node.total) * 100) : 0;
     coverage.createDiv({ cls: "fs-coverage-fill" }).style.width = `${pct}%`;
     label.addEventListener("click", () => openInSpots(node.loc));
+
+    // City rows get a one-click guide: the level people actually share.
+    if (node.loc.city !== undefined && node.loc.district === undefined) {
+      const guide = row.createEl("button", {
+        cls: "fs-place-guide",
+        attr: {
+          "aria-label": `Create a guide for ${node.label}`,
+          title: `Create a shareable guide for ${node.label}`,
+        },
+      });
+      setIcon(guide, "notebook-text");
+      guide.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openCityGuideModal(plugin, node.loc.city);
+      });
+    }
 
     if (hasChildren && expanded.has(node.key)) {
       for (const c of sortNodes([...node.children.values()])) {

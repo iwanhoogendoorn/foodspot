@@ -13,8 +13,8 @@ import { buildCityGuide } from "../../tools/cityGuide";
 import { ensureFolder, availablePath } from "../../store/noteWriter";
 import { saveToDisk } from "../../store/backup";
 
-export function openCityGuideModal(plugin: FoodSpotPluginApi): void {
-  new CityGuideModal(plugin).open();
+export function openCityGuideModal(plugin: FoodSpotPluginApi, city?: string): void {
+  new CityGuideModal(plugin, city).open();
 }
 
 function errorMessage(e: unknown): string {
@@ -48,7 +48,11 @@ class CityGuideModal extends Modal {
   private previewEl!: HTMLElement;
   private cities: { city: string; count: number }[] = [];
 
-  constructor(private readonly plugin: FoodSpotPluginApi) {
+  constructor(
+    private readonly plugin: FoodSpotPluginApi,
+    /** Preselected city (Places tree entry point); falls back to the busiest. */
+    private readonly preselect?: string,
+  ) {
     super(plugin.app);
   }
 
@@ -69,7 +73,11 @@ class CityGuideModal extends Modal {
       close.addEventListener("click", () => this.close());
       return;
     }
-    this.city = this.cities[0].city;
+    // Preselected city wins when it exists in the library.
+    this.city =
+      this.preselect && this.cities.some((c) => c.city === this.preselect)
+        ? this.preselect
+        : this.cities[0].city;
 
     const controls = body.createDiv({ cls: "fs-guide-controls" });
     const cityField = controls.createDiv({ cls: "fs-field" });

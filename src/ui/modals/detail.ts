@@ -28,6 +28,7 @@ import { confirmModal } from "./confirm";
 import { openEditModal } from "./addEdit";
 import { canBrowserFetch, openBrowserFetchQueue } from "./browserFetch";
 import { importDishPhotos, pickImageFiles, renderDishThumbs } from "../components/dishPhotos";
+import { openGalleryModal } from "./gallery";
 
 export function openDetailModal(plugin: FoodSpotPluginApi, path: string): void {
   new DetailModal(plugin, path).open();
@@ -643,6 +644,17 @@ class DetailModal extends Modal {
     head.createEl("h3", {
       text: `Visits${spot.visits.length > 0 ? ` (${spot.visits.length})` : ""}`,
     });
+    // Dish photos for THIS spot — only offered when there are any.
+    const dishCount = spot.visits.reduce((n, v) => n + (v.photos?.length ?? 0), 0);
+    if (dishCount > 0) {
+      const gallery = head.createEl("button", { cls: "fs-small-btn" });
+      gallery.type = "button";
+      gallery.title = `Browse the ${dishCount} dish photo${dishCount === 1 ? "" : "s"} of this spot`;
+      setIcon(gallery.createSpan({ cls: "fs-btn-icon" }), "images");
+      gallery.createSpan({ text: ` Photos (${dishCount})` });
+      gallery.addEventListener("click", () => openGalleryModal(this.plugin, this.path));
+    }
+
     const addBtn = head.createEl("button", { cls: "fs-small-btn" });
     addBtn.type = "button";
     setIcon(addBtn.createSpan(), "plus");
