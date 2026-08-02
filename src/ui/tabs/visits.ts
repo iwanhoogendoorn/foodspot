@@ -15,6 +15,7 @@ import { fmtRating, relTime, tierFor } from "../components/card";
 import { createVirtualList } from "../components/virtualGrid";
 import type { VirtualHandle } from "../components/virtualGrid";
 import { iconButton } from "../components/toolbar";
+import { renderDishThumbs } from "../components/dishPhotos";
 import { openDetailModal } from "../modals/detail";
 import { openLogVisitPicker } from "../modals/logVisit";
 
@@ -109,6 +110,7 @@ export function mountVisitsTab(container: HTMLElement, plugin: FoodSpotPluginApi
       if (visit.note) {
         body.createDiv({ cls: "fs-tl-note", text: visit.note });
       }
+      renderDishThumbs(body, plugin, visit.photos ?? [], spot.path);
     },
   });
 

@@ -1055,3 +1055,81 @@ a.fs-info-text {
   border-radius: 8px;
   background: var(--background-primary);
 }
+
+/* ---------- dish photos (per visit) ---------- */
+.fs-visit-photos {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+
+.fs-visit-form.fs-drop-active {
+  border-color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 8%, transparent);
+}
+
+.fs-dish-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fs-visit-row {
+  flex-wrap: wrap;
+}
+
+.fs-visit-row .fs-dish-strip,
+.fs-tl-body .fs-dish-strip {
+  flex: 0 0 100%;
+  margin-top: 4px;
+}
+
+.fs-dish-thumb {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--background-secondary);
+  cursor: pointer;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease;
+}
+
+.fs-dish-thumb:hover {
+  transform: scale(1.05);
+}
+
+.fs-dish-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.fs-dish-missing {
+  color: var(--text-faint);
+  font-weight: 700;
+  border: 1px dashed var(--background-modifier-border);
+}
+
+.fs-dish-remove {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  line-height: 1;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}

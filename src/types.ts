@@ -31,6 +31,8 @@ export interface Visit {
   spent?: number;
   /** Free-form remainder of the bullet line. */
   note: string;
+  /** Dish photos: vault paths, written as `![[…]]` embeds on the bullet. */
+  photos?: string[];
 }
 
 /** External (public) rating snapshot stored in frontmatter. */

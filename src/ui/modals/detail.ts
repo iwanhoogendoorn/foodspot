@@ -26,6 +26,7 @@ import { isStaleRatings } from "../components/card";
 import { confirmModal } from "./confirm";
 import { openEditModal } from "./addEdit";
 import { canBrowserFetch, openBrowserFetchQueue } from "./browserFetch";
+import { importDishPhotos, pickImageFiles, renderDishThumbs } from "../components/dishPhotos";
 
 export function openDetailModal(plugin: FoodSpotPluginApi, path: string): void {
   new DetailModal(plugin, path).open();
@@ -690,6 +691,7 @@ class DetailModal extends Modal {
       this.editingVisitIndex = index;
       this.render();
     });
+    renderDishThumbs(row, this.plugin, visit.photos ?? [], this.path);
     this.iconButton(actions, "trash-2", "Delete visit", () => {
       void confirmModal(this.app, {
         title: "Delete visit",
@@ -742,6 +744,63 @@ class DetailModal extends Modal {
     noteInput.placeholder = "What did you eat?";
     noteInput.value = initial?.note ?? "";
 
+    // Dish photos: imported into the vault, embedded on the visit bullet.
+    let photos: string[] = [...(initial?.photos ?? [])];
+    const photoRow = form.createDiv({ cls: "fs-visit-photos" });
+    const renderPhotos = (): void => {
+      photoRow.empty();
+      const addBtn = photoRow.createEl("button", { cls: "fs-btn fs-small-btn" });
+      addBtn.type = "button";
+      setIcon(addBtn.createSpan({ cls: "fs-btn-icon" }), "image-plus");
+      addBtn.createSpan({ text: photos.length ? " Add more" : " Add dish photos" });
+      addBtn.addEventListener("click", () => {
+        void (async () => {
+          const spot = this.spot();
+          if (!spot) return;
+          const files = await pickImageFiles();
+          if (files.length === 0) return;
+          const saved = await importDishPhotos(
+            this.plugin,
+            spot,
+            dateInput.value || todayIso(),
+            files,
+          );
+          photos = [...photos, ...saved];
+          renderPhotos();
+        })();
+      });
+      renderDishThumbs(photoRow, this.plugin, photos, this.path, (ref) => {
+        photos = photos.filter((p) => p !== ref);
+        renderPhotos();
+      });
+    };
+    renderPhotos();
+
+    // Drag & drop images straight onto the form.
+    form.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      form.addClass("fs-drop-active");
+    });
+    form.addEventListener("dragleave", () => form.removeClass("fs-drop-active"));
+    form.addEventListener("drop", (e) => {
+      e.preventDefault();
+      form.removeClass("fs-drop-active");
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      if (files.length === 0) return;
+      void (async () => {
+        const spot = this.spot();
+        if (!spot) return;
+        const saved = await importDishPhotos(
+          this.plugin,
+          spot,
+          dateInput.value || todayIso(),
+          files,
+        );
+        photos = [...photos, ...saved];
+        renderPhotos();
+      })();
+    });
+
     const actions = form.createDiv({ cls: "fs-visit-form-actions" });
     const save = actions.createEl("button", { text: "Save", cls: "mod-cta fs-small-btn" });
     save.type = "button";
@@ -761,6 +820,7 @@ class DetailModal extends Modal {
         rating: rating > 0 ? rating : undefined,
         spent: spent !== undefined && !Number.isNaN(spent) ? spent : undefined,
         note: noteInput.value.trim(),
+        photos: photos.length > 0 ? photos : undefined,
       }).catch((e: unknown) => {
         save.disabled = false;
         new Notice(`Couldn't save the visit — ${errorMessage(e)}`);

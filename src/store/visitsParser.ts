@@ -1,8 +1,11 @@
 /**
  * Pure parsing/serialization for the `## Visits` section.
  *
- * Bullet format: `- [date:: 2026-07-12] [rating:: 4.5] [spent:: 45] free text`
+ * Bullet format:
+ *   `- [date:: 2026-07-12] [rating:: 4.5] [spent:: 45] free text ![[dish.jpg]]`
  * - Inline fields may appear in any order; only `date` is required.
+ * - Dish photos are real Obsidian embeds at the end of the line, so they
+ *   render inside the note as well as in the plugin.
  * - Lines without a valid `[date:: …]` field are NOT visits; they are kept
  *   verbatim on rewrite (round-trip safety for user content we don't model).
  */
@@ -16,6 +19,8 @@ export type VisitLine =
 /** Matches recognized inline fields only — unknown fields stay in the note. */
 const KNOWN_FIELD_RE = /\[\s*(date|rating|spent)\s*::\s*([^\]]*)\]/gi;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
+/** Dish photos: `![[path/to/img.jpg]]` embeds anywhere in the line. */
+const EMBED_RE = /!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g;
 
 function parseNumber(raw: string): number | undefined {
   const cleaned = raw.trim().replace(",", ".");
@@ -49,8 +54,17 @@ export function parseVisitLine(line: string): Visit | null {
   }
   if (!date) return null;
 
+  const photos: string[] = [];
+  EMBED_RE.lastIndex = 0;
+  let e: RegExpExecArray | null;
+  while ((e = EMBED_RE.exec(line)) !== null) {
+    const ref = e[1].trim();
+    if (ref) photos.push(ref);
+  }
+
   const note = line
     .replace(KNOWN_FIELD_RE, " ")
+    .replace(EMBED_RE, " ")
     .replace(/^\s*[-*+]\s*/, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -58,6 +72,7 @@ export function parseVisitLine(line: string): Visit | null {
   const visit: Visit = { date, note };
   if (rating !== undefined) visit.rating = rating;
   if (spent !== undefined) visit.spent = spent;
+  if (photos.length > 0) visit.photos = photos;
   return visit;
 }
 
@@ -93,6 +108,10 @@ export function serializeVisit(visit: Visit): string {
   if (visit.spent !== undefined) out += ` [spent:: ${visit.spent}]`;
   const note = visit.note.trim();
   if (note) out += ` ${note}`;
+  for (const p of visit.photos ?? []) {
+    const ref = p.trim();
+    if (ref) out += ` ![[${ref}]]`;
+  }
   return out;
 }
 

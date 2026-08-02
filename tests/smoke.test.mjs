@@ -70,8 +70,10 @@ await esbuild.build({
 const mod = await import(pathToFileURL(outfile).href);
 const {
   parseVisitsSection,
+  parseVisitLine,
   parseVisitLines,
   serializeVisits,
+  serializeVisit,
   serializeVisitLines,
   legacySpotToNote,
   filterSpots,
@@ -145,6 +147,25 @@ ok("serializeVisits(parse(x)) preserves every modeled field", () => {
     text.split("\n")[0],
     "- [date:: 2026-07-12] [rating:: 4.5] [spent:: 45] Great omakase, sat at the bar",
   );
+});
+
+ok("dish photo embeds round-trip and stay out of the note text", () => {
+  const line =
+    "- [date:: 2026-08-03] [rating:: 4.5] [spent:: 62] Lamb karahi ![[60 FOOD/Food Spot/_media/dishes/Sarban 2026-08-03 1.jpg]] ![[dishes/second.png]]";
+  const v = parseVisitLine(line);
+  assert.equal(v.date, "2026-08-03");
+  assert.equal(v.rating, 4.5);
+  assert.equal(v.spent, 62);
+  assert.equal(v.note, "Lamb karahi", "embeds must not leak into the note text");
+  assert.deepEqual(v.photos, [
+    "60 FOOD/Food Spot/_media/dishes/Sarban 2026-08-03 1.jpg",
+    "dishes/second.png",
+  ]);
+  const round = parseVisitLine(serializeVisit(v));
+  assert.deepEqual(round.photos, v.photos, "photos survive a serialize/parse cycle");
+  assert.equal(round.note, "Lamb karahi");
+  assert.equal(serializeVisit({ date: "2026-08-03", note: "" }).includes("![["), false,
+    "a visit without photos gets no embeds");
 });
 
 // ---------------------------------------------------------------------------
