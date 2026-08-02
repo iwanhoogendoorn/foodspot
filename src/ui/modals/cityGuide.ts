@@ -13,6 +13,7 @@ import { buildCityGuide } from "../../tools/cityGuide";
 import { buildGuideHtml, guidePhotoPaths } from "../../tools/guideHtml";
 import { ensureFolder, availablePath } from "../../store/noteWriter";
 import { saveToDisk } from "../../store/backup";
+import { canExportPdf, exportHtmlToPdf } from "../../tools/pdfExport";
 
 export function openCityGuideModal(plugin: FoodSpotPluginApi, city?: string): void {
   new CityGuideModal(plugin, city).open();
@@ -121,7 +122,18 @@ class CityGuideModal extends Modal {
     const buttons = body.createDiv({ cls: "fs-modal-buttons fs-guide-buttons" });
     const pdf = buttons.createEl("button", { cls: "mod-cta", text: "Save as PDF…" });
     pdf.type = "button";
-    pdf.addEventListener("click", () => this.print());
+    pdf.addEventListener("click", () => {
+      pdf.disabled = true;
+      pdf.setText("Saving…");
+      void exportHtmlToPdf(this.html, `${sanitizeFileName(this.noteTitle())}.pdf`)
+        .then((saved) => {
+          if (!saved && !canExportPdf()) this.print(); // desktop-less fallback
+        })
+        .finally(() => {
+          pdf.disabled = false;
+          pdf.setText("Save as PDF…");
+        });
+    });
     const htmlBtn = buttons.createEl("button", { text: "Save HTML…" });
     htmlBtn.type = "button";
     htmlBtn.addEventListener("click", () => {
