@@ -1,0 +1,427 @@
+/* ==========================================================================
+   Food Spot — Dashboard tab (50-dashboard.css)
+   Neutral palette (v1.1): everything derives from Obsidian CSS vars — accent
+   for the primary stat + coverage fills, text tones for the rest. Status
+   colors only appear inside spot cards (data encoding), never as decoration.
+   ========================================================================== */
+
+.fs-dashboard {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fs-dashboard::-webkit-scrollbar {
+  width: 8px;
+}
+
+.fs-dashboard::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.fs-dashboard:hover::-webkit-scrollbar-thumb {
+  background: var(--background-modifier-border);
+}
+
+/* --- section error panel --------------------------------------------------- */
+.fs-error-panel {
+  border: 1px solid var(--background-modifier-border);
+  border-left: 3px solid var(--color-red);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.fs-error-panel-title {
+  font-weight: 600;
+  color: var(--color-red);
+  margin-bottom: 4px;
+}
+.fs-error-panel-msg {
+  font-family: var(--font-monospace);
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* --- first-run hero ------------------------------------------------------ */
+.fs-hero {
+  text-align: center;
+  padding: 48px 16px;
+}
+.fs-hero-icon svg {
+  width: 48px;
+  height: 48px;
+  color: var(--text-faint);
+}
+.fs-hero h2 {
+  margin: 12px 0 0;
+}
+.fs-hero p {
+  color: var(--text-muted);
+  max-width: 420px;
+  margin: 8px auto 20px;
+}
+.fs-hero-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* --- stat cards ----------------------------------------------------------- */
+.fs-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.fs-stat-card {
+  background: var(--background-secondary);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.fs-ring-wrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+}
+.fs-ring {
+  display: block;
+}
+.fs-ring-track {
+  fill: none;
+  stroke: color-mix(in srgb, var(--interactive-accent) 13%, var(--background-modifier-border));
+  stroke-width: 12;
+}
+/* Stroke color comes from a per-ring SVG gradient (attribute) — no CSS
+   stroke rule here or it would override the gradient. One hue, three
+   strengths, set in dashboard.ts. */
+.fs-ring-progress {
+  fill: none;
+  stroke-width: 12;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.9s ease;
+}
+.fs-ring-value {
+  color: var(--text-normal);
+}
+.fs-ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.fs-ring-value {
+  font-size: 1.4em;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.fs-ring-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.fs-stat-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.fs-progress-legend {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.fs-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.fs-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.fs-legend-visited {
+  background: var(--interactive-accent);
+}
+.fs-legend-rest {
+  background: color-mix(in srgb, var(--interactive-accent) 26%, var(--background-modifier-border));
+}
+.fs-stat-rect {
+  justify-content: center;
+  min-height: 110px;
+}
+.fs-rect-value {
+  font-size: 2em;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.fs-rect-value.fs-tone-accent {
+  color: var(--interactive-accent);
+}
+.fs-rect-value.fs-tone-muted {
+  color: color-mix(in srgb, var(--interactive-accent) 55%, var(--text-normal));
+}
+.fs-rect-value.fs-tone-faint {
+  color: color-mix(in srgb, var(--interactive-accent) 30%, var(--text-normal));
+}
+
+/* --- icon stat chips -------------------------------------------------------- */
+.fs-chipstats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.fs-chipstat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--background-secondary);
+  border-radius: 10px;
+  padding: 10px 12px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+@media (hover: hover) {
+  .fs-chipstat:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+  }
+}
+.fs-chipstat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+  color: var(--interactive-accent);
+}
+.fs-chipstat-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.fs-chipstat-text {
+  min-width: 0;
+}
+.fs-chipstat-value {
+  font-weight: 700;
+  font-size: 1.15em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.fs-chipstat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- "More statistics" accordion ------------------------------------------ */
+.fs-stats-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  user-select: none;
+}
+.fs-stats-toggle:hover {
+  color: var(--interactive-accent);
+}
+.fs-stats-chevron {
+  display: flex;
+}
+.fs-stats-chevron svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.15s ease;
+}
+.fs-stats-acc.is-open .fs-stats-chevron svg {
+  transform: rotate(90deg);
+}
+.fs-stats-content {
+  margin-top: 12px;
+}
+.fs-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.fs-stats-panel {
+  background: var(--background-secondary);
+  border-radius: 10px;
+  padding: 12px;
+}
+.fs-stats-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.fs-stat-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  margin-top: 6px;
+}
+.fs-stat-row-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fs-stat-row-value {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.fs-stat-row.is-clickable {
+  cursor: pointer;
+}
+.fs-stat-row.is-clickable:hover .fs-stat-row-label {
+  color: var(--interactive-accent);
+}
+.fs-cov-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--background-modifier-border);
+  margin-top: 3px;
+  overflow: hidden;
+}
+.fs-cov-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--interactive-accent) 55%, var(--background-secondary)),
+    var(--interactive-accent)
+  );
+  transition: width 0.4s ease;
+}
+
+/* rating distribution */
+.fs-dist {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 100px;
+  margin-top: 8px;
+}
+.fs-dist-col {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 4px;
+}
+.fs-dist-bar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--interactive-accent) 45%, var(--background-secondary)),
+    color-mix(in srgb, var(--interactive-accent) 85%, var(--background-secondary))
+  );
+  transition: height 0.4s ease;
+}
+.fs-dist-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  height: 12px;
+}
+
+/* --- suggestions ----------------------------------------------------------- */
+.fs-dash-section-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.fs-suggestions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.fs-sug-card {
+  background: var(--background-secondary);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fs-sug-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.fs-sug-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.fs-sug-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.fs-sug-city {
+  max-width: 140px;
+  font-size: 12px;
+}
+.fs-sug-shuffle {
+  display: flex;
+  align-items: center;
+  padding: 4px 6px;
+}
+.fs-sug-shuffle svg {
+  width: 14px;
+  height: 14px;
+}
+.fs-sug-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.fs-sug-slot {
+  min-width: 0;
+}
+
+/* --- recent rows ----------------------------------------------------------- */
+.fs-recent-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+.fs-row-card {
+  flex: 0 0 auto;
+  width: 160px;
+}
+
+/* --- shared empty state ---------------------------------------------------- */
+.fs-dashboard .fs-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+  padding: 8px 0;
+}

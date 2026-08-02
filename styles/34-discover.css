@@ -1,0 +1,168 @@
+/* ===========================================================================
+   Food Spot — 34-discover: Discover tab. Controls row reuses .fs-toolbar,
+   proposal tiles extend .fs-result-tile from 40-modals with a thumbnail
+   column and an action column. Obsidian CSS vars only.
+   ======================================================================== */
+
+.fs-discover {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.fs-discover-controls {
+  row-gap: 6px;
+}
+
+.fs-discover-input {
+  flex: 1 1 160px;
+  min-width: 120px;
+  font-size: var(--font-ui-small);
+}
+
+.fs-discover-location {
+  flex-grow: 1.4;
+  max-width: 320px;
+}
+
+.fs-discover-keyword {
+  max-width: 240px;
+}
+
+.fs-discover-status {
+  flex: 0 0 auto;
+  padding: 6px 14px 0;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.fs-discover-status.is-hidden {
+  display: none;
+}
+
+.fs-discover-error {
+  color: var(--text-error);
+}
+
+.fs-discover-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+/* --- proposal tile (base look: .fs-result-tile in 40-modals) -------------- */
+.fs-discover-tile {
+  align-items: stretch;
+  gap: 12px;
+  padding: 8px;
+  cursor: default;
+  background: var(--background-primary);
+}
+
+.fs-discover-tile:hover {
+  transform: none;
+}
+
+.fs-discover-tile.fs-in-library {
+  opacity: 0.62;
+  background: var(--background-secondary);
+}
+
+.fs-discover-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--interactive-accent) 22%, var(--background-secondary));
+}
+
+.fs-discover-letter {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-on-accent);
+  opacity: 0.85;
+}
+
+.fs-discover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.fs-discover-img.is-loaded {
+  opacity: 1;
+}
+
+.fs-discover-tile .fs-result-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+
+.fs-discover-meta {
+  gap: 10px;
+  font-size: var(--font-ui-smaller);
+}
+
+.fs-discover-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.fs-discover-price {
+  color: var(--text-faint);
+  letter-spacing: 0.5px;
+}
+
+.fs-discover-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.fs-discover-add {
+  padding: 5px 12px;
+}
+
+.fs-discover-more {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0 12px;
+}
+
+.fs-discover-more .fs-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+@media (max-width: 600px) {
+  .fs-discover-location,
+  .fs-discover-keyword {
+    max-width: none;
+  }
+
+  .fs-discover-thumb {
+    width: 52px;
+    height: 52px;
+  }
+
+  .fs-discover-tile .fs-discover-add .fs-btn-label {
+    display: none;
+  }
+}

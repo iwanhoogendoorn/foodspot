@@ -1,0 +1,685 @@
+/* ===========================================================================
+   Food Spot — 20-cards: the shared spot card (grid variant + compact row).
+   The photo scrim intentionally uses black gradient + near-white text: it
+   sits ON TOP OF A PHOTO, not on a themed surface (WatchLog pattern).
+   Placeholder tint, status, favorite and tier colors are all fed from the
+   user-configurable palette via --fs-* custom props set inline.
+   ======================================================================== */
+
+.fs-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--background-secondary);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+@media (hover: hover) {
+  .fs-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  }
+}
+
+/* --- photo / letter placeholder ------------------------------------------ */
+.fs-card-photo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fs-cuisine-tint, var(--interactive-accent));
+}
+
+.fs-card-letter {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--text-on-accent);
+  opacity: 0.85;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  user-select: none;
+}
+
+/* Pulse only while a photo is actually pending */
+.fs-card-photo[data-needs-photo] .fs-card-letter,
+.fs-card-row-thumb[data-needs-photo] .fs-card-letter {
+  animation: fs-pulse 1.6s ease-in-out infinite;
+}
+
+.fs-card-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  /* Decorative: clicks must reach the card, not image-viewer plugins that
+     intercept every <img> in reading view (e.g. image-toolkit). */
+  pointer-events: none;
+}
+
+.fs-card-img.is-loaded {
+  opacity: 1;
+}
+
+/* --- badges & controls ---------------------------------------------------- */
+.fs-card-status {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.fs-card-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fs-status, var(--interactive-accent));
+  flex: none;
+}
+
+.fs-card-price {
+  position: absolute;
+  top: 32px;
+  left: 8px;
+  z-index: 2;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.fs-card-fav {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.fs-card-fav:hover {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.fs-card-fav svg {
+  width: 14px;
+  height: 14px;
+}
+
+.fs-card-fav.is-active {
+  color: var(--fs-fav, var(--color-red));
+}
+
+.fs-card-fav.is-active svg {
+  fill: currentColor;
+}
+
+.fs-card-menu {
+  position: absolute;
+  top: 36px;
+  right: 6px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background-color 0.12s ease;
+}
+
+.fs-card:hover .fs-card-menu,
+.fs-card-menu:focus-visible {
+  opacity: 1;
+}
+
+.fs-card-menu:hover {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.fs-card-menu svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* --- scrim ---------------------------------------------------------------- */
+.fs-card-scrim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  padding: 28px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.85),
+    rgba(0, 0, 0, 0.45) 60%,
+    transparent
+  );
+  color: rgba(255, 255, 255, 0.95);
+  pointer-events: none;
+}
+
+.fs-card-name {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.fs-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.fs-chip {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.92);
+  white-space: nowrap;
+}
+
+.fs-chip-more {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.fs-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+  min-height: 14px;
+}
+
+.fs-meta-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--fs-tier, rgba(255, 255, 255, 0.95));
+  font-weight: 600;
+}
+
+.fs-star-icon {
+  display: inline-flex;
+}
+
+.fs-star-icon svg {
+  width: 11px;
+  height: 11px;
+  fill: currentColor;
+}
+
+.fs-meta-google {
+  display: inline-flex;
+  align-items: center;
+}
+
+.fs-meta-g {
+  font-weight: 700;
+}
+
+.fs-stale-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-orange);
+  margin-left: 4px;
+}
+
+.fs-meta-time {
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+}
+
+/* --- no-photo cards: themed surface instead of a dark poster --------------- */
+/* Default cover: a quiet plate-and-cutlery doodle pattern, masked so it
+   picks up theme color, behind the letter. Shown wherever no photo exists. */
+.fs-card-nophoto .fs-card-photo::before,
+.fs-mini-photo:not(:has(.fs-card-img))::before,
+.fs-card-row-thumb:not(:has(.fs-card-img))::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--text-faint);
+  opacity: 0.14;
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56'><g fill='none' stroke='white' stroke-width='2' stroke-linecap='round'><circle cx='15' cy='15' r='8'/><circle cx='15' cy='15' r='4'/><path d='M40 34v6M44 34v6M48 34v6M44 40v10'/><path d='M36 8c4 0 6 4 6 8l-4 2v8'/><path d='M12 38v12M8 38c0 3 1 5 4 5s4-2 4-5'/></g></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56'><g fill='none' stroke='white' stroke-width='2' stroke-linecap='round'><circle cx='15' cy='15' r='8'/><circle cx='15' cy='15' r='4'/><path d='M40 34v6M44 34v6M48 34v6M44 40v10'/><path d='M36 8c4 0 6 4 6 8l-4 2v8'/><path d='M12 38v12M8 38c0 3 1 5 4 5s4-2 4-5'/></g></svg>");
+  -webkit-mask-size: 56px 56px;
+  mask-size: 56px 56px;
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+  pointer-events: none;
+}
+
+.fs-card-letter,
+.fs-mini-photo .fs-card-letter,
+.fs-card-row-thumb .fs-card-letter {
+  position: relative;
+  z-index: 1;
+}
+
+.fs-card-nophoto .fs-card-letter {
+  color: var(--text-faint);
+  opacity: 1;
+  text-shadow: none;
+}
+
+.fs-card-nophoto .fs-card-scrim {
+  background: linear-gradient(
+    to top,
+    var(--fs-cuisine-tint, var(--background-secondary)) 62%,
+    transparent
+  );
+  color: var(--text-normal);
+}
+
+.fs-card-nophoto .fs-chip {
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+
+.fs-card-nophoto .fs-chip-more {
+  background: transparent;
+  color: var(--text-faint);
+}
+
+.fs-card-nophoto .fs-card-meta {
+  color: var(--text-muted);
+}
+
+.fs-card-nophoto .fs-meta-time {
+  color: var(--text-faint);
+}
+
+.fs-card-nophoto .fs-card-status {
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+
+.fs-card-nophoto .fs-card-price {
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+
+.fs-card-nophoto .fs-card-fav,
+.fs-card-nophoto .fs-card-menu {
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+
+.fs-card-nophoto .fs-card-fav:hover,
+.fs-card-nophoto .fs-card-menu:hover {
+  background: var(--background-modifier-active-hover, var(--background-modifier-hover));
+  color: var(--text-normal);
+}
+
+.fs-card-nophoto .fs-meta-stars {
+  color: var(--fs-tier, var(--text-normal));
+}
+
+/* --- "under the photo" text placement (settings.cardTextPlacement) -------- */
+.fs-card.fs-card-text-under {
+  display: flex;
+  flex-direction: column;
+}
+
+.fs-card-text-under .fs-card-photo {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  flex: none;
+  overflow: hidden;
+}
+
+.fs-card-text-under .fs-card-scrim {
+  position: static;
+  flex: 1;
+  min-height: 0;
+  padding: 8px 10px 10px;
+  background: none;
+  color: var(--text-normal);
+}
+
+.fs-card-text-under .fs-chip {
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+
+.fs-card-text-under .fs-card-meta {
+  color: var(--text-muted);
+}
+
+.fs-card-text-under .fs-meta-stars {
+  color: var(--fs-tier, var(--text-normal));
+}
+
+.fs-card-text-under .fs-meta-time {
+  color: var(--text-faint);
+}
+
+/* --- selection (::after border — outlines get painted over) --------------- */
+.fs-vcell.is-selected::after,
+.fs-card-row.is-selected::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--interactive-accent);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.fs-vcell.is-selected .fs-card {
+  transform: none;
+}
+
+.fs-select-mode .fs-card,
+.fs-select-mode .fs-card-row {
+  cursor: copy;
+}
+
+/* --- compact row variant (dashboard lists) -------------------------------- */
+.fs-card-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.fs-card-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.fs-card-row-thumb {
+  position: relative;
+  width: 56px;
+  height: 42px;
+  flex: none;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fs-cuisine-tint, var(--interactive-accent));
+}
+
+.fs-card-row-thumb .fs-card-letter {
+  font-size: 1.1rem;
+}
+
+.fs-card-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.fs-card-row-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fs-card-row-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fs-card-row-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: 12px;
+}
+
+.fs-card-row-meta .fs-meta-stars {
+  color: var(--fs-tier, var(--text-muted));
+}
+
+.fs-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fs-status, var(--text-faint));
+}
+
+.fs-card-row-menu {
+  position: static;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.fs-card-row-menu:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.fs-card-row:hover .fs-card-row-menu {
+  opacity: 1;
+}
+
+/* --- in-card "pull info" button (spots with missing cover/data) ------------ */
+.fs-card-pull {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, 6px);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.fs-card:hover .fs-card-pull,
+.fs-card-pull:focus-visible,
+.fs-card-pull.fs-loading {
+  opacity: 1;
+}
+
+.fs-card-pull:hover {
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+}
+
+.fs-card-pull svg {
+  width: 13px;
+  height: 13px;
+}
+
+.fs-card-pull.fs-loading svg {
+  animation: fs-spin 1s linear infinite;
+}
+
+@media (hover: none) {
+  .fs-card-pull {
+    opacity: 1;
+  }
+}
+
+/* --- mini poster card (dashboard shelves) ---------------------------------- */
+.fs-mini-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: transform 0.15s ease;
+}
+
+@media (hover: hover) {
+  .fs-mini-card:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.fs-mini-photo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fs-cuisine-tint, var(--background-secondary));
+}
+
+.fs-mini-photo .fs-card-letter {
+  font-size: 1.6rem;
+  color: var(--text-faint);
+  opacity: 1;
+  text-shadow: none;
+}
+
+.fs-mini-photo .fs-card-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fs-mini-dot {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fs-status, var(--text-faint));
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+
+.fs-mini-rating {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--fs-tier, rgba(255, 255, 255, 0.95));
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.fs-mini-rating .fs-star-icon svg {
+  width: 9px;
+  height: 9px;
+  fill: currentColor;
+}
+
+.fs-mini-menu {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 3;
+}
+
+.fs-mini-card:hover .fs-mini-menu,
+.fs-mini-menu:focus-visible {
+  opacity: 1;
+}
+
+.fs-mini-body {
+  min-width: 0;
+  padding: 0 2px;
+}
+
+.fs-mini-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fs-mini-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- touch devices: no hover states to rely on ---------------------------- */
+@media (hover: none) {
+  .fs-card-menu,
+  .fs-card-row-menu {
+    opacity: 1;
+  }
+}

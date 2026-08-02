@@ -1,0 +1,216 @@
+/* ==========================================================================
+   Food Spot — paste-a-list bulk importer (41-list-import.css)
+   Follows 40-modals.css: Obsidian vars only, fs- prefix, accent-only theming.
+   Wider than the standard modal because every review row carries a name, an
+   address and a picker on one line.
+   ========================================================================== */
+
+.fs-list-import-modal {
+  max-width: 720px;
+}
+
+/* ---------- phase 1: paste ---------- */
+
+.fs-li-textarea {
+  width: 100%;
+  min-height: 160px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+}
+
+.fs-li-near {
+  margin-top: 12px;
+}
+
+.fs-li-near-input {
+  width: 100%;
+}
+
+.fs-li-count {
+  margin-top: 10px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-li-count.fs-li-count-empty {
+  color: var(--text-faint);
+}
+
+/* ---------- phase 2: review ---------- */
+
+.fs-li-review-head {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.fs-li-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.fs-li-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.fs-li-row.fs-li-saved {
+  opacity: 0.6;
+}
+
+.fs-li-check {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.fs-li-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.fs-li-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fs-li-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fs-li-status {
+  display: inline-flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.fs-li-badge {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.fs-li-badge-warn {
+  color: var(--text-warning, var(--text-muted));
+  border-color: var(--color-orange, var(--background-modifier-border));
+}
+
+.fs-li-cand {
+  margin-top: 3px;
+  min-width: 0;
+}
+
+.fs-li-cand-name {
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fs-li-cand-addr,
+.fs-li-none {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fs-li-none {
+  color: var(--text-faint);
+}
+
+.fs-li-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.fs-li-meta:empty {
+  display: none;
+}
+
+.fs-li-rating .fs-meta-g {
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.fs-li-price {
+  color: var(--text-muted);
+}
+
+.fs-li-picker {
+  margin-top: 6px;
+  max-width: 100%;
+  font-size: var(--font-ui-smaller);
+}
+
+/* ---------- review footer ---------- */
+
+.fs-li-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.fs-li-footer-count {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-li-footer-buttons {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* ---------- progress (shares .fs-progress-* from 40-modals.css) ---------- */
+
+.fs-li-progress-title {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 500px) {
+  .fs-li-footer-buttons {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .fs-li-name,
+  .fs-li-cand-name,
+  .fs-li-cand-addr {
+    white-space: normal;
+  }
+}

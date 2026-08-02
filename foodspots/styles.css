@@ -1,0 +1,450 @@
+/* FoodSpots plugin styles — single file per Obsidian convention.
+ * Uses Obsidian CSS variables throughout (var(--text-normal), etc.) so the
+ * plugin themes correctly in both light and dark themes; no hardcoded colors.
+ */
+
+/* ---------------------------------------------------------------------- */
+/* Dashboard view                                                          */
+/* ---------------------------------------------------------------------- */
+
+.foodspots-dashboard {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: var(--size-4-2);
+	gap: var(--size-4-2);
+}
+
+.foodspots-toolbar {
+	display: flex;
+	gap: var(--size-4-2);
+	flex-wrap: wrap;
+	padding-bottom: var(--size-4-2);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.foodspots-toolbar button {
+	white-space: nowrap;
+}
+
+.foodspots-dashboard-body {
+	display: flex;
+	flex: 1;
+	gap: var(--size-4-4);
+	overflow: hidden;
+	min-height: 0;
+}
+
+.foodspots-rail {
+	flex: 0 0 220px;
+	overflow-y: auto;
+	border-right: 1px solid var(--background-modifier-border);
+	padding-right: var(--size-4-2);
+}
+
+.foodspots-main {
+	flex: 1;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	min-width: 0;
+}
+
+.foodspots-rail h4,
+.foodspots-main h4 {
+	margin: var(--size-4-2) 0 var(--size-4-1) 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+/* Location tree */
+
+.foodspots-tree-node {
+	padding: 2px var(--size-4-1);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.foodspots-tree-node:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.foodspots-tree-node.is-active {
+	background-color: var(--background-modifier-active-hover);
+	color: var(--text-accent);
+	font-weight: 600;
+}
+
+.foodspots-tree-all {
+	margin-bottom: var(--size-4-1);
+	font-weight: 600;
+}
+
+/* Stats panel */
+
+.foodspots-stats-panel {
+	margin-top: var(--size-4-4);
+}
+
+.foodspots-stats-row {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	margin-bottom: var(--size-4-1);
+}
+
+.foodspots-stats-bar {
+	height: 4px;
+	background-color: var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	overflow: hidden;
+	margin-top: 2px;
+}
+
+.foodspots-stats-bar-fill {
+	height: 100%;
+	background-color: var(--interactive-accent);
+}
+
+/* Filter bar */
+
+.foodspots-filter-bar {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	padding-bottom: var(--size-4-2);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.foodspots-chip-group {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--size-4-1);
+}
+
+.foodspots-chip-group-label {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	margin-right: var(--size-4-1);
+	min-width: 60px;
+}
+
+.foodspots-chip {
+	border: 1px solid var(--background-modifier-border);
+	background-color: var(--background-secondary);
+	color: var(--text-normal);
+	border-radius: var(--radius-l);
+	padding: 2px var(--size-4-2);
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+}
+
+.foodspots-chip:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.foodspots-chip.is-selected {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.foodspots-filter-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.foodspots-filter-row input[type="text"] {
+	flex: 1;
+}
+
+.foodspots-filter-row input[type="range"] {
+	flex: 1;
+	max-width: 200px;
+}
+
+/* Best-of bar */
+
+.foodspots-bestof-bar {
+	padding-bottom: var(--size-4-2);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* Sort row */
+
+.foodspots-sort-row .setting-item {
+	border: none;
+	padding: 0;
+}
+
+/* Card list */
+
+.foodspots-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+}
+
+.foodspots-card {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: var(--size-4-3);
+	background-color: var(--background-secondary);
+	cursor: pointer;
+	transition: background-color 0.1s ease-in-out;
+}
+
+.foodspots-card:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.foodspots-card-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--size-4-2);
+}
+
+.foodspots-card-name {
+	font-weight: 600;
+	font-size: var(--font-ui-medium);
+	color: var(--text-normal);
+}
+
+.foodspots-badge {
+	font-size: var(--font-ui-smaller);
+	padding: 1px var(--size-4-2);
+	border-radius: var(--radius-l);
+	white-space: nowrap;
+	background-color: var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+.foodspots-badge-visited {
+	background-color: var(--color-blue);
+	color: var(--text-on-accent);
+}
+
+.foodspots-badge-favorite {
+	background-color: var(--color-yellow);
+	color: var(--text-on-accent);
+}
+
+.foodspots-badge-want-to-try {
+	background-color: var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+.foodspots-card-cuisines {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	margin-top: 2px;
+}
+
+.foodspots-card-location {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	margin-top: 2px;
+}
+
+.foodspots-card-meta {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-3);
+	margin-top: var(--size-4-2);
+	font-size: var(--font-ui-small);
+	flex-wrap: wrap;
+}
+
+.foodspots-price {
+	color: var(--text-accent);
+}
+
+.foodspots-rating {
+	color: var(--color-yellow);
+}
+
+.foodspots-external-rating {
+	color: var(--text-muted);
+}
+
+.foodspots-copy-coords {
+	font-size: var(--font-ui-smaller);
+}
+
+.foodspots-no-coords {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-style: italic;
+}
+
+.foodspots-empty {
+	color: var(--text-faint);
+	font-style: italic;
+	padding: var(--size-4-4);
+	text-align: center;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Modals (add/edit/import spot)                                           */
+/* ---------------------------------------------------------------------- */
+
+.foodspots-spot-form {
+	display: flex;
+	flex-direction: column;
+}
+
+.foodspots-form-section {
+	margin-top: var(--size-4-4);
+	padding-top: var(--size-4-2);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.foodspots-form-section h4 {
+	margin: 0 0 var(--size-4-2) 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+.foodspots-field-low-confidence input,
+.foodspots-field-low-confidence textarea,
+.foodspots-field-low-confidence select {
+	opacity: 0.7;
+	font-style: italic;
+}
+
+.foodspots-field-absent {
+	opacity: 0.5;
+}
+
+.foodspots-modal-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: var(--size-4-2);
+	margin-top: var(--size-4-4);
+	padding-top: var(--size-4-2);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.foodspots-warnings {
+	background-color: var(--background-secondary);
+	background-color: color-mix(in srgb, var(--color-orange) 12%, var(--background-secondary));
+	border: 1px solid var(--color-orange);
+	border-radius: var(--radius-m);
+	padding: var(--size-4-2) var(--size-4-3);
+	margin-bottom: var(--size-4-2);
+	font-size: var(--font-ui-small);
+}
+
+.foodspots-warnings ul {
+	margin: var(--size-4-1) 0 0 0;
+	padding-left: var(--size-4-4);
+}
+
+.foodspots-duplicate-banner {
+	background-color: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-secondary));
+	border: 1px solid var(--interactive-accent);
+	border-radius: var(--radius-m);
+	padding: var(--size-4-2) var(--size-4-3);
+	margin-bottom: var(--size-4-2);
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	font-size: var(--font-ui-small);
+}
+
+.foodspots-merge-note {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--size-4-2);
+	background-color: var(--background-secondary);
+	border-radius: var(--radius-m);
+	padding: var(--size-4-2) var(--size-4-3);
+	margin-bottom: var(--size-4-2);
+	font-size: var(--font-ui-small);
+}
+
+.foodspots-external-rating-readout {
+	margin-top: var(--size-4-2);
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+.foodspots-import-status {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	min-height: 1.2em;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Code-block widget                                                       */
+/* ---------------------------------------------------------------------- */
+
+.foodspots-codeblock {
+	font-size: var(--font-ui-small);
+}
+
+.foodspots-spot-link {
+	color: var(--text-accent);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.foodspots-spot-link:hover {
+	text-decoration: underline;
+}
+
+.foodspots-codeblock-meta {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	display: inline;
+}
+
+.foodspots-codeblock-list ul,
+.foodspots-codeblock-list {
+	margin: 0;
+	padding-left: var(--size-4-4);
+}
+
+.foodspots-codeblock-cards {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-4-2);
+}
+
+.foodspots-codeblock-card {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: var(--size-4-2) var(--size-4-3);
+	background-color: var(--background-secondary);
+	min-width: 180px;
+}
+
+.foodspots-codeblock-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.foodspots-codeblock-table th,
+.foodspots-codeblock-table td {
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding: var(--size-4-1) var(--size-4-2);
+	text-align: left;
+}
+
+.foodspots-codeblock-table th {
+	color: var(--text-muted);
+	font-weight: 600;
+}

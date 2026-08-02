@@ -1,0 +1,1042 @@
+/* ==========================================================================
+   Food Spot — modals, star rating, autocomplete (40-modals.css)
+   All colors from Obsidian CSS vars or the user-configurable palette
+   (injected inline as --fs-* custom properties). Accent-only theming.
+   ========================================================================== */
+
+/* ---------- shared modal chrome ---------- */
+
+.fs-modal {
+  max-width: 560px;
+  width: 100%;
+}
+
+.fs-detail-modal,
+.fs-addedit-modal {
+  max-width: 640px;
+}
+
+.fs-modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.fs-small-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--font-ui-small);
+  padding: 4px 10px;
+}
+
+.fs-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+
+.fs-icon-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.fs-empty-state {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  padding: 10px 4px;
+}
+
+.fs-notice-undo {
+  margin-left: 8px;
+  padding: 2px 10px;
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+
+@keyframes fs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fs-spin svg,
+.fs-loading svg {
+  animation: fs-spin 1s linear infinite;
+}
+
+/* ---------- star rating widget ---------- */
+
+.fs-star-rating {
+  --fs-star-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fs-star-rating:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-s);
+}
+
+.fs-stars {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.fs-star {
+  position: relative;
+  width: var(--fs-star-size);
+  height: var(--fs-star-size);
+}
+
+.fs-star-rating:not(.fs-readonly) .fs-star {
+  cursor: pointer;
+}
+
+.fs-star-bg,
+.fs-star-fill {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+}
+
+.fs-star-bg svg,
+.fs-star-fill svg {
+  width: var(--fs-star-size);
+  height: var(--fs-star-size);
+  min-width: var(--fs-star-size);
+  flex-shrink: 0;
+}
+
+.fs-star-bg {
+  color: var(--text-faint);
+}
+
+.fs-star-fill {
+  overflow: hidden;
+  width: 0%;
+  color: var(--fs-rating-color, var(--text-faint));
+  transition: width 0.08s ease-out;
+}
+
+.fs-star-fill svg {
+  fill: currentColor;
+}
+
+.fs-star-rating.fs-previewing .fs-star-fill {
+  opacity: 0.85;
+}
+
+.fs-star-tier-label {
+  font-size: var(--font-ui-small);
+  color: var(--fs-rating-color, var(--text-muted));
+  font-weight: 500;
+  min-width: 3em;
+}
+
+.fs-readonly {
+  --fs-star-size: 13px;
+}
+
+/* ---------- autocomplete dropdown ---------- */
+
+.fs-ac-host {
+  position: relative;
+}
+
+.fs-ac-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: var(--layer-menu, 25);
+  margin-top: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  box-shadow: var(--shadow-s);
+}
+
+.fs-ac-dropdown.fs-open {
+  display: block;
+}
+
+.fs-ac-item {
+  padding: 5px 10px;
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fs-ac-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.fs-ac-item.fs-ac-active {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* ---------- form layout (add/edit) ---------- */
+
+.fs-addedit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fs-form-section {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  padding: 12px 14px;
+}
+
+.fs-form-section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.fs-section-icon {
+  display: inline-flex;
+}
+
+.fs-section-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.fs-field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+
+.fs-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fs-field-wide {
+  grid-column: 1 / -1;
+}
+
+.fs-field-label {
+  font-size: var(--font-ui-smaller);
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.fs-field input[type="text"],
+.fs-field input[type="number"],
+.fs-field input[type="date"],
+.fs-field textarea {
+  width: 100%;
+}
+
+.fs-field-msg {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-error);
+  min-height: 0;
+}
+
+.fs-field-hint {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+}
+
+.fs-field.fs-field-error input,
+.fs-field.fs-field-error textarea,
+.fs-input-invalid {
+  border-color: var(--background-modifier-error) !important;
+}
+
+/* draft-prefilled fields with low parser confidence (or merged-in values) */
+.fs-conf-low {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.fs-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  cursor: pointer;
+  padding-top: 4px;
+}
+
+.fs-notes-input {
+  resize: vertical;
+  font-family: inherit;
+}
+
+/* ---------- segmented controls (status, price) ---------- */
+
+.fs-segmented {
+  display: inline-flex;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  width: fit-content;
+}
+
+.fs-seg-btn {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 4px 12px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.fs-seg-btn + .fs-seg-btn {
+  border-left: 1px solid var(--background-modifier-border);
+}
+
+.fs-seg-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.fs-seg-btn.fs-active {
+  background: var(--fs-seg-active-color, var(--interactive-accent));
+  color: var(--text-on-accent);
+}
+
+.fs-price-seg .fs-seg-btn {
+  padding: 4px 9px;
+}
+
+/* ---------- duplicate banner ---------- */
+
+.fs-dup-banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-left: 3px solid var(--interactive-accent);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  font-size: var(--font-ui-small);
+}
+
+.fs-dup-icon {
+  display: inline-flex;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.fs-dup-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.fs-dup-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ---------- Places search (add modal) ---------- */
+
+.fs-places-search {
+  width: 100%;
+}
+
+.fs-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.fs-search-status {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  padding: 4px 2px;
+}
+
+.fs-search-error {
+  color: var(--text-error);
+}
+
+.fs-result-tile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.fs-result-tile:hover {
+  background: var(--background-modifier-hover);
+  transform: translateY(-1px);
+}
+
+.fs-result-tile.fs-in-library {
+  opacity: 0.75;
+}
+
+.fs-result-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.fs-result-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fs-result-address {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fs-result-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.fs-badge-saved {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+  border-radius: var(--radius-s);
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+/* ---------- chooser modal ---------- */
+
+.fs-chooser-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fs-chooser-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  height: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.fs-chooser-option:hover:not(.fs-disabled) {
+  background: var(--background-modifier-hover);
+  transform: translateY(-1px);
+}
+
+.fs-chooser-option.fs-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.fs-chooser-icon {
+  display: inline-flex;
+  color: var(--interactive-accent);
+  flex-shrink: 0;
+}
+
+.fs-chooser-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.fs-chooser-text {
+  min-width: 0;
+}
+
+.fs-chooser-title {
+  font-weight: 600;
+}
+
+.fs-chooser-desc {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  white-space: normal;
+}
+
+/* ---------- import modal ---------- */
+
+.fs-import-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  margin: 0 0 10px;
+}
+
+.fs-import-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  margin-top: 8px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+.fs-import-warning {
+  color: var(--text-warning, var(--text-muted));
+  font-size: var(--font-ui-small);
+}
+
+/* Importer warnings carried into the review form (bot-check detection, …). */
+.fs-import-warnings {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-left: 3px solid var(--color-orange, var(--interactive-accent));
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+}
+
+/* ---------- confirm modal ---------- */
+
+.fs-confirm-body {
+  color: var(--text-normal);
+  margin: 0;
+}
+
+/* ---------- detail modal ---------- */
+
+.fs-detail-header {
+  margin: 0 0 12px;
+}
+
+.fs-detail-photo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 1.4;
+  border-radius: var(--radius-m);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background-secondary);
+}
+
+.fs-detail-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  /* Same guard as cards: keep image-viewer plugins from hijacking clicks. */
+  pointer-events: none;
+}
+
+.fs-photo-letter {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--text-on-accent);
+  opacity: 0.85;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.fs-detail-name-row {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.fs-detail-name {
+  margin: 0;
+  cursor: text;
+  border-radius: var(--radius-s);
+  padding: 2px 4px;
+}
+
+.fs-detail-name:hover {
+  background: var(--background-modifier-hover);
+}
+
+.fs-detail-name-input {
+  font-size: var(--h2-size, 1.4em);
+  font-weight: 600;
+  width: 100%;
+}
+
+.fs-detail-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.fs-fav-toggle {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 4px;
+  color: var(--text-faint);
+  cursor: pointer;
+  display: inline-flex;
+}
+
+.fs-fav-toggle:hover {
+  color: var(--text-muted);
+}
+
+.fs-fav-toggle.fs-active svg {
+  fill: currentColor;
+}
+
+.fs-detail-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fs-rating-auto {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.fs-rating-auto:hover {
+  color: var(--text-normal);
+}
+
+.fs-detail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+/* Scoped to the detail modal: .fs-chip is also the on-photo card chip
+   (20-cards.css) and the settings status chip (60-settings.css). */
+.fs-detail-chips .fs-chip {
+  font-size: var(--font-ui-small);
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.fs-detail-chips .fs-chip:hover {
+  background: var(--background-modifier-hover);
+  border-color: var(--interactive-accent);
+}
+
+.fs-detail-chips .fs-chip-tag {
+  color: var(--text-muted);
+}
+
+.fs-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.fs-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fs-info-icon {
+  display: inline-flex;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.fs-info-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.fs-info-text {
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.fs-info-text {
+  color: var(--link-color, var(--interactive-accent));
+}
+
+.fs-info-empty .fs-info-text {
+  color: var(--text-faint);
+}
+
+.fs-detail-external {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  margin-bottom: 14px;
+  font-size: var(--font-ui-small);
+}
+
+.fs-ext-badge {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-normal);
+}
+
+.fs-ext-source {
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+
+.fs-ext-none {
+  color: var(--text-faint);
+}
+
+.fs-stale-badge {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.fs-ext-add {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.fs-ext-add:hover {
+  color: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+
+.fs-ext-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  font-size: var(--font-ui-small);
+  padding: 3px 9px;
+}
+
+.fs-ext-refresh svg {
+  width: 13px;
+  height: 13px;
+}
+
+.fs-detail-section {
+  margin-bottom: 14px;
+}
+
+.fs-detail-section h3 {
+  margin: 0;
+  font-size: var(--font-ui-medium);
+}
+
+.fs-detail-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.fs-visit-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.fs-visit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  min-width: 0;
+}
+
+.fs-visit-row:last-child {
+  border-bottom: none;
+}
+
+.fs-visit-date {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  min-width: 78px;
+}
+
+.fs-visit-stars {
+  flex-shrink: 0;
+}
+
+.fs-visit-spent {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.fs-visit-note {
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-visit-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.fs-visit-row:hover .fs-visit-actions {
+  opacity: 1;
+}
+
+/* Always-visible row actions on mobile (no hover) */
+.is-mobile .fs-visit-actions {
+  opacity: 1;
+}
+
+.fs-visit-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.fs-visit-spent-input {
+  width: 80px;
+}
+
+.fs-visit-note-input {
+  flex: 1;
+  min-width: 140px;
+}
+
+.fs-visit-form-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.fs-detail-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.fs-detail-meta {
+  margin-left: auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 500px) {
+  .fs-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fs-detail-footer {
+    flex-wrap: wrap;
+  }
+
+  .fs-detail-meta {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* ---------- v1.1: menu preview (detail modal) ---------- */
+
+.fs-menu-preview {
+  margin: 4px 0 2px 23px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  cursor: pointer;
+  width: fit-content;
+  max-width: 100%;
+  transition: border-color 0.15s ease;
+}
+
+.fs-menu-preview:hover {
+  border-color: var(--interactive-accent);
+}
+
+.fs-menu-preview-img {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+}
+
+/* ---------- v1.1: bulk enrich modals ---------- */
+
+.fs-enrich-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.fs-enrich-fields .fs-checkbox-label {
+  padding-top: 0;
+}
+
+.fs-enrich-overwrite {
+  padding-top: 0;
+  margin-bottom: 12px;
+  color: var(--text-muted);
+}
+
+.fs-enrich-scope {
+  margin-bottom: 12px;
+}
+
+.fs-enrich-scope .dropdown {
+  width: fit-content;
+}
+
+.fs-enrich-quota {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+}
+
+.fs-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--background-modifier-border);
+  overflow: hidden;
+}
+
+.fs-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: var(--interactive-accent);
+  transition: width 0.2s ease-out;
+}
+
+.fs-enrich-progress-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+.fs-enrich-count {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-enrich-current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* ---------- v1.1: attach-rating-source choice (import modal) ---------- */
+
+.fs-attach-banner {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
+.fs-attach-banner .fs-dup-actions {
+  flex-wrap: wrap;
+}

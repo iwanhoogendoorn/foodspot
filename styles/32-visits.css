@@ -1,0 +1,152 @@
+/* ===========================================================================
+   Food Spot — 32-visits: virtualized visit timeline grouped by day.
+   Rating tier colors arrive per-row via --fs-tier (user palette).
+   ======================================================================== */
+
+.fs-visits {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.fs-visits-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex: 0 0 auto;
+}
+
+.fs-visits-title {
+  font-weight: 600;
+  font-size: var(--font-ui-medium);
+  color: var(--text-normal);
+}
+
+.fs-visits-count {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.fs-visits-log {
+  margin-left: auto;
+}
+
+/* --- day header rows ------------------------------------------------------ */
+.fs-tl-day {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 16px 14px 4px;
+  font-size: 12px;
+}
+
+.fs-tl-day-date {
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.fs-tl-day-ago,
+.fs-tl-day-count {
+  color: var(--text-faint);
+}
+
+/* --- visit rows ----------------------------------------------------------- */
+.fs-tl-row {
+  display: flex;
+  gap: 10px;
+  padding: 2px 14px;
+}
+
+.fs-tl-rail {
+  position: relative;
+  width: 16px;
+  flex: none;
+  display: flex;
+  justify-content: center;
+}
+
+.fs-tl-rail::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--background-modifier-border);
+}
+
+.fs-tl-dot {
+  position: relative;
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  box-shadow: 0 0 0 3px var(--background-primary);
+}
+
+.fs-tl-dot.has-rating {
+  background: var(--fs-tier, var(--interactive-accent));
+}
+
+.fs-tl-body {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 6px;
+}
+
+.fs-tl-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fs-tl-name {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-normal);
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  transition: color 0.12s ease;
+}
+
+.fs-tl-name:hover {
+  color: var(--interactive-accent);
+}
+
+.fs-tl-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fs-tier, var(--text-muted));
+}
+
+.fs-tl-spent {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.fs-tl-note {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

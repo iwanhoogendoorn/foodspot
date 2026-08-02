@@ -1,0 +1,23 @@
+{
+  "name": "foodspot",
+  "version": "1.0.0",
+  "description": "Food Spot — restaurant tracker for Obsidian with markdown-note storage",
+  "main": "foodspot/main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.21.5",
+    "obsidian": "latest",
+    "tslib": "^2.6.2",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "@types/leaflet": "^1.9.22",
+    "fuse.js": "^7.0.0",
+    "leaflet": "^1.9.4"
+  }
+}

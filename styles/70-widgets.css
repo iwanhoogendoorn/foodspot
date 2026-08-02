@@ -1,0 +1,260 @@
+/* ==========================================================================
+   Food Spot — code-block widgets (70-widgets.css)
+   Self-contained styles for ```foodspot``` blocks rendered inside notes.
+   ========================================================================== */
+
+.fs-widget {
+  margin: 8px 0;
+}
+.fs-widget-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 13px;
+  padding: 6px 0;
+}
+
+/* --- inline error ----------------------------------------------------------- */
+.fs-widget-error {
+  border-left: 3px solid var(--color-red);
+  background: var(--background-secondary);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.fs-widget-error-title {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 600;
+  color: var(--color-red);
+  margin-bottom: 6px;
+}
+.fs-widget-error-title svg {
+  width: 14px;
+  height: 14px;
+}
+.fs-widget-error ul {
+  margin: 0 0 6px;
+  padding-left: 18px;
+}
+.fs-widget-error-help {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* --- cards ------------------------------------------------------------------ */
+.fs-widget-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+/* Full photo cards in a non-virtualized grid: aspect-lock the card itself
+   (the Spots tab locks the virtual cell instead). */
+.fs-widget-cards .fs-card {
+  aspect-ratio: 4 / 3;
+  height: auto;
+}
+
+.fs-widget-cards .fs-card.fs-card-text-under {
+  aspect-ratio: auto;
+}
+
+/* --- list ------------------------------------------------------------------- */
+.fs-widget-list-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.fs-widget-list-row:last-child {
+  border-bottom: none;
+}
+.fs-widget-list-row:hover {
+  background: var(--background-modifier-hover);
+}
+.fs-widget-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fs-widget-list-row:hover .fs-widget-name,
+.fs-widget-shortlist-row:hover .fs-widget-name {
+  color: var(--interactive-accent);
+}
+.fs-widget-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* --- table ------------------------------------------------------------------ */
+.fs-widget-tablewrap {
+  overflow-x: auto;
+}
+.fs-widget-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 0;
+}
+.fs-widget-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.fs-widget-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.fs-widget-table tbody tr {
+  cursor: pointer;
+}
+.fs-widget-table tbody tr:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* --- shortlist -------------------------------------------------------------- */
+.fs-widget-shortlist-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.fs-widget-shortlist-row:hover {
+  background: var(--background-modifier-hover);
+}
+.fs-widget-shortlist-row svg {
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.fs-widget-shortlist-city {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* --- random ----------------------------------------------------------------- */
+.fs-widget-random {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fs-widget-shuffle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+}
+.fs-widget-shuffle svg {
+  width: 14px;
+  height: 14px;
+}
+.fs-widget-random-slot {
+  max-width: 220px;
+}
+
+/* --- stat ------------------------------------------------------------------- */
+.fs-widget-stat {
+  background: var(--background-secondary);
+  border-radius: 10px;
+  padding: 12px;
+}
+.fs-widget-stat-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.fs-widget-ring-wrap {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  margin: 0 auto;
+}
+.fs-widget-ring-track {
+  fill: none;
+  stroke: var(--background-modifier-border);
+  stroke-width: 8;
+}
+.fs-widget-ring-progress {
+  fill: none;
+  stroke: var(--interactive-accent);
+  stroke-width: 8;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.9s ease;
+}
+.fs-widget-ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.fs-widget-ring-value {
+  font-size: 1.2em;
+  font-weight: 700;
+}
+.fs-widget-ring-caption {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+.fs-widget-strip {
+  display: flex;
+  overflow-x: auto;
+}
+.fs-widget-strip-seg {
+  flex: 1 1 0;
+  min-width: 80px;
+  padding: 4px 8px;
+  text-align: center;
+}
+.fs-widget-strip-seg + .fs-widget-strip-seg {
+  border-left: 1px solid var(--background-modifier-border);
+}
+.fs-widget-strip-value {
+  font-weight: 700;
+  font-size: 1.15em;
+}
+.fs-widget-strip-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.fs-widget-bar-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  margin-top: 6px;
+}
+.fs-widget-bar-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--background-modifier-border);
+  margin-top: 3px;
+  overflow: hidden;
+}
+.fs-widget-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--interactive-accent);
+  transition: width 0.4s ease;
+}

@@ -1,0 +1,433 @@
+/* ==========================================================================
+   Food Spot — settings navigator (60-settings.css)
+   WatchLog-style left-nav + settingsGroup panels + provider card.
+   ========================================================================== */
+
+.fs-settings {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.fs-settings-nav {
+  flex: 0 0 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 0;
+}
+.fs-settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  text-align: left;
+  justify-content: flex-start;
+}
+.fs-settings-nav-item:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.fs-settings-nav-item.is-active {
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-weight: 600;
+}
+.fs-settings-nav-item.is-active .fs-settings-nav-icon svg {
+  color: var(--interactive-accent);
+}
+.fs-settings-nav-icon {
+  display: flex;
+}
+.fs-settings-nav-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.fs-settings-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+@media (max-width: 700px) {
+  .fs-settings {
+    flex-direction: column;
+  }
+  .fs-settings-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    position: static;
+    width: 100%;
+  }
+}
+
+/* --- settingsGroup panel --------------------------------------------------- */
+.fs-sgroup {
+  background: var(--background-secondary);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.fs-sgroup-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.fs-sgroup-icon {
+  display: flex;
+  color: var(--interactive-accent);
+}
+.fs-sgroup-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.fs-sgroup-titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.fs-sgroup-title {
+  font-weight: 600;
+}
+.fs-sgroup-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.fs-sgroup-body .setting-item {
+  border-top: none;
+  padding: 10px 0;
+}
+
+/* --- status chip (scoped: .fs-chip also names the card + detail chips) ----- */
+.fs-sgroup-head .fs-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  white-space: nowrap;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fs-sgroup-head .fs-chip-ok {
+  color: var(--color-green);
+}
+.fs-sgroup-head .fs-chip-warn {
+  color: var(--color-orange);
+}
+.fs-sgroup-head .fs-chip-pending {
+  color: var(--text-muted);
+}
+
+/* --- inline help + misc ---------------------------------------------------- */
+.fs-setting-help {
+  background: var(--background-modifier-hover);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 4px 0 8px;
+}
+.fs-input-narrow {
+  width: 60px;
+  text-align: center;
+}
+.fs-mig-status {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.fs-mig-errors {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+.fs-data-note {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin: -4px 0 8px;
+}
+
+/* --- provider card --------------------------------------------------------- */
+.fs-provider-card {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fs-provider-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.fs-provider-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.fs-provider-titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.fs-provider-name {
+  font-weight: 600;
+}
+.fs-provider-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.fs-provider-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.fs-provider-badge.is-active {
+  color: var(--color-green);
+}
+.fs-provider-keyrow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.fs-provider-key {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-monospace);
+}
+.fs-provider-eye {
+  display: flex;
+  align-items: center;
+  padding: 4px 6px;
+}
+.fs-provider-eye svg {
+  width: 15px;
+  height: 15px;
+}
+.fs-provider-links {
+  font-size: 12px;
+}
+.fs-provider-warning {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.fs-provider-warning svg {
+  width: 14px;
+  height: 14px;
+  color: var(--color-orange);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* --- card size preview ----------------------------------------------------- */
+.fs-size-preview {
+  display: flex;
+  gap: 16px;
+  margin: 8px 0 4px;
+  flex-wrap: wrap;
+}
+.fs-size-preview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.fs-size-swatch {
+  height: 44px;
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-modifier-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: width 0.15s ease;
+}
+
+/* --- rating tier editor ----------------------------------------------------- */
+.fs-tier-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+.fs-tier-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+.fs-tier-color {
+  width: 36px;
+  height: 28px;
+  padding: 1px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+.fs-tier-label {
+  width: 100%;
+  min-width: 0;
+}
+.fs-tier-preview {
+  min-width: 140px;
+  display: flex;
+  justify-content: flex-end;
+}
+@media (max-width: 500px) {
+  .fs-tier-row {
+    grid-template-columns: auto 1fr;
+  }
+  .fs-tier-preview {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+/* --- stacked settings (rows with several buttons) --------------------------- */
+.fs-setting-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.fs-setting-stack .setting-item-info {
+  margin-right: 0;
+}
+.fs-setting-stack .setting-item-control {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-left: 0;
+}
+
+/* --- danger zone ------------------------------------------------------------ */
+/* Triple-class specificity: themes/snippets restyle .setting-item borders
+   (border-top only, etc.) and were shredding this box into corner arcs. */
+.fs-settings .fs-danger-setting.setting-item {
+  border: 1px solid color-mix(in srgb, var(--color-red) 40%, var(--background-modifier-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-red) 5%, transparent);
+  padding: 12px 14px;
+  margin-top: 10px;
+}
+.fs-settings .fs-danger-setting .setting-item-name {
+  color: var(--color-red);
+  font-weight: 600;
+}
+
+/* --- widget example gallery -------------------------------------------------- */
+.fs-example-card {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 8px 0;
+}
+.fs-example-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.fs-example-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.fs-example-card pre {
+  margin: 0;
+  user-select: text;
+}
+
+/* --- widget docs ------------------------------------------------------------ */
+.fs-widget-doc pre {
+  background: var(--background-primary);
+  border-radius: 8px;
+  padding: 10px;
+  overflow-x: auto;
+  font-size: 12px;
+}
+.fs-widget-doc h4 {
+  margin: 14px 0 6px;
+}
+.fs-doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fs-doc-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+}
+.fs-doc-row code {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.fs-doc-row span {
+  color: var(--text-muted);
+}
+.fs-doc-note {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* --- quick info collapsibles ------------------------------------------------ */
+.fs-qi {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.fs-qi-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  user-select: none;
+}
+.fs-qi-chev {
+  display: flex;
+}
+.fs-qi-chev svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s ease;
+}
+.fs-qi.is-open .fs-qi-chev svg {
+  transform: rotate(90deg);
+}
+.fs-qi-body {
+  display: none;
+  padding: 0 12px 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.fs-qi.is-open .fs-qi-body {
+  display: block;
+}
+.fs-qi-body p {
+  margin: 4px 0;
+}
