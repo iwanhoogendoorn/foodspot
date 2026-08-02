@@ -4,7 +4,7 @@
 	"version": "1.9.3",
 	"minAppVersion": "1.11.0",
 	"description": "Track restaurants across countries as markdown notes: wishlist, visits, your ratings next to Google/TripAdvisor ratings, dashboards and embeddable widgets.",
-	"author": "Iwan Hoogendoorn",
+	"author": "Iwan Hoogendoorn & Gaurav Mahadew",
 	"authorUrl": "",
 	"isDesktopOnly": false
 }

@@ -4,6 +4,8 @@ An Obsidian plugin for tracking restaurants across countries: keep a wishlist, l
 visits with ratings and spend, and see your own scores next to Google and TripAdvisor
 ratings — all stored as plain markdown notes in your vault.
 
+Created by **Iwan Hoogendoorn** and **Gaurav Mahadew**.
+
 ## Why notes, not a database
 
 Every restaurant is one markdown note with frontmatter (`type: foodspot`), so your data
