@@ -20209,15 +20209,13 @@ function mountDashboardTab(container, plugin) {
       const head = card.createDiv({ cls: "fs-sug-head" });
       head.createSpan({ cls: "fs-sug-title", text: "Where do we eat tonight?" });
       const controls = head.createDiv({ cls: "fs-sug-controls" });
-      const wttCities = [
-        ...new Set(
-          spots.filter((s) => s.status === "want-to-try").map((s) => (s.city ?? "").trim()).filter(Boolean)
-        )
+      const cities = [
+        ...new Set(spots.map((s) => (s.city ?? "").trim()).filter(Boolean))
       ].sort((a, b) => a.localeCompare(b));
-      if (suggestionCity && !wttCities.includes(suggestionCity)) suggestionCity = "";
+      if (suggestionCity && !cities.includes(suggestionCity)) suggestionCity = "";
       const citySel = controls.createEl("select", { cls: "dropdown fs-sug-city" });
       citySel.createEl("option", { text: "All cities", value: "" });
-      for (const c of wttCities) {
+      for (const c of cities) {
         const opt = citySel.createEl("option", { text: c, value: c });
         if (c === suggestionCity) opt.selected = true;
       }
@@ -20227,17 +20225,23 @@ function mountDashboardTab(container, plugin) {
       });
       (0, import_obsidian23.setIcon)(shuffleBtn, "shuffle");
       const slot = card.createDiv({ cls: "fs-sug-slot" });
-      const pool = () => spots.filter(
-        (s) => s.status === "want-to-try" && (!suggestionCity || (s.city ?? "").trim() === suggestionCity)
-      );
+      const note = card.createDiv({ cls: "fs-sug-sub" });
+      const inCity = (s) => !suggestionCity || (s.city ?? "").trim() === suggestionCity;
+      const pool = () => {
+        const wtt = spots.filter((s) => s.status === "want-to-try" && inCity(s));
+        if (wtt.length > 0) return { list: wtt, revisit: false };
+        const visited = spots.filter((s) => s.status === "visited" && inCity(s)).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+        return { list: visited, revisit: true };
+      };
       const roll = (forceNew) => {
         slot.empty();
-        const p = pool();
+        const { list: p, revisit } = pool();
+        note.setText("");
         if (!p.length) {
           suggestionPath = void 0;
           emptyLine(
             slot,
-            suggestionCity ? `Nothing on your want-to-try list in ${suggestionCity} yet.` : "Your want-to-try list is empty \u2014 add a spot to get a suggestion."
+            suggestionCity ? `No spots in ${suggestionCity} yet \u2014 add one to get a suggestion.` : "Your list is empty \u2014 add a spot to get a suggestion."
           );
           return;
         }
@@ -20250,6 +20254,11 @@ function mountDashboardTab(container, plugin) {
         }
         suggestionPath = pick.path;
         cardSlot(slot, pick);
+        if (revisit) {
+          note.setText(
+            suggestionCity ? `You've been everywhere on your list in ${suggestionCity} \u2014 worth a return?` : "Everything on your list is visited \u2014 worth a return?"
+          );
+        }
       };
       citySel.onchange = () => {
         suggestionCity = citySel.value;

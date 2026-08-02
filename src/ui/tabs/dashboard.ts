@@ -544,19 +544,17 @@ export function mountDashboardTab(
       head.createSpan({ cls: "fs-sug-title", text: "Where do we eat tonight?" });
       const controls = head.createDiv({ cls: "fs-sug-controls" });
 
-      const wttCities = [
-        ...new Set(
-          spots
-            .filter((s) => s.status === "want-to-try")
-            .map((s) => (s.city ?? "").trim())
-            .filter(Boolean),
-        ),
+      // EVERY city in the library, not just ones with want-to-try spots — a
+      // city where you've been everywhere still deserves a suggestion (it
+        // falls back to a revisit below).
+      const cities = [
+        ...new Set(spots.map((s) => (s.city ?? "").trim()).filter(Boolean)),
       ].sort((a, b) => a.localeCompare(b));
-      if (suggestionCity && !wttCities.includes(suggestionCity)) suggestionCity = "";
+      if (suggestionCity && !cities.includes(suggestionCity)) suggestionCity = "";
 
       const citySel = controls.createEl("select", { cls: "dropdown fs-sug-city" });
       citySel.createEl("option", { text: "All cities", value: "" });
-      for (const c of wttCities) {
+      for (const c of cities) {
         const opt = citySel.createEl("option", { text: c, value: c });
         if (c === suggestionCity) opt.selected = true;
       }
@@ -568,26 +566,36 @@ export function mountDashboardTab(
       setIcon(shuffleBtn, "shuffle");
 
       const slot = card.createDiv({ cls: "fs-sug-slot" });
-      const pool = () =>
-        spots.filter(
-          (s) =>
-            s.status === "want-to-try" &&
-            (!suggestionCity || (s.city ?? "").trim() === suggestionCity),
-        );
+      const note = card.createDiv({ cls: "fs-sug-sub" });
+      const inCity = (s: FoodSpot) =>
+        !suggestionCity || (s.city ?? "").trim() === suggestionCity;
+      /**
+       * Want-to-try first; when a city is fully explored, fall back to
+       * revisiting what's there (best-rated first) instead of a dead end.
+       */
+      const pool = (): { list: FoodSpot[]; revisit: boolean } => {
+        const wtt = spots.filter((s) => s.status === "want-to-try" && inCity(s));
+        if (wtt.length > 0) return { list: wtt, revisit: false };
+        const visited = spots
+          .filter((s) => s.status === "visited" && inCity(s))
+          .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+        return { list: visited, revisit: true };
+      };
       // Re-rolls replace ONLY the card slot — the section is never re-rendered.
       // `suggestionPath` lives at tab level so a data-changed repaint keeps the
       // current pick instead of silently swapping the spot the user is viewing
       // (same pattern as the random widget's entry.state.randomPath).
       const roll = (forceNew: boolean) => {
         slot.empty();
-        const p = pool();
+        const { list: p, revisit } = pool();
+        note.setText("");
         if (!p.length) {
           suggestionPath = undefined;
           emptyLine(
             slot,
             suggestionCity
-              ? `Nothing on your want-to-try list in ${suggestionCity} yet.`
-              : "Your want-to-try list is empty — add a spot to get a suggestion.",
+              ? `No spots in ${suggestionCity} yet — add one to get a suggestion.`
+              : "Your list is empty — add a spot to get a suggestion.",
           );
           return;
         }
@@ -600,6 +608,13 @@ export function mountDashboardTab(
         }
         suggestionPath = pick.path;
         cardSlot(slot, pick);
+        if (revisit) {
+          note.setText(
+            suggestionCity
+              ? `You've been everywhere on your list in ${suggestionCity} — worth a return?`
+              : "Everything on your list is visited — worth a return?",
+          );
+        }
       };
       citySel.onchange = () => {
         suggestionCity = citySel.value;
