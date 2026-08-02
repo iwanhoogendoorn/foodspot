@@ -11,7 +11,7 @@
  *    gradient scrim (clamped name, cuisine chips, meta row), stale-ratings
  *    dot, hover-revealed ⋮ menu (always visible on mobile via CSS).
  */
-import { Menu, Notice, TFile, setIcon } from "obsidian";
+import { Menu, Notice, TFile, normalizePath, setIcon } from "obsidian";
 import type {
   ExternalRatings,
   FoodSpot,
@@ -21,7 +21,7 @@ import type {
 import { openDetailModal } from "../modals/detail";
 import { openEditModal } from "../modals/addEdit";
 import { openLogVisitPicker } from "../modals/logVisit";
-import { confirmModal } from "../modals/confirm";
+import { confirmModalWithOption } from "../modals/confirm";
 
 // ---------------------------------------------------------------------------
 // Formatting helpers (shared by my tabs)
@@ -296,20 +296,57 @@ export async function pullSpotInfo(
   }
 }
 
-async function deleteWithConfirm(plugin: FoodSpotPluginApi, spot: FoodSpot): Promise<void> {
+/** Vault-stored media this spot references (photo/menu), if any. */
+export function spotMediaFiles(plugin: FoodSpotPluginApi, spot: FoodSpot): TFile[] {
+  const out: TFile[] = [];
+  for (const ref of [spot.photo, spot.menu]) {
+    if (!ref || /^https?:\/\//i.test(ref)) continue;
+    const f = plugin.app.vault.getFileByPath(normalizePath(ref));
+    if (f && !out.includes(f)) out.push(f);
+  }
+  return out;
+}
+
+export async function deleteWithConfirm(
+  plugin: FoodSpotPluginApi,
+  spot: FoodSpot
+): Promise<void> {
   const visits =
     spot.visitCount > 0
       ? ` Its ${spot.visitCount} logged visit${spot.visitCount === 1 ? "" : "s"} and notes go with it.`
       : "";
-  const ok = await confirmModal(plugin.app, {
+  const media = spotMediaFiles(plugin, spot);
+  const { confirmed, checked } = await confirmModalWithOption(plugin.app, {
     title: `Delete "${spot.name}"?`,
     body: `The note "${spot.path}" is moved to the trash and can be restored from there.${visits}`,
     cta: "Delete",
     danger: true,
+    checkbox:
+      media.length > 0
+        ? {
+            label: `Also trash its ${media.length === 1 ? "cover photo" : "photo and menu files"} (${media
+              .map((f) => f.name)
+              .join(", ")})`,
+            default: false,
+          }
+        : undefined,
   });
-  if (!ok) return;
+  if (!confirmed) return;
   await plugin.store.deleteSpot(spot.path);
-  new Notice(`Deleted "${spot.name}" — recoverable from the trash.`);
+  let trashed = 0;
+  if (checked) {
+    for (const f of media) {
+      try {
+        await plugin.app.fileManager.trashFile(f);
+        trashed++;
+      } catch {
+        // A locked/synced file never blocks the spot deletion.
+      }
+    }
+  }
+  new Notice(
+    `Deleted "${spot.name}"${trashed > 0 ? ` and ${trashed} media file${trashed === 1 ? "" : "s"}` : ""} — recoverable from the trash.`
+  );
 }
 
 export function spotMenu(plugin: FoodSpotPluginApi, spot: FoodSpot): Menu {

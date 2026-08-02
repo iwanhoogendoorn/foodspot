@@ -505,6 +505,66 @@ export class FoodSpotSettingTab extends PluginSettingTab {
       "Export opens the system save dialog — put the file anywhere (it can get large: photos are embedded). To restore on another vault: install Food Spot there, then Import backup and pick the file. Media files are recreated at their original vault paths.",
     );
 
+    // --- Unused media cleanup ---
+    const sweep = new Setting(c)
+      .setName("Clean up unused media")
+      .setDesc(
+        "Trashes photo/menu files in the media folder that no spot references any more — e.g. leftovers from deleted restaurants.",
+      );
+    sweep.addButton((b) =>
+      b.setButtonText("Find unused files").onClick(async () => {
+        b.setDisabled(true);
+        try {
+          const folder = this.app.vault.getFolderByPath(
+            normalizePath(this.plugin.settings.mediaFolder),
+          );
+          if (!folder) {
+            new Notice("No media folder yet — nothing to clean up.");
+            return;
+          }
+          const referenced = new Set<string>();
+          for (const spot of this.spots()) {
+            for (const ref of [spot.photo, spot.menu]) {
+              if (ref && !/^https?:\/\//i.test(ref)) referenced.add(normalizePath(ref));
+            }
+          }
+          const orphans = folder.children.filter(
+            (f): f is TFile => f instanceof TFile && !referenced.has(f.path),
+          );
+          if (orphans.length === 0) {
+            new Notice("No unused media files — the folder is tidy.");
+            return;
+          }
+          const names = orphans.slice(0, 8).map((f) => f.name).join(", ");
+          const ok = await confirmModal(this.app, {
+            title: `Trash ${orphans.length} unused file${orphans.length === 1 ? "" : "s"}?`,
+            body: `${names}${orphans.length > 8 ? `, and ${orphans.length - 8} more` : ""}. No spot references ${orphans.length === 1 ? "it" : "them"} any more. Files go to the trash and can be restored.`,
+            cta: "Trash them",
+            danger: true,
+          });
+          if (!ok) return;
+          let n = 0;
+          for (const f of orphans) {
+            try {
+              await this.app.fileManager.trashFile(f);
+              n++;
+            } catch {
+              // Skip locked files; the count reflects what actually moved.
+            }
+          }
+          new Notice(`Trashed ${n} unused media file${n === 1 ? "" : "s"}.`);
+        } catch (e) {
+          new Notice(`Cleanup failed: ${errMsg(e)}`);
+        } finally {
+          b.setDisabled(false);
+        }
+      }),
+    );
+    this.addHelp(
+      sweep,
+      "Deleting a restaurant leaves its downloaded photo in place on purpose, so a mis-click never costs you an image. This sweeps the leftovers when you want the space back.",
+    );
+
     // --- Danger zone ---
     const danger = new Setting(c)
       .setName("Delete all restaurant data")

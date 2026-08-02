@@ -13898,6 +13898,11 @@ function clampValue(v) {
 var import_obsidian5 = require("obsidian");
 function confirmModal(app, opts) {
   return new Promise((resolve) => {
+    new ConfirmModal(app, opts, (r) => resolve(r.confirmed)).open();
+  });
+}
+function confirmModalWithOption(app, opts) {
+  return new Promise((resolve) => {
     new ConfirmModal(app, opts, resolve).open();
   });
 }
@@ -13907,11 +13912,22 @@ var ConfirmModal = class extends import_obsidian5.Modal {
     this.opts = opts;
     this.resolve = resolve;
     this.resolved = false;
+    this.checked = false;
   }
   onOpen() {
     this.modalEl.addClass("fs-modal", "fs-confirm-modal");
     this.titleEl.setText(this.opts.title);
     this.contentEl.createEl("p", { cls: "fs-confirm-body", text: this.opts.body });
+    if (this.opts.checkbox) {
+      this.checked = this.opts.checkbox.default === true;
+      const label = this.contentEl.createEl("label", { cls: "fs-checkbox-label" });
+      const cb = label.createEl("input", { type: "checkbox" });
+      cb.checked = this.checked;
+      label.createSpan({ text: ` ${this.opts.checkbox.label}` });
+      cb.addEventListener("change", () => {
+        this.checked = cb.checked;
+      });
+    }
     const buttons = this.contentEl.createDiv({ cls: "fs-modal-buttons" });
     const cancel = buttons.createEl("button", { text: "Cancel" });
     cancel.type = "button";
@@ -13923,7 +13939,7 @@ var ConfirmModal = class extends import_obsidian5.Modal {
     cta.type = "button";
     cta.addEventListener("click", () => {
       this.resolved = true;
-      this.resolve(true);
+      this.resolve({ confirmed: true, checked: this.checked });
       this.close();
     });
     cta.focus();
@@ -13932,7 +13948,7 @@ var ConfirmModal = class extends import_obsidian5.Modal {
     this.contentEl.empty();
     if (!this.resolved) {
       this.resolved = true;
-      this.resolve(false);
+      this.resolve({ confirmed: false, checked: false });
     }
   }
 };
@@ -16310,17 +16326,43 @@ async function pullSpotInfo(plugin, spot) {
     new import_obsidian10.Notice(`Pull failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
+function spotMediaFiles(plugin, spot) {
+  const out = [];
+  for (const ref of [spot.photo, spot.menu]) {
+    if (!ref || /^https?:\/\//i.test(ref)) continue;
+    const f = plugin.app.vault.getFileByPath((0, import_obsidian10.normalizePath)(ref));
+    if (f && !out.includes(f)) out.push(f);
+  }
+  return out;
+}
 async function deleteWithConfirm(plugin, spot) {
   const visits = spot.visitCount > 0 ? ` Its ${spot.visitCount} logged visit${spot.visitCount === 1 ? "" : "s"} and notes go with it.` : "";
-  const ok = await confirmModal(plugin.app, {
+  const media = spotMediaFiles(plugin, spot);
+  const { confirmed, checked } = await confirmModalWithOption(plugin.app, {
     title: `Delete "${spot.name}"?`,
     body: `The note "${spot.path}" is moved to the trash and can be restored from there.${visits}`,
     cta: "Delete",
-    danger: true
+    danger: true,
+    checkbox: media.length > 0 ? {
+      label: `Also trash its ${media.length === 1 ? "cover photo" : "photo and menu files"} (${media.map((f) => f.name).join(", ")})`,
+      default: false
+    } : void 0
   });
-  if (!ok) return;
+  if (!confirmed) return;
   await plugin.store.deleteSpot(spot.path);
-  new import_obsidian10.Notice(`Deleted "${spot.name}" \u2014 recoverable from the trash.`);
+  let trashed = 0;
+  if (checked) {
+    for (const f of media) {
+      try {
+        await plugin.app.fileManager.trashFile(f);
+        trashed++;
+      } catch {
+      }
+    }
+  }
+  new import_obsidian10.Notice(
+    `Deleted "${spot.name}"${trashed > 0 ? ` and ${trashed} media file${trashed === 1 ? "" : "s"}` : ""} \u2014 recoverable from the trash.`
+  );
 }
 function spotMenu(plugin, spot) {
   const menu = new import_obsidian10.Menu();
@@ -21091,6 +21133,61 @@ var FoodSpotSettingTab = class extends import_obsidian27.PluginSettingTab {
     this.addHelp(
       bak,
       "Export opens the system save dialog \u2014 put the file anywhere (it can get large: photos are embedded). To restore on another vault: install Food Spot there, then Import backup and pick the file. Media files are recreated at their original vault paths."
+    );
+    const sweep = new import_obsidian27.Setting(c).setName("Clean up unused media").setDesc(
+      "Trashes photo/menu files in the media folder that no spot references any more \u2014 e.g. leftovers from deleted restaurants."
+    );
+    sweep.addButton(
+      (b) => b.setButtonText("Find unused files").onClick(async () => {
+        b.setDisabled(true);
+        try {
+          const folder = this.app.vault.getFolderByPath(
+            (0, import_obsidian27.normalizePath)(this.plugin.settings.mediaFolder)
+          );
+          if (!folder) {
+            new import_obsidian27.Notice("No media folder yet \u2014 nothing to clean up.");
+            return;
+          }
+          const referenced = /* @__PURE__ */ new Set();
+          for (const spot of this.spots()) {
+            for (const ref of [spot.photo, spot.menu]) {
+              if (ref && !/^https?:\/\//i.test(ref)) referenced.add((0, import_obsidian27.normalizePath)(ref));
+            }
+          }
+          const orphans = folder.children.filter(
+            (f) => f instanceof import_obsidian27.TFile && !referenced.has(f.path)
+          );
+          if (orphans.length === 0) {
+            new import_obsidian27.Notice("No unused media files \u2014 the folder is tidy.");
+            return;
+          }
+          const names = orphans.slice(0, 8).map((f) => f.name).join(", ");
+          const ok = await confirmModal(this.app, {
+            title: `Trash ${orphans.length} unused file${orphans.length === 1 ? "" : "s"}?`,
+            body: `${names}${orphans.length > 8 ? `, and ${orphans.length - 8} more` : ""}. No spot references ${orphans.length === 1 ? "it" : "them"} any more. Files go to the trash and can be restored.`,
+            cta: "Trash them",
+            danger: true
+          });
+          if (!ok) return;
+          let n = 0;
+          for (const f of orphans) {
+            try {
+              await this.app.fileManager.trashFile(f);
+              n++;
+            } catch {
+            }
+          }
+          new import_obsidian27.Notice(`Trashed ${n} unused media file${n === 1 ? "" : "s"}.`);
+        } catch (e) {
+          new import_obsidian27.Notice(`Cleanup failed: ${errMsg2(e)}`);
+        } finally {
+          b.setDisabled(false);
+        }
+      })
+    );
+    this.addHelp(
+      sweep,
+      "Deleting a restaurant leaves its downloaded photo in place on purpose, so a mis-click never costs you an image. This sweeps the leftovers when you want the space back."
     );
     const danger = new import_obsidian27.Setting(c).setName("Delete all restaurant data").setDesc(
       "Trashes every spot note (recoverable from the trash). Consider exporting a full backup first."
