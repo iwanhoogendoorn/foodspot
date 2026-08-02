@@ -25,6 +25,7 @@ import { starRating } from "../components/starRating";
 import { isStaleRatings } from "../components/card";
 import { confirmModal } from "./confirm";
 import { openEditModal } from "./addEdit";
+import { canBrowserFetch, openBrowserFetchQueue } from "./browserFetch";
 
 export function openDetailModal(plugin: FoodSpotPluginApi, path: string): void {
   new DetailModal(plugin, path).open();
@@ -521,12 +522,17 @@ class DetailModal extends Modal {
       if (ratingBySourceLabel.get(a.label) !== undefined) continue;
       const chipBtn = row.createEl("button", { cls: "fs-ext-add" });
       chipBtn.type = "button";
-      chipBtn.title = ext[a.key]
-        ? `${a.label} link attached but no rating found — fix the URL`
+      const attachedUrl = ext[a.key] as string | undefined;
+      chipBtn.title = attachedUrl
+        ? `${a.label} link attached — fetch the rating through the embedded browser`
         : `Add a ${a.label} rating source`;
-      chipBtn.setText(`+ ${a.label}`);
+      chipBtn.setText(attachedUrl ? `⟳ ${a.label}` : `+ ${a.label}`);
       chipBtn.addEventListener("click", () => {
-        new AttachSourceModal(this.plugin, spot, a, () => this.render()).open();
+        if (attachedUrl !== undefined && canBrowserFetch()) {
+          openBrowserFetchQueue(this.plugin, this.path, [attachedUrl]);
+        } else {
+          new AttachSourceModal(this.plugin, spot, a, () => this.render()).open();
+        }
       });
     }
 
@@ -562,6 +568,20 @@ class DetailModal extends Modal {
         new Notice("Public ratings refreshed.");
       } else {
         new Notice("No fresh ratings found for this spot.");
+      }
+      // Bot-walled sources (URL attached, still no rating): fetch them through
+      // the embedded browser instead of telling the user to type numbers.
+      const fresh = this.plugin.store.getByPath(this.path);
+      if (fresh && canBrowserFetch()) {
+        const ext = fresh.external;
+        const pending = [
+          ext.tripadvisorRating === undefined ? ext.tripadvisorUrl : undefined,
+          ext.yelpRating === undefined ? ext.yelpUrl : undefined,
+          ext.theforkRating === undefined ? ext.theforkUrl : undefined,
+          ext.facebookRating === undefined ? ext.facebookUrl : undefined,
+          ext.opentableRating === undefined ? ext.opentableUrl : undefined,
+        ].filter((u): u is string => u !== undefined);
+        if (pending.length > 0) openBrowserFetchQueue(this.plugin, this.path, pending);
       }
     } catch (e) {
       new Notice(`Couldn't refresh ratings — ${errorMessage(e)}`);
