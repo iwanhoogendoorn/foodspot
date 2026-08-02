@@ -21300,7 +21300,7 @@ var FoodSpotSettingTab = class extends import_obsidian28.PluginSettingTab {
       "Export opens the system save dialog \u2014 put the file anywhere (it can get large: photos are embedded). To restore on another vault: install Food Spot there, then Import backup and pick the file. Media files are recreated at their original vault paths."
     );
     const sweep = new import_obsidian28.Setting(c).setName("Clean up unused media").setDesc(
-      "Trashes photo/menu files in the media folder that no spot references any more \u2014 e.g. leftovers from deleted restaurants."
+      "Trashes files anywhere in the media folder (including dish photos) that no spot references any more \u2014 e.g. leftovers from deleted restaurants."
     );
     sweep.addButton(
       (b) => b.setButtonText("Find unused files").onClick(async () => {
@@ -21315,13 +21315,26 @@ var FoodSpotSettingTab = class extends import_obsidian28.PluginSettingTab {
           }
           const referenced = /* @__PURE__ */ new Set();
           for (const spot of this.spots()) {
-            for (const ref of [spot.photo, spot.menu]) {
-              if (ref && !/^https?:\/\//i.test(ref)) referenced.add((0, import_obsidian28.normalizePath)(ref));
+            const refs = [
+              spot.photo,
+              spot.menu,
+              ...spot.visits.flatMap((v) => v.photos ?? [])
+            ];
+            for (const ref of refs) {
+              if (!ref || /^https?:\/\//i.test(ref)) continue;
+              const f = this.app.metadataCache.getFirstLinkpathDest(ref, spot.path) ?? this.app.vault.getAbstractFileByPath((0, import_obsidian28.normalizePath)(ref));
+              referenced.add(f instanceof import_obsidian28.TFile ? f.path : (0, import_obsidian28.normalizePath)(ref));
             }
           }
-          const orphans = folder.children.filter(
-            (f) => f instanceof import_obsidian28.TFile && !referenced.has(f.path)
-          );
+          const allMedia = [];
+          const walk = (dir) => {
+            for (const child of dir.children) {
+              if (child instanceof import_obsidian28.TFile) allMedia.push(child);
+              else if (child instanceof import_obsidian28.TFolder) walk(child);
+            }
+          };
+          walk(folder);
+          const orphans = allMedia.filter((f) => !referenced.has(f.path));
           if (orphans.length === 0) {
             new import_obsidian28.Notice("No unused media files \u2014 the folder is tidy.");
             return;
@@ -21352,7 +21365,7 @@ var FoodSpotSettingTab = class extends import_obsidian28.PluginSettingTab {
     );
     this.addHelp(
       sweep,
-      "Deleting a restaurant leaves its downloaded photo in place on purpose, so a mis-click never costs you an image. This sweeps the leftovers when you want the space back."
+      "Cover photos, menu files and every dish photo embedded on a visit count as referenced \u2014 only genuinely orphaned files are listed. Deleting a restaurant leaves its photo in place on purpose, so a mis-click never costs you an image; this sweeps the leftovers when you want the space back."
     );
     const danger = new import_obsidian28.Setting(c).setName("Delete all restaurant data").setDesc(
       "Trashes every spot note (recoverable from the trash). Consider exporting a full backup first."

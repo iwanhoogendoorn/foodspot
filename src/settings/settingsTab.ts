@@ -509,7 +509,7 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     const sweep = new Setting(c)
       .setName("Clean up unused media")
       .setDesc(
-        "Trashes photo/menu files in the media folder that no spot references any more — e.g. leftovers from deleted restaurants.",
+        "Trashes files anywhere in the media folder (including dish photos) that no spot references any more — e.g. leftovers from deleted restaurants.",
       );
     sweep.addButton((b) =>
       b.setButtonText("Find unused files").onClick(async () => {
@@ -522,15 +522,34 @@ export class FoodSpotSettingTab extends PluginSettingTab {
             new Notice("No media folder yet — nothing to clean up.");
             return;
           }
+          // Referenced = cover photo, menu file AND every dish photo embedded
+          // on a visit bullet. Refs may be link text rather than full paths,
+          // so resolve each one to its actual file.
           const referenced = new Set<string>();
           for (const spot of this.spots()) {
-            for (const ref of [spot.photo, spot.menu]) {
-              if (ref && !/^https?:\/\//i.test(ref)) referenced.add(normalizePath(ref));
+            const refs = [
+              spot.photo,
+              spot.menu,
+              ...spot.visits.flatMap((v) => v.photos ?? []),
+            ];
+            for (const ref of refs) {
+              if (!ref || /^https?:\/\//i.test(ref)) continue;
+              const f =
+                this.app.metadataCache.getFirstLinkpathDest(ref, spot.path) ??
+                this.app.vault.getAbstractFileByPath(normalizePath(ref));
+              referenced.add(f instanceof TFile ? f.path : normalizePath(ref));
             }
           }
-          const orphans = folder.children.filter(
-            (f): f is TFile => f instanceof TFile && !referenced.has(f.path),
-          );
+          // Recurse: dish photos live in a `dishes/` subfolder.
+          const allMedia: TFile[] = [];
+          const walk = (dir: TFolder): void => {
+            for (const child of dir.children) {
+              if (child instanceof TFile) allMedia.push(child);
+              else if (child instanceof TFolder) walk(child);
+            }
+          };
+          walk(folder);
+          const orphans = allMedia.filter((f) => !referenced.has(f.path));
           if (orphans.length === 0) {
             new Notice("No unused media files — the folder is tidy.");
             return;
@@ -562,7 +581,7 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     );
     this.addHelp(
       sweep,
-      "Deleting a restaurant leaves its downloaded photo in place on purpose, so a mis-click never costs you an image. This sweeps the leftovers when you want the space back.",
+      "Cover photos, menu files and every dish photo embedded on a visit count as referenced — only genuinely orphaned files are listed. Deleting a restaurant leaves its photo in place on purpose, so a mis-click never costs you an image; this sweeps the leftovers when you want the space back.",
     );
 
     // --- Danger zone ---
