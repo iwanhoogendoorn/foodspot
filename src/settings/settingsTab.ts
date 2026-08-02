@@ -554,6 +554,45 @@ export class FoodSpotSettingTab extends PluginSettingTab {
         res.failed++;
       }
     }
+    // If the media folder lives OUTSIDE the spots folder (typical after the
+    // spots folder was changed), bring it along: move the files, rewrite the
+    // photo/menu references, and update the setting — one folder, not two.
+    const media = normalizePath(s.mediaFolder);
+    const spotsRoot = normalizePath(s.spotsFolder);
+    if (media !== spotsRoot && !media.startsWith(`${spotsRoot}/`)) {
+      const oldFolder = this.app.vault.getFolderByPath(media);
+      const newMedia = `${spotsRoot}/_media`;
+      if (oldFolder) {
+        if (this.app.vault.getFolderByPath(newMedia) === null) {
+          await this.app.vault.createFolder(newMedia).catch(() => undefined);
+        }
+        for (const child of [...oldFolder.children]) {
+          if (!(child instanceof TFile)) continue;
+          const target = normalizePath(`${newMedia}/${child.name}`);
+          if (this.app.vault.getAbstractFileByPath(target) !== null) continue;
+          await this.app.fileManager.renameFile(child, target).catch(() => undefined);
+        }
+        // Plain-string frontmatter refs don't follow renames — rewrite them.
+        for (const spot of this.spots()) {
+          const patch: { photo?: string; menu?: string } = {};
+          if (spot.photo?.startsWith(`${media}/`))
+            patch.photo = spot.photo.replace(`${media}/`, `${newMedia}/`);
+          if (spot.menu?.startsWith(`${media}/`))
+            patch.menu = spot.menu.replace(`${media}/`, `${newMedia}/`);
+          if (Object.keys(patch).length > 0) {
+            await this.plugin.store.updateSpot(spot.path, patch).catch(() => undefined);
+          }
+        }
+        if (oldFolder.children.length === 0) {
+          await this.app.fileManager.trashFile(oldFolder).catch(() => undefined);
+        }
+        if (oldFolder.parent) sourceParents.add(oldFolder.parent.path);
+      }
+      s.mediaFolder = newMedia;
+      await this.save();
+      new Notice(`Media folder moved to ${newMedia}.`);
+    }
+
     // Trash source folders that became empty (walk up while empty).
     for (const parentPath of sourceParents) {
       let folder = this.app.vault.getFolderByPath(parentPath);

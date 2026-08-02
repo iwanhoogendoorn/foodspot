@@ -21125,6 +21125,40 @@ var FoodSpotSettingTab = class extends import_obsidian27.PluginSettingTab {
         res.failed++;
       }
     }
+    const media = (0, import_obsidian27.normalizePath)(s.mediaFolder);
+    const spotsRoot = (0, import_obsidian27.normalizePath)(s.spotsFolder);
+    if (media !== spotsRoot && !media.startsWith(`${spotsRoot}/`)) {
+      const oldFolder = this.app.vault.getFolderByPath(media);
+      const newMedia = `${spotsRoot}/_media`;
+      if (oldFolder) {
+        if (this.app.vault.getFolderByPath(newMedia) === null) {
+          await this.app.vault.createFolder(newMedia).catch(() => void 0);
+        }
+        for (const child of [...oldFolder.children]) {
+          if (!(child instanceof import_obsidian27.TFile)) continue;
+          const target = (0, import_obsidian27.normalizePath)(`${newMedia}/${child.name}`);
+          if (this.app.vault.getAbstractFileByPath(target) !== null) continue;
+          await this.app.fileManager.renameFile(child, target).catch(() => void 0);
+        }
+        for (const spot of this.spots()) {
+          const patch = {};
+          if (spot.photo?.startsWith(`${media}/`))
+            patch.photo = spot.photo.replace(`${media}/`, `${newMedia}/`);
+          if (spot.menu?.startsWith(`${media}/`))
+            patch.menu = spot.menu.replace(`${media}/`, `${newMedia}/`);
+          if (Object.keys(patch).length > 0) {
+            await this.plugin.store.updateSpot(spot.path, patch).catch(() => void 0);
+          }
+        }
+        if (oldFolder.children.length === 0) {
+          await this.app.fileManager.trashFile(oldFolder).catch(() => void 0);
+        }
+        if (oldFolder.parent) sourceParents.add(oldFolder.parent.path);
+      }
+      s.mediaFolder = newMedia;
+      await this.save();
+      new import_obsidian27.Notice(`Media folder moved to ${newMedia}.`);
+    }
     for (const parentPath of sourceParents) {
       let folder = this.app.vault.getFolderByPath(parentPath);
       while (folder && folder.path !== "/" && folder.children.length === 0) {
