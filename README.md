@@ -49,8 +49,7 @@ node tests/smoke.test.mjs
 Source in `src/`, per-module CSS in `styles/` (concatenated at build). The compiled
 plugin is `foodspot/` — copy or symlink it into `<vault>/.obsidian/plugins/foodspot/`.
 
-Migrating from the v0.1 prototype: keep the old `foodspots/` plugin folder in place,
-install `foodspot/`, then run the command **"Migrate legacy JSON spots to notes"** —
-it writes `data.json.pre-migration.bak` first and never overwrites existing notes.
+The v0.1 prototype and its one-time JSON→notes migration are retired; both
+remain available in git history if ever needed.
 
 Design docs: `docs/SPEC.md`, research in `docs/research/`.

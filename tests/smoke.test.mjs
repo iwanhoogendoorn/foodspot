@@ -151,13 +151,56 @@ ok("serializeVisits(parse(x)) preserves every modeled field", () => {
 console.log("legacySpotToNote on real v0.1 spots");
 // ---------------------------------------------------------------------------
 
-const data = JSON.parse(readFileSync(join(root, "foodspots/data.json"), "utf8"));
-assert.ok(Array.isArray(data.spots) && data.spots.length >= 3, "legacy data.json has spots");
-const byId = (id) => data.spots.find((s) => s.id === id);
-
-const momiji = byId("momiji-j1bvm");
-const littleV = byId("little-v-oiyeb");
-const third = data.spots[1]; // Moong
+// Inlined fixtures — verbatim records from the (since removed) legacy
+// foodspots/data.json, so the migration mapping stays regression-tested.
+const momiji = {
+  id: "momiji-j1bvm",
+  name: "Momiji",
+  cuisines: ["Japanese", "Sushi"],
+  country: "Netherlands",
+  city: "Den Haag",
+  source: "manual",
+  sourceUrl: "https://momiji-sushi.nl",
+  status: "want-to-try",
+  visits: [],
+  tags: ["favorites"],
+  notes: "",
+  photos: [],
+  createdAt: "2026-08-02T11:06:53.176Z",
+  updatedAt: "2026-08-02T11:06:53.176Z",
+};
+const littleV = {
+  id: "little-v-oiyeb",
+  name: "Little V",
+  cuisines: ["Vietnamese"],
+  country: "Netherlands",
+  city: "Rotterdam",
+  district: "Grotekerkplein",
+  source: "manual",
+  sourceUrl: "https://littlev.nl",
+  status: "want-to-try",
+  visits: [],
+  tags: ["favorites"],
+  notes: "",
+  photos: [],
+  createdAt: "2026-08-02T11:06:53.176Z",
+  updatedAt: "2026-08-02T11:06:53.176Z",
+};
+const third = {
+  id: "moong-d0l29",
+  name: "Moong",
+  cuisines: ["Indian"],
+  country: "Netherlands",
+  city: "Rotterdam",
+  source: "manual",
+  status: "want-to-try",
+  visits: [],
+  tags: ["favorites"],
+  notes: "",
+  photos: [],
+  createdAt: "2026-08-02T11:06:53.176Z",
+  updatedAt: "2026-08-02T11:06:53.176Z",
+};
 
 ok("real spot #1 (Momiji): identity, source_url->url for manual, filename", () => {
   const plan = legacySpotToNote(momiji, DEFAULT_SETTINGS);
