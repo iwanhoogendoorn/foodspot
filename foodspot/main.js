@@ -9959,7 +9959,7 @@ async function writeSpotFrontmatter(app, file, data) {
   );
 }
 var VALID_SOURCES = ["manual", "google-maps", "tripadvisor", "url"];
-function buildSpot(path, fm, body) {
+function buildSpot(path, fm, body, ctime) {
   const baseName = path.split("/").pop()?.replace(/\.md$/i, "") ?? path;
   const visits = parseVisitsSection(extractSection(body, "## Visits"));
   let ratingLocked = asBool(fm.rating_locked ?? fm.ratingLocked);
@@ -10023,6 +10023,7 @@ function buildSpot(path, fm, body) {
     legacyId: asStr(fm.legacy_id ?? fm.legacyId),
     created,
     updated: dateOnly(asStr(fm.updated)) ?? created,
+    ctime,
     notes: extractSection(body, "## Notes")
   };
 }
@@ -10371,7 +10372,7 @@ var SpotStore = class {
       return this.byPath.delete(file.path);
     }
     const body = await this.plugin.app.vault.cachedRead(file);
-    this.byPath.set(file.path, buildSpot(file.path, fm, body));
+    this.byPath.set(file.path, buildSpot(file.path, fm, body, file.stat?.ctime));
     return true;
   }
   removeFromIndex(path) {
@@ -13699,7 +13700,13 @@ var SORT_VALUES = {
   rating: (s) => s.rating,
   "external-rating": (s) => s.external.googleRating ?? s.external.tripadvisorRating,
   price: (s) => s.price,
-  "date-added": (s) => s.created || void 0,
+  // Always numeric: ctime breaks same-day ties (created is date-only), and a
+  // mixed number/string pair would compare as NaN.
+  "date-added": (s) => {
+    if (s.ctime !== void 0) return s.ctime;
+    const t = s.created ? Date.parse(s.created) : NaN;
+    return Number.isNaN(t) ? void 0 : t;
+  },
   "last-visit": (s) => s.lastVisit,
   "visit-count": (s) => s.visitCount
 };
@@ -20706,6 +20713,7 @@ function mountDashboardTab(container, plugin) {
       buildSpotCard(cell, s, { plugin, mini: true });
     }
   };
+  const addedAt = (s) => s.ctime ?? (s.created ? Date.parse(s.created) || 0 : 0);
   const section = (label, fn) => {
     try {
       fn();
@@ -20742,7 +20750,7 @@ function mountDashboardTab(container, plugin) {
       "Recently added",
       () => renderRecentRow(
         "Recently added",
-        [...spots].sort((a, b) => b.created.localeCompare(a.created)).slice(0, 8),
+        [...spots].sort((a, b) => addedAt(b) - addedAt(a)).slice(0, 8),
         "Nothing added yet \u2014 your newest finds will show up here."
       )
     );

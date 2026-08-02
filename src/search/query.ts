@@ -299,7 +299,13 @@ const SORT_VALUES: Record<SortKey, (s: FoodSpot) => string | number | undefined>
   rating: (s) => s.rating,
   "external-rating": (s) => s.external.googleRating ?? s.external.tripadvisorRating,
   price: (s) => s.price,
-  "date-added": (s) => s.created || undefined,
+  // Always numeric: ctime breaks same-day ties (created is date-only), and a
+  // mixed number/string pair would compare as NaN.
+  "date-added": (s) => {
+    if (s.ctime !== undefined) return s.ctime;
+    const t = s.created ? Date.parse(s.created) : NaN;
+    return Number.isNaN(t) ? undefined : t;
+  },
   "last-visit": (s) => s.lastVisit,
   "visit-count": (s) => s.visitCount,
 };

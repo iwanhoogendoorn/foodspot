@@ -692,6 +692,10 @@ export function mountDashboardTab(
   // render
   // -------------------------------------------------------------------------
 
+  /** Newest-first ordering key: real file time, else the date-only string. */
+  const addedAt = (s: FoodSpot): number =>
+    s.ctime ?? (s.created ? Date.parse(s.created) || 0 : 0);
+
   /** A failed section renders an error panel instead of blanking the tab. */
   const section = (label: string, fn: () => void): void => {
     try {
@@ -731,7 +735,9 @@ export function mountDashboardTab(
     section("Recently added", () =>
       renderRecentRow(
         "Recently added",
-        [...spots].sort((a, b) => b.created.localeCompare(a.created)).slice(0, 8),
+        [...spots]
+        .sort((a, b) => addedAt(b) - addedAt(a))
+        .slice(0, 8),
         "Nothing added yet — your newest finds will show up here.",
       ),
     );

@@ -306,6 +306,7 @@ export function buildSpot(
   path: string,
   fm: Record<string, unknown>,
   body: string,
+  ctime?: number,
 ): FoodSpot {
   const baseName = path.split("/").pop()?.replace(/\.md$/i, "") ?? path;
   const visits = parseVisitsSection(extractSection(body, "## Visits"));
@@ -380,6 +381,7 @@ export function buildSpot(
     legacyId: asStr(fm.legacy_id ?? fm.legacyId),
     created,
     updated: dateOnly(asStr(fm.updated)) ?? created,
+    ctime,
     notes: extractSection(body, "## Notes"),
   };
 }

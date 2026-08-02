@@ -117,6 +117,12 @@ export interface FoodSpot {
   /** ISO dates. */
   created: string;
   updated: string;
+  /**
+   * File creation time in ms. `created` is date-only (Dataview-friendly), so
+   * everything added on the same day ties — this breaks those ties in
+   * date-added sorting and the dashboard's "Recently added".
+   */
+  ctime?: number;
   /** First `## Notes` section content (body sync). */
   notes: string;
 }

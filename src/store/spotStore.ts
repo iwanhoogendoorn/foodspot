@@ -368,7 +368,7 @@ export class SpotStore implements SpotStoreApi {
       return this.byPath.delete(file.path);
     }
     const body = await this.plugin.app.vault.cachedRead(file);
-    this.byPath.set(file.path, buildSpot(file.path, fm, body));
+    this.byPath.set(file.path, buildSpot(file.path, fm, body, file.stat?.ctime));
     return true;
   }
 
