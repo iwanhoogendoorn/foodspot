@@ -39,6 +39,21 @@ function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+interface SourceFailure {
+  label: string;
+  e: unknown;
+}
+
+/** Human explanation per failed source — bot walls get the honest version. */
+function describeSourceFailure(f: SourceFailure): string {
+  const msg = errMsg(f.e);
+  if (f.e instanceof BotCheckError || /\b403\b/.test(msg)) {
+    const key = f.label.toLowerCase().replace(/[^a-z]/g, "");
+    return `${f.label} blocks automated fetches — the rating can\u2019t be pulled. You can type it into the note yourself (e.g. "${key}_rating: 4.5").`;
+  }
+  return `${f.label}: ${msg}`;
+}
+
 function isTripadvisorUrl(url: string): boolean {
   try {
     return new URL(url).hostname.toLowerCase().includes("tripadvisor.");
@@ -239,11 +254,14 @@ export class ImportPipeline implements ImportPipelineApi {
     return typeof res.text === "string" ? extractJsonLd(res.text) : null;
   }
 
-  async refreshRatings(spot: FoodSpot): Promise<Partial<ExternalRatings> | null> {
+  async refreshRatings(
+    spot: FoodSpot,
+    onWarning?: (message: string) => void,
+  ): Promise<Partial<ExternalRatings> | null> {
     const out: Partial<ExternalRatings> = {};
-    // Per-source failures (bot-check, timeout) skip that source; the first
-    // one only surfaces when literally nothing succeeded.
-    const errors: unknown[] = [];
+    // Per-source failures (bot-check, timeout) skip that source; each is
+    // surfaced through onWarning so a stonewalled site never fails silently.
+    const errors: SourceFailure[] = [];
 
     if (this.hasGoogleKey()) {
       try {
@@ -254,14 +272,15 @@ export class ImportPipeline implements ImportPipelineApi {
           if (details.ratingCount !== undefined) out.googleRatingCount = details.ratingCount;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "Google", e });
       }
     }
 
     Object.assign(out, await this.fetchSourceRatings(spot, errors));
 
+    for (const f of errors) onWarning?.(describeSourceFailure(f));
     if (Object.keys(out).length === 0) {
-      if (errors.length > 0) throw errors[0];
+      if (errors.length > 0 && onWarning === undefined) throw errors[0].e;
       return null;
     }
     out.ratingsUpdated = todayIso();
@@ -275,7 +294,7 @@ export class ImportPipeline implements ImportPipelineApi {
    */
   private async fetchSourceRatings(
     spot: FoodSpot,
-    errors: unknown[],
+    errors: SourceFailure[],
   ): Promise<Partial<ExternalRatings>> {
     const out: Partial<ExternalRatings> = {};
 
@@ -291,7 +310,7 @@ export class ImportPipeline implements ImportPipelineApi {
           if (spot.external.tripadvisorUrl === undefined) out.tripadvisorUrl = tripadvisorUrl;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "TripAdvisor", e });
       }
     }
 
@@ -303,7 +322,7 @@ export class ImportPipeline implements ImportPipelineApi {
           if (ld.ratingCount !== undefined) out.yelpRatingCount = ld.ratingCount;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "Yelp", e });
       }
     }
 
@@ -318,7 +337,7 @@ export class ImportPipeline implements ImportPipelineApi {
           if (ld.ratingCount !== undefined) out.theforkRatingCount = ld.ratingCount;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "TheFork", e });
       }
     }
 
@@ -332,7 +351,7 @@ export class ImportPipeline implements ImportPipelineApi {
           if (ld.ratingCount !== undefined) out.facebookRatingCount = ld.ratingCount;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "Facebook", e });
       }
     }
 
@@ -344,7 +363,7 @@ export class ImportPipeline implements ImportPipelineApi {
           if (ld.ratingCount !== undefined) out.opentableRatingCount = ld.ratingCount;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "OpenTable", e });
       }
     }
 
@@ -358,7 +377,7 @@ export class ImportPipeline implements ImportPipelineApi {
           if (ld.ratingCount !== undefined) out.eetnuRatingCount = ld.ratingCount;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "Eet.nu", e });
       }
     }
 

@@ -11483,6 +11483,14 @@ function todayIso() {
 function errMsg(e) {
   return e instanceof Error ? e.message : String(e);
 }
+function describeSourceFailure(f) {
+  const msg = errMsg(f.e);
+  if (f.e instanceof BotCheckError || /\b403\b/.test(msg)) {
+    const key = f.label.toLowerCase().replace(/[^a-z]/g, "");
+    return `${f.label} blocks automated fetches \u2014 the rating can\u2019t be pulled. You can type it into the note yourself (e.g. "${key}_rating: 4.5").`;
+  }
+  return `${f.label}: ${msg}`;
+}
 function isTripadvisorUrl(url) {
   try {
     return new URL(url).hostname.toLowerCase().includes("tripadvisor.");
@@ -11638,7 +11646,7 @@ var ImportPipeline = class {
     const res = await fetchWithTimeout(url);
     return typeof res.text === "string" ? extractJsonLd(res.text) : null;
   }
-  async refreshRatings(spot) {
+  async refreshRatings(spot, onWarning) {
     const out = {};
     const errors = [];
     if (this.hasGoogleKey()) {
@@ -11650,12 +11658,13 @@ var ImportPipeline = class {
           if (details.ratingCount !== void 0) out.googleRatingCount = details.ratingCount;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "Google", e });
       }
     }
     Object.assign(out, await this.fetchSourceRatings(spot, errors));
+    for (const f of errors) onWarning?.(describeSourceFailure(f));
     if (Object.keys(out).length === 0) {
-      if (errors.length > 0) throw errors[0];
+      if (errors.length > 0 && onWarning === void 0) throw errors[0].e;
       return null;
     }
     out.ratingsUpdated = todayIso();
@@ -11679,7 +11688,7 @@ var ImportPipeline = class {
           if (spot.external.tripadvisorUrl === void 0) out.tripadvisorUrl = tripadvisorUrl;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "TripAdvisor", e });
       }
     }
     if (spot.external.yelpUrl !== void 0) {
@@ -11690,7 +11699,7 @@ var ImportPipeline = class {
           if (ld.ratingCount !== void 0) out.yelpRatingCount = ld.ratingCount;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "Yelp", e });
       }
     }
     if (spot.external.theforkUrl !== void 0) {
@@ -11702,7 +11711,7 @@ var ImportPipeline = class {
           if (ld.ratingCount !== void 0) out.theforkRatingCount = ld.ratingCount;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "TheFork", e });
       }
     }
     if (spot.external.facebookUrl !== void 0) {
@@ -11713,7 +11722,7 @@ var ImportPipeline = class {
           if (ld.ratingCount !== void 0) out.facebookRatingCount = ld.ratingCount;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "Facebook", e });
       }
     }
     if (spot.external.opentableUrl !== void 0) {
@@ -11724,7 +11733,7 @@ var ImportPipeline = class {
           if (ld.ratingCount !== void 0) out.opentableRatingCount = ld.ratingCount;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "OpenTable", e });
       }
     }
     if (spot.external.eetnuUrl !== void 0) {
@@ -11736,7 +11745,7 @@ var ImportPipeline = class {
           if (ld.ratingCount !== void 0) out.eetnuRatingCount = ld.ratingCount;
         }
       } catch (e) {
-        errors.push(e);
+        errors.push({ label: "Eet.nu", e });
       }
     }
     return out;
@@ -15407,7 +15416,10 @@ var DetailModal = class extends import_obsidian7.Modal {
     btn.disabled = true;
     btn.addClass("fs-loading");
     try {
-      const updated = await this.plugin.importer.refreshRatings(spot);
+      const updated = await this.plugin.importer.refreshRatings(
+        spot,
+        (msg) => new import_obsidian7.Notice(msg, 8e3)
+      );
       if (updated) {
         await this.plugin.store.updateSpot(this.path, {
           external: { ...spot.external, ...updated }
@@ -16103,7 +16115,7 @@ function attachLazyPhoto(photoEl, plugin, spot, hostEl) {
 }
 async function refreshSpotRatings(plugin, spot) {
   try {
-    const updated = await plugin.importer.refreshRatings(spot);
+    const updated = await plugin.importer.refreshRatings(spot, (msg) => new import_obsidian9.Notice(msg, 8e3));
     if (updated) {
       await plugin.store.updateSpot(spot.path, {
         external: { ...spot.external, ...updated }

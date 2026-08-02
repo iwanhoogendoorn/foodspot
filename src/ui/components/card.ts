@@ -244,7 +244,7 @@ export async function refreshSpotRatings(
   spot: FoodSpot
 ): Promise<void> {
   try {
-    const updated = await plugin.importer.refreshRatings(spot);
+    const updated = await plugin.importer.refreshRatings(spot, (msg) => new Notice(msg, 8000));
     if (updated) {
       await plugin.store.updateSpot(spot.path, {
         external: { ...spot.external, ...updated },

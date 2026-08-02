@@ -333,8 +333,15 @@ export interface ImportPipelineApi {
   searchPlaces(query: string, near?: Coordinates): Promise<PlaceCandidate[]>;
   /** Fetch full details for a candidate into a draft. */
   placeDetails(placeId: string): Promise<ImportedSpotDraft>;
-  /** Re-fetch external ratings for one spot (all sources with a URL + Google); returns updated fields or null. */
-  refreshRatings(spot: FoodSpot): Promise<Partial<ExternalRatings> | null>;
+  /**
+   * Re-fetch external ratings for one spot (all sources with a URL +
+   * Google). Per-source failures (e.g. bot-walled sites) are reported via
+   * onWarning instead of failing silently.
+   */
+  refreshRatings(
+    spot: FoodSpot,
+    onWarning?: (message: string) => void,
+  ): Promise<Partial<ExternalRatings> | null>;
   /**
    * Full single-spot enrichment from Google + rating-source pages: coords,
    * address, price, ratings, top photo (downloaded into settings.mediaFolder,

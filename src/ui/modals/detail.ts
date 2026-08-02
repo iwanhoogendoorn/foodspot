@@ -552,7 +552,9 @@ class DetailModal extends Modal {
     btn.disabled = true;
     btn.addClass("fs-loading");
     try {
-      const updated = await this.plugin.importer.refreshRatings(spot);
+      const updated = await this.plugin.importer.refreshRatings(spot, (msg) =>
+        new Notice(msg, 8000),
+      );
       if (updated) {
         await this.plugin.store.updateSpot(this.path, {
           external: { ...spot.external, ...updated },
