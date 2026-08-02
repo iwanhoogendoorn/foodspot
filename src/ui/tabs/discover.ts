@@ -18,6 +18,8 @@
 import { Notice, setIcon } from "obsidian";
 import type { FoodSpotPluginApi, SpotInput, TabHandle } from "../../types";
 import { normalizeName } from "../../import/pipeline";
+import { createWithQuickAdd, openQuickAdd } from "../modals/quickAdd";
+import type { QuickAddResult } from "../modals/quickAdd";
 import {
   NEXT_PAGE_DELAY_MS,
   PlacesClient,
@@ -409,17 +411,28 @@ export function mountDiscoverTab(
   async function addCandidate(
     c: PhotoCandidate,
     btn: HTMLButtonElement,
-    markSaved: () => void
+    markSaved: () => void,
+    withOptions = false
   ): Promise<void> {
+    // Ask BEFORE the details call so a cancel costs no quota.
+    let choice: QuickAddResult | null = null;
+    if (withOptions) {
+      choice = await openQuickAdd(plugin, c.name, c.priceLevel || undefined);
+      if (!choice) return;
+    }
     btn.disabled = true;
     const label = btn.getText();
     btn.setText("Adding…");
     try {
       const draft = await plugin.importer.placeDetails(c.placeId);
       const input = draftToInput(draft.fields, draft.sourceUrl, c);
-      // No review modal here by design: Discover is the fast-add path.
-      const spot = await plugin.store.createSpot(input);
-      new Notice(`Added ${spot.name} — want to try`);
+      if (choice) {
+        await createWithQuickAdd(plugin, input, choice);
+      } else {
+        // No review modal here by design: Discover is the fast-add path.
+        const spot = await plugin.store.createSpot(input);
+        new Notice(`Added ${spot.name} — want to try`);
+      }
       markSaved();
     } catch (e) {
       btn.disabled = false;
@@ -496,6 +509,19 @@ export function mountDiscoverTab(
       setIcon(ic, "plus");
       add.createSpan({ cls: "fs-btn-label", text: "Add" });
       add.addEventListener("click", () => void addCandidate(c, add, () => sync(true)));
+
+      // "Add with details": status, rating and price in one step — for places
+      // you have already been to.
+      const opts = actions.createEl("button", {
+        cls: "fs-btn fs-discover-add-opts",
+        attr: {
+          "aria-label": `Add ${c.name} with rating and price`,
+          title: "Add with status, rating and price",
+        },
+      });
+      opts.type = "button";
+      setIcon(opts.createSpan({ cls: "fs-btn-icon" }), "sliders-horizontal");
+      opts.addEventListener("click", () => void addCandidate(c, opts, () => sync(true), true));
     };
     sync(saved);
     tileSync.push({ placeId: c.placeId, name: c.name, address: c.address, sync });

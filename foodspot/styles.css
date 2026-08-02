@@ -2913,6 +2913,38 @@ body.theme-dark .fs-map .leaflet-tile {
   }
 }
 
+/* --- quick add (status + rating + price in one step) ----------------------- */
+.fs-discover-add-opts {
+  padding: 6px 8px;
+}
+
+.fs-quickadd-modal {
+  max-width: 480px;
+}
+
+.fs-quickadd-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.fs-quickadd-row .fs-field-label {
+  min-width: 78px;
+}
+
+.fs-quickadd-visit {
+  border-top: 1px solid var(--background-modifier-border);
+  margin-top: 12px;
+  padding-top: 8px;
+}
+
+.fs-quickadd-visit .fs-visit-note-input {
+  width: 100%;
+  margin-top: 6px;
+}
+
 
 /* === 40-modals.css === */
 /* ==========================================================================
