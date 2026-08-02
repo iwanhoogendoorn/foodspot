@@ -1,10 +1,12 @@
 /**
  * Quick-add options for a Discover result: save it as want-to-try, or mark it
- * visited with a rating, price and (optionally) a first logged visit — without
- * opening the full edit form.
+ * visited with a rating and price — without opening the full edit form.
  *
- * A rating on a visited spot is stored as a real visit, so the derived rating,
- * visit count and last-visit date all follow the normal rules.
+ * Logging a visit is explicitly opt-in: "I've been there" often means
+ * "…at some point", and inventing today's date would be a lie in the data.
+ * Tick the box and the rating is stored as a real visit (derived rating,
+ * visit count, last visit); leave it and the rating is a manual override on
+ * a visited spot with no visit history.
  */
 import { Modal, Notice, setIcon } from "obsidian";
 import type { FoodSpotPluginApi, SpotInput, SpotStatus } from "../../types";
@@ -109,10 +111,17 @@ class QuickAddModal extends Modal {
       priceRow.createSpan({ cls: "fs-field-hint", text: " from Google" });
     }
 
-    // --- optional first visit (only meaningful once visited) ---
+    // --- optional first visit: OFF by default. "I've been there" often means
+    // "…sometime, I don't remember when", which must not invent a date. ---
     const visitBox = contentEl.createDiv({ cls: "fs-quickadd-visit is-hidden" });
-    visitBox.createDiv({ cls: "fs-field-label", text: "Log this visit (optional)" });
-    const visitRow = visitBox.createDiv({ cls: "fs-quickadd-row" });
+    const logLabel = visitBox.createEl("label", { cls: "fs-checkbox-label" });
+    const logCb = logLabel.createEl("input", { type: "checkbox" });
+    logLabel.createSpan({ text: " Log a visit with a date" });
+    const visitFields = visitBox.createDiv({ cls: "fs-quickadd-visit-fields is-hidden" });
+    logCb.addEventListener("change", () => {
+      visitFields.toggleClass("is-hidden", !logCb.checked);
+    });
+    const visitRow = visitFields.createDiv({ cls: "fs-quickadd-row" });
     const dateInput = visitRow.createEl("input", { type: "date" });
     dateInput.value = todayIso();
     const spentInput = visitRow.createEl("input", {
@@ -120,7 +129,7 @@ class QuickAddModal extends Modal {
       cls: "fs-visit-spent-input",
       attr: { min: "0", step: "0.01", placeholder: symbol },
     });
-    const noteInput = visitBox.createEl("input", {
+    const noteInput = visitFields.createEl("input", {
       type: "text",
       cls: "fs-visit-note-input",
       attr: { placeholder: "What did you eat?" },
@@ -141,7 +150,7 @@ class QuickAddModal extends Modal {
       const result: QuickAddResult = { status: this.status };
       if (this.rating > 0) result.rating = this.rating;
       if (this.price !== undefined) result.price = this.price;
-      if (this.status === "visited" && dateInput.value) {
+      if (this.status === "visited" && logCb.checked && dateInput.value) {
         result.visit = {
           date: dateInput.value,
           spent: spent !== undefined && !Number.isNaN(spent) ? spent : undefined,

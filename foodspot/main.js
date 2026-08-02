@@ -19046,8 +19046,14 @@ var QuickAddModal = class extends import_obsidian20.Modal {
       priceRow.createSpan({ cls: "fs-field-hint", text: " from Google" });
     }
     const visitBox = contentEl.createDiv({ cls: "fs-quickadd-visit is-hidden" });
-    visitBox.createDiv({ cls: "fs-field-label", text: "Log this visit (optional)" });
-    const visitRow = visitBox.createDiv({ cls: "fs-quickadd-row" });
+    const logLabel = visitBox.createEl("label", { cls: "fs-checkbox-label" });
+    const logCb = logLabel.createEl("input", { type: "checkbox" });
+    logLabel.createSpan({ text: " Log a visit with a date" });
+    const visitFields = visitBox.createDiv({ cls: "fs-quickadd-visit-fields is-hidden" });
+    logCb.addEventListener("change", () => {
+      visitFields.toggleClass("is-hidden", !logCb.checked);
+    });
+    const visitRow = visitFields.createDiv({ cls: "fs-quickadd-row" });
     const dateInput = visitRow.createEl("input", { type: "date" });
     dateInput.value = todayIso4();
     const spentInput = visitRow.createEl("input", {
@@ -19055,7 +19061,7 @@ var QuickAddModal = class extends import_obsidian20.Modal {
       cls: "fs-visit-spent-input",
       attr: { min: "0", step: "0.01", placeholder: symbol }
     });
-    const noteInput = visitBox.createEl("input", {
+    const noteInput = visitFields.createEl("input", {
       type: "text",
       cls: "fs-visit-note-input",
       attr: { placeholder: "What did you eat?" }
@@ -19074,7 +19080,7 @@ var QuickAddModal = class extends import_obsidian20.Modal {
       const result = { status: this.status };
       if (this.rating > 0) result.rating = this.rating;
       if (this.price !== void 0) result.price = this.price;
-      if (this.status === "visited" && dateInput.value) {
+      if (this.status === "visited" && logCb.checked && dateInput.value) {
         result.visit = {
           date: dateInput.value,
           spent: spent !== void 0 && !Number.isNaN(spent) ? spent : void 0,
