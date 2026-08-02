@@ -725,6 +725,59 @@ a.fs-info-text {
   color: var(--text-faint);
 }
 
+/* ---------- opening hours ---------- */
+
+.fs-hours-state.is-open {
+  color: var(--fs-open, var(--text-normal));
+  font-weight: 600;
+}
+
+.fs-hours-state.is-closed {
+  color: var(--text-muted);
+}
+
+.fs-hours-details {
+  margin: 2px 0 2px 23px;
+  font-size: var(--font-ui-small);
+}
+
+.fs-hours-summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  list-style: none;
+}
+
+.fs-hours-summary::marker,
+.fs-hours-summary::-webkit-details-marker {
+  display: none;
+}
+
+.fs-hours-summary::before {
+  content: "▸ ";
+  color: var(--text-faint);
+}
+
+.fs-hours-details[open] .fs-hours-summary::before {
+  content: "▾ ";
+}
+
+.fs-hours-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 0 2px 12px;
+}
+
+.fs-hours-line {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-hours-today {
+  color: var(--text-normal);
+  font-weight: 600;
+}
+
 .fs-detail-external {
   display: flex;
   align-items: center;

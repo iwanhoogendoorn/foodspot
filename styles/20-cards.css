@@ -280,6 +280,31 @@
   white-space: nowrap;
 }
 
+/* --- open-now chip (hours known only) ------------------------------------ */
+.fs-open-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.fs-open-chip::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fs-open, rgba(255, 255, 255, 0.5));
+  flex-shrink: 0;
+}
+
+.fs-open-chip.is-open {
+  font-weight: 600;
+}
+
+.fs-open-chip.is-closed {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 /* --- no-photo cards: themed surface instead of a dark poster --------------- */
 /* Default cover: a quiet plate-and-cutlery doodle pattern, masked so it
    picks up theme color, behind the letter. Shown wherever no photo exists. */
@@ -337,6 +362,14 @@
 }
 
 .fs-card-nophoto .fs-meta-time {
+  color: var(--text-faint);
+}
+
+.fs-card-nophoto .fs-open-chip::before {
+  background: var(--fs-open, var(--text-faint));
+}
+
+.fs-card-nophoto .fs-open-chip.is-closed {
   color: var(--text-faint);
 }
 
@@ -404,6 +437,14 @@
 }
 
 .fs-card-text-under .fs-meta-time {
+  color: var(--text-faint);
+}
+
+.fs-card-text-under .fs-open-chip::before {
+  background: var(--fs-open, var(--text-faint));
+}
+
+.fs-card-text-under .fs-open-chip.is-closed {
   color: var(--text-faint);
 }
 

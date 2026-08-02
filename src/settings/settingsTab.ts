@@ -22,6 +22,7 @@ import {
 import type { FoodSpot, FoodSpotPluginApi } from "../types";
 import { DATA_CHANGED_EVENT } from "../types";
 import { confirmModal } from "../ui/modals/confirm";
+import { openDuplicatesModal } from "../ui/modals/duplicates";
 import { starRating } from "../ui/components/starRating";
 import { buildBackupJson, importBackup, saveToDisk } from "../store/backup";
 import { sanitizeFileName } from "../import/pipeline";
@@ -503,6 +504,26 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     this.addHelp(
       bak,
       "Export opens the system save dialog — put the file anywhere (it can get large: photos are embedded). To restore on another vault: install Food Spot there, then Import backup and pick the file. Media files are recreated at their original vault paths.",
+    );
+
+    // --- Duplicate finder ---
+    const dupes = new Setting(c)
+      .setName("Find duplicate spots")
+      .setDesc(
+        "Finds spots that are the same restaurant — the same Google place, the same name within one city, or nearly identical coordinates — and lets you merge a pair into one note.",
+      );
+    dupes.addButton((b) =>
+      b.setButtonText("Scan for duplicates").onClick(() => {
+        try {
+          openDuplicatesModal(this.plugin);
+        } catch (e) {
+          new Notice(`Duplicate scan failed: ${errMsg(e)}`);
+        }
+      }),
+    );
+    this.addHelp(
+      dupes,
+      "Nothing is merged without asking. Each pair shows why it matched and what is on both notes; you pick which note survives, and the other one's visits, ratings, photos, cuisines and tags are folded into it before it goes to the trash. 'Not a duplicate' hides a pair until the next scan.",
     );
 
     // --- Unused media cleanup ---

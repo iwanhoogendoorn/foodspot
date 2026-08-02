@@ -1,0 +1,123 @@
+/* ==========================================================================
+   Food Spot — duplicate finder modal (61-duplicates.css)
+   Follows 40-modals.css: Obsidian vars only, fs- prefix, accent-only theming.
+   Wider than the standard modal because a row carries two spots side by side.
+   ========================================================================== */
+
+.fs-duplicates-modal {
+  max-width: 720px;
+}
+
+.fs-dupfind-count {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.fs-dupfind-count:empty {
+  margin-bottom: 0;
+}
+
+.fs-dupfind-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.fs-dupfind-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+/* ---------- why they matched ---------- */
+
+.fs-dupfind-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background: var(--background-modifier-hover);
+}
+
+.fs-dupfind-badge-icon {
+  display: inline-flex;
+}
+
+.fs-dupfind-badge-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.fs-dupfind-place-id {
+  color: var(--text-normal);
+  background: var(--background-modifier-success);
+}
+
+/* ---------- the two spots ---------- */
+
+.fs-dupfind-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.fs-dupfind-side {
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+}
+
+.fs-dupfind-name {
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+.fs-dupfind-where,
+.fs-dupfind-meta {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.fs-dupfind-meta {
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- actions ---------- */
+
+.fs-dupfind-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fs-dupfind-actions button {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-dupfind-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 560px) {
+  .fs-dupfind-sides {
+    grid-template-columns: 1fr;
+  }
+}

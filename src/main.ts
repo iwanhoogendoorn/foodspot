@@ -17,6 +17,8 @@ import { openLogVisitPicker } from "./ui/modals/logVisit";
 import { importFromClipboard } from "./ui/modals/importFlow";
 import { openListImportModal } from "./ui/modals/listImport";
 import { registerEnrichEntry } from "./ui/modals/enrich";
+import { openCityGuideModal } from "./ui/modals/cityGuide";
+import { openGalleryModal } from "./ui/modals/gallery";
 import { disposePhotoObserver } from "./ui/components/card";
 import { dumpDashboardDiagnostics } from "./diagnostics";
 
@@ -61,6 +63,16 @@ export default class FoodSpotPlugin extends Plugin implements FoodSpotPluginApi 
       id: "import-list",
       name: "Import a list of restaurant names",
       callback: () => openListImportModal(this),
+    });
+    this.addCommand({
+      id: "city-guide",
+      name: "Create a city guide",
+      callback: () => openCityGuideModal(this),
+    });
+    this.addCommand({
+      id: "dish-gallery",
+      name: "Browse dish photos",
+      callback: () => openGalleryModal(this),
     });
     this.addCommand({
       id: "insert-widget",

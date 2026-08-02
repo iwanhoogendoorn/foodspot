@@ -7,7 +7,7 @@
  * more"), and Recently visited / Recently added compact card rows.
  */
 import { setIcon } from "obsidian";
-import type { FoodSpot, FoodSpotPluginApi, TabHandle } from "../../types";
+import type { FoodSpot, FoodSpotPluginApi, TabHandle, Visit } from "../../types";
 import { buildSpotCard, releaseLazyPhotos } from "../components/card";
 import { openDetailModal } from "../modals/detail";
 import { openAddChooser } from "../modals/addChooser";
@@ -69,6 +69,23 @@ function coverageBy(
   return [...m.entries()]
     .map(([label, v]) => ({ label, ...v }))
     .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
+}
+
+/**
+ * Usable amount on a visit, or undefined. A visit without `spent` (or with a
+ * junk value) has no amount — it must never be averaged in as a zero.
+ */
+function spentOf(v: Visit): number | undefined {
+  const n = v.spent;
+  if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return undefined;
+  return n;
+}
+
+/** One visit that carries an amount, paired with the spot it belongs to. */
+interface SpendEntry {
+  spot: FoodSpot;
+  visit: Visit;
+  amount: number;
 }
 
 export function mountDashboardTab(
@@ -255,6 +272,16 @@ export function mountDashboardTab(
     const bar = parent.createDiv({ cls: "fs-cov-bar" });
     const fill = bar.createDiv({ cls: "fs-cov-fill" });
     fill.style.width = `${Math.round(clamp01(frac) * 100)}%`;
+  };
+
+  /** Amount in the user's currency: thousands separators, cents only when they exist. */
+  const money = (n: number): string => {
+    const symbol = plugin.settings.currencySymbol || "€";
+    const decimals = Number.isInteger(n) ? 0 : 2;
+    return `${symbol}${n.toLocaleString(undefined, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    })}`;
   };
 
   const listRow = (
@@ -510,6 +537,107 @@ export function mountDashboardTab(
             () => openDetailModal(plugin, s.path),
           );
         }
+      }
+    }
+
+    // -- Spend ---------------------------------------------------------------
+    // Every figure below is built from `entries` only: visits without a usable
+    // amount are absent, never counted as 0 (which would sink the averages).
+    const entries: SpendEntry[] = [];
+    let visitsTotal = 0;
+    for (const s of spots) {
+      for (const v of s.visits) {
+        visitsTotal++;
+        const amount = spentOf(v);
+        if (amount !== undefined) entries.push({ spot: s, visit: v, amount });
+      }
+    }
+
+    if (!entries.length) {
+      // Discoverable without being noise: one quiet line, no empty panels.
+      emptyLine(el, "No spend logged yet — add an amount when you log a visit.");
+      return;
+    }
+
+    // Spending summary.
+    {
+      const p = panel("Spending");
+      const total = entries.reduce((n, e) => n + e.amount, 0);
+      const priciest = entries.reduce((best, e) => (e.amount > best.amount ? e : best));
+      listRow(p, "Total spent", money(total));
+      listRow(p, "Average per visit", money(total / entries.length));
+      listRow(p, "Visits with an amount", `${entries.length} / ${visitsTotal}`);
+      p.createDiv({ cls: "fs-stats-panel-note", text: "Most expensive visit" });
+      listRow(p, priciest.spot.name, money(priciest.amount), () =>
+        openDetailModal(plugin, priciest.spot.path),
+      );
+    }
+
+    // Spend by month (last 12 months that have an amount).
+    {
+      const p = panel("Spend by month");
+      const byMonth = new Map<string, number>();
+      for (const e of entries) {
+        const key = e.visit.date.slice(0, 7);
+        if (!/^\d{4}-\d{2}$/.test(key)) continue;
+        byMonth.set(key, (byMonth.get(key) ?? 0) + e.amount);
+      }
+      const months = [...byMonth.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .slice(-12);
+      if (!months.length) {
+        emptyLine(p, "No dated visits with an amount yet.");
+      } else {
+        const max = Math.max(...months.map(([, n]) => n));
+        for (const [key, n] of months) {
+          const d = new Date(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, 1);
+          const label = d.toLocaleDateString(undefined, { month: "short", year: "2-digit" });
+          barRow(p, label, money(n), max ? n / max : 0);
+        }
+      }
+    }
+
+    // Spend by city (top 8). Rows stay static: this file has no jump-to-city
+    // helper — the Spots location filter is only reachable from spots.ts.
+    {
+      const p = panel("Spend by city");
+      const byCity = new Map<string, number>();
+      for (const e of entries) {
+        const city = (e.spot.city ?? "").trim();
+        if (!city) continue;
+        byCity.set(city, (byCity.get(city) ?? 0) + e.amount);
+      }
+      const cities = [...byCity.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 8);
+      if (!cities.length) {
+        emptyLine(p, "No spend recorded against a city yet — add a city to your spots.");
+      } else {
+        const max = Math.max(...cities.map(([, n]) => n));
+        for (const [city, n] of cities) barRow(p, city, money(n), max ? n / max : 0);
+      }
+    }
+
+    // Priciest spots: total across every visit that carried an amount.
+    {
+      const p = panel("Priciest spots");
+      const bySpot = new Map<string, { spot: FoodSpot; total: number; count: number }>();
+      for (const e of entries) {
+        const cur = bySpot.get(e.spot.path) ?? { spot: e.spot, total: 0, count: 0 };
+        cur.total += e.amount;
+        cur.count++;
+        bySpot.set(e.spot.path, cur);
+      }
+      const top = [...bySpot.values()]
+        .sort((a, b) => b.total - a.total || a.spot.name.localeCompare(b.spot.name))
+        .slice(0, 5);
+      for (const t of top) {
+        listRow(
+          p,
+          t.spot.name,
+          `${money(t.total)} · ${t.count} ${t.count === 1 ? "visit" : "visits"}`,
+          () => openDetailModal(plugin, t.spot.path),
+        );
       }
     }
   };

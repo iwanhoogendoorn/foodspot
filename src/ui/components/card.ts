@@ -18,6 +18,7 @@ import type {
   FoodSpotPluginApi,
   RatingTier,
 } from "../../types";
+import { openState } from "./hours";
 import { openDetailModal } from "../modals/detail";
 import { openEditModal } from "../modals/addEdit";
 import { openLogVisitPicker } from "../modals/logVisit";
@@ -624,6 +625,17 @@ function buildFullCard(
     const o = meta.createSpan({ cls: "fs-meta-google" });
     o.createSpan({ cls: "fs-meta-g", text: other.label });
     o.createSpan({ text: ` ${fmtRating(other.rating)}${other.scale10 ? "/10" : ""}` });
+  }
+  // Open-now chip — only for spots whose hours we can actually read; unknown
+  // hours leave the meta row exactly as it was.
+  const hours = openState(spot.hours, new Date());
+  if (hours) {
+    const chip = meta.createSpan({
+      cls: `fs-open-chip ${hours.open ? "is-open" : "is-closed"}`,
+      attr: { title: hours.label, "aria-label": hours.label },
+    });
+    if (hours.open) chip.style.setProperty("--fs-open", plugin.settings.statusColors.visited);
+    chip.createSpan({ text: hours.open ? "Open" : "Closed" });
   }
   const when = spot.lastVisit
     ? relTime(spot.lastVisit)

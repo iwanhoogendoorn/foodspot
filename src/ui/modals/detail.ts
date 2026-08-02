@@ -23,6 +23,7 @@ import type {
 import { SPOT_STATUSES } from "../../types";
 import { starRating } from "../components/starRating";
 import { isStaleRatings } from "../components/card";
+import { formatHoursForDisplay, openState } from "../components/hours";
 import { confirmModal } from "./confirm";
 import { openEditModal } from "./addEdit";
 import { canBrowserFetch, openBrowserFetchQueue } from "./browserFetch";
@@ -334,6 +335,8 @@ class DetailModal extends Modal {
       });
     }
 
+    this.renderHours(block, spot);
+
     this.renderMenuRow(block, spot);
 
     if (spot.sourceUrl && spot.sourceUrl !== spot.url) {
@@ -347,6 +350,43 @@ class DetailModal extends Modal {
         window.open(spot.sourceUrl);
       });
     }
+  }
+
+  /**
+   * Open-now line plus the week, collapsed. The state line is skipped when
+   * the hours don't parse — a wrong "Closed" is worse than no indicator —
+   * but the raw lines are still listed so the user can fix them.
+   */
+  private renderHours(block: HTMLElement, spot: FoodSpot): void {
+    if (!spot.hours || spot.hours.length === 0) return;
+    const state = openState(spot.hours, new Date());
+
+    const row = block.createDiv({ cls: "fs-info-row" });
+    const icon = row.createSpan({ cls: "fs-info-icon" });
+    setIcon(icon, "clock");
+    if (state) {
+      const text = row.createSpan({
+        cls: `fs-info-text fs-hours-state ${state.open ? "is-open" : "is-closed"}`,
+        text: state.label,
+      });
+      if (state.open) {
+        text.style.setProperty("--fs-open", this.plugin.settings.statusColors.visited);
+      }
+    } else {
+      row.addClass("fs-info-empty");
+      row.createSpan({ cls: "fs-info-text", text: "Opening hours (unreadable format)" });
+    }
+
+    const details = block.createEl("details", { cls: "fs-hours-details" });
+    details.createEl("summary", { cls: "fs-hours-summary", text: "Opening hours" });
+    const list = details.createDiv({ cls: "fs-hours-list" });
+    const todayIndex = (new Date().getDay() + 6) % 7; // formatHoursForDisplay is Mon-first
+    formatHoursForDisplay(spot.hours).forEach((line, i) => {
+      list.createDiv({
+        cls: i === todayIndex ? "fs-hours-line fs-hours-today" : "fs-hours-line",
+        text: line,
+      });
+    });
   }
 
   /** SPEC-v1.1 §4: external URL → link; vault path → preview / open-in-Obsidian. */

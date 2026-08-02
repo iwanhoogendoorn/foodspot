@@ -1371,6 +1371,31 @@ svg.leaflet-image-layer.leaflet-interactive path {
   white-space: nowrap;
 }
 
+/* --- open-now chip (hours known only) ------------------------------------ */
+.fs-open-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.fs-open-chip::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fs-open, rgba(255, 255, 255, 0.5));
+  flex-shrink: 0;
+}
+
+.fs-open-chip.is-open {
+  font-weight: 600;
+}
+
+.fs-open-chip.is-closed {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 /* --- no-photo cards: themed surface instead of a dark poster --------------- */
 /* Default cover: a quiet plate-and-cutlery doodle pattern, masked so it
    picks up theme color, behind the letter. Shown wherever no photo exists. */
@@ -1428,6 +1453,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
 }
 
 .fs-card-nophoto .fs-meta-time {
+  color: var(--text-faint);
+}
+
+.fs-card-nophoto .fs-open-chip::before {
+  background: var(--fs-open, var(--text-faint));
+}
+
+.fs-card-nophoto .fs-open-chip.is-closed {
   color: var(--text-faint);
 }
 
@@ -1495,6 +1528,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
 }
 
 .fs-card-text-under .fs-meta-time {
+  color: var(--text-faint);
+}
+
+.fs-card-text-under .fs-open-chip::before {
+  background: var(--fs-open, var(--text-faint));
+}
+
+.fs-card-text-under .fs-open-chip.is-closed {
   color: var(--text-faint);
 }
 
@@ -3678,6 +3719,59 @@ a.fs-info-text {
   color: var(--text-faint);
 }
 
+/* ---------- opening hours ---------- */
+
+.fs-hours-state.is-open {
+  color: var(--fs-open, var(--text-normal));
+  font-weight: 600;
+}
+
+.fs-hours-state.is-closed {
+  color: var(--text-muted);
+}
+
+.fs-hours-details {
+  margin: 2px 0 2px 23px;
+  font-size: var(--font-ui-small);
+}
+
+.fs-hours-summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  list-style: none;
+}
+
+.fs-hours-summary::marker,
+.fs-hours-summary::-webkit-details-marker {
+  display: none;
+}
+
+.fs-hours-summary::before {
+  content: "▸ ";
+  color: var(--text-faint);
+}
+
+.fs-hours-details[open] .fs-hours-summary::before {
+  content: "▾ ";
+}
+
+.fs-hours-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 0 2px 12px;
+}
+
+.fs-hours-line {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-hours-today {
+  color: var(--text-normal);
+  font-weight: 600;
+}
+
 .fs-detail-external {
   display: flex;
   align-items: center;
@@ -4586,6 +4680,12 @@ a.fs-info-text {
   color: var(--text-muted);
   margin-bottom: 8px;
 }
+/* sub-heading inside a panel — e.g. "Most expensive visit" above its row */
+.fs-stats-panel-note {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 10px;
+}
 .fs-stat-row {
   display: flex;
   justify-content: space-between;
@@ -5170,6 +5270,249 @@ a.fs-info-text {
 }
 .fs-qi-body p {
   margin: 4px 0;
+}
+
+
+/* === 61-duplicates.css === */
+/* ==========================================================================
+   Food Spot — duplicate finder modal (61-duplicates.css)
+   Follows 40-modals.css: Obsidian vars only, fs- prefix, accent-only theming.
+   Wider than the standard modal because a row carries two spots side by side.
+   ========================================================================== */
+
+.fs-duplicates-modal {
+  max-width: 720px;
+}
+
+.fs-dupfind-count {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.fs-dupfind-count:empty {
+  margin-bottom: 0;
+}
+
+.fs-dupfind-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.fs-dupfind-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+/* ---------- why they matched ---------- */
+
+.fs-dupfind-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background: var(--background-modifier-hover);
+}
+
+.fs-dupfind-badge-icon {
+  display: inline-flex;
+}
+
+.fs-dupfind-badge-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.fs-dupfind-place-id {
+  color: var(--text-normal);
+  background: var(--background-modifier-success);
+}
+
+/* ---------- the two spots ---------- */
+
+.fs-dupfind-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.fs-dupfind-side {
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+}
+
+.fs-dupfind-name {
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+.fs-dupfind-where,
+.fs-dupfind-meta {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.fs-dupfind-meta {
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- actions ---------- */
+
+.fs-dupfind-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fs-dupfind-actions button {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-dupfind-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 560px) {
+  .fs-dupfind-sides {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* === 62-guide-gallery.css === */
+/* ==========================================================================
+   Food Spot — city guide + dish gallery modals (62-guide-gallery.css)
+   Obsidian CSS vars only; no hard-coded colors.
+   ========================================================================== */
+
+/* ---------- city guide ---------- */
+
+.fs-city-guide-modal {
+  max-width: 640px;
+}
+
+.fs-guide-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.fs-guide-city {
+  min-width: 200px;
+}
+
+.fs-guide-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  cursor: pointer;
+  /* Sits on the dropdown's baseline rather than the field's top edge. */
+  padding-bottom: 4px;
+}
+
+.fs-guide-preview {
+  max-height: 40vh;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--background-primary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.5;
+  color: var(--text-normal);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+/* ---------- dish gallery ---------- */
+
+.fs-gallery-modal {
+  max-width: 720px;
+}
+
+.fs-gallery-count {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.fs-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.fs-gallery-tile {
+  cursor: pointer;
+  min-width: 0;
+}
+
+.fs-gallery-frame {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: var(--radius-s);
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.fs-gallery-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.fs-gallery-tile:hover .fs-gallery-frame {
+  border-color: var(--interactive-accent);
+}
+
+.fs-gallery-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-size: var(--font-ui-medium);
+}
+
+.fs-gallery-caption {
+  margin-top: 4px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 

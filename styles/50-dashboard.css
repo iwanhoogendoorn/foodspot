@@ -276,6 +276,12 @@
   color: var(--text-muted);
   margin-bottom: 8px;
 }
+/* sub-heading inside a panel — e.g. "Most expensive visit" above its row */
+.fs-stats-panel-note {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 10px;
+}
 .fs-stat-row {
   display: flex;
   justify-content: space-between;

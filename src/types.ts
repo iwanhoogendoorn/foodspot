@@ -106,6 +106,12 @@ export interface FoodSpot {
   photo?: string;
   /** Menu: https URL or vault-relative path (image/PDF). */
   menu?: string;
+  /**
+   * Opening hours, one readable line per day, e.g. "Mon 17:00-22:00",
+   * "Sat 12:00-14:30,17:00-23:00", "Tue closed". Readable in the note AND
+   * parseable for the open-now indicator (see ui/components/hours.ts).
+   */
+  hours?: string[];
   tags: string[];
   visits: Visit[];
   /** Derived: visits.length (persisted to frontmatter for Dataview users). */

@@ -197,6 +197,7 @@ export class ImportPipeline implements ImportPipelineApi {
     setDraftField(draft, "price", details.priceLevel, "high");
     setDraftField(draft, "url", details.website, "high");
     setDraftField(draft, "phone", details.phone, "high");
+    setDraftField(draft, "hours", details.hours, "high");
     // Fresh external ratings always win (v0.1 dropped these on save).
     mergeExternal(draft, {
       googlePlaceId: details.placeId,
@@ -419,6 +420,13 @@ export class ImportPipeline implements ImportPipelineApi {
         }
         if (details.country !== undefined && (overwrite || isBlank(spot.country))) {
           out.country = details.country;
+        }
+        // Opening hours ride with the `address` option group rather than
+        // getting their own checkbox: they come from the same Details call,
+        // and an enrich run already ticked for address then picks them up
+        // without the user reconfiguring anything.
+        if (details.hours !== undefined && (overwrite || (spot.hours ?? []).length === 0)) {
+          out.hours = details.hours;
         }
       }
       // Price / website / phone ride along fill-gaps-ONLY (spec §2 "also

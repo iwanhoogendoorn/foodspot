@@ -23,6 +23,7 @@ const DETAILS_FIELDS = [
   "international_phone_number",
   "place_id",
   "photo",
+  "opening_hours",
 ].join(",");
 
 const FIND_PLACE_FIELDS = [
@@ -61,6 +62,8 @@ export interface PlaceDetails {
   phone?: string;
   /** photo_reference of the first place photo, for `fetchPlacePhoto`. */
   photoReference?: string;
+  /** Opening hours as readable per-day lines (see ui/components/hours.ts). */
+  hours?: string[];
 }
 
 interface RawAddressComponent {
@@ -82,6 +85,13 @@ interface RawPlace {
   website?: string;
   international_phone_number?: string;
   photos?: { photo_reference?: string }[];
+  opening_hours?: { periods?: RawPeriod[] };
+}
+
+interface RawPeriod {
+  /** day: 0 = Sunday … 6 = Saturday; time: "HHMM" local. */
+  open?: { day?: number; time?: string };
+  close?: { day?: number; time?: string };
 }
 
 interface PlacesResponse {
@@ -138,6 +148,53 @@ function mapLocation(raw: RawPlace): Coordinates | undefined {
 function mapPriceLevel(level: number | undefined): number | undefined {
   if (level === undefined || level < 1) return undefined;
   return Math.min(level, 4);
+}
+
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/** Monday-first output order — how the lines read in the note. */
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+/** Google "HHMM" -> "HH:MM"; anything else is unusable. */
+function mapClockTime(time: string | undefined): string | undefined {
+  if (typeof time !== "string" || !/^\d{4}$/.test(time)) return undefined;
+  return `${time.slice(0, 2)}:${time.slice(2)}`;
+}
+
+/**
+ * Map `opening_hours.periods` into the stored line format (one line per day,
+ * "Mon 17:00-22:00" / "Sat 12:00-14:30,17:00-23:00" / "Tue closed").
+ * Ranges closing after midnight keep their raw times — the parser reads a
+ * close earlier than the open as "runs into the next day".
+ * A lone period without a close is Google's "always open" marker.
+ */
+function mapOpeningHours(raw: RawPlace): string[] | undefined {
+  const periods = raw.opening_hours?.periods;
+  if (periods === undefined || periods.length === 0) return undefined;
+  if (periods.length === 1 && periods[0].close === undefined) {
+    return DAY_ORDER.map((d) => `${DAY_LABELS[d]} 00:00-23:59`);
+  }
+
+  const byDay = new Map<number, string[]>();
+  for (const period of periods) {
+    const day = period.open?.day;
+    if (typeof day !== "number" || day < 0 || day > 6) continue;
+    const open = mapClockTime(period.open?.time);
+    const close = mapClockTime(period.close?.time);
+    // A period we can't express as a range would silently become "closed" —
+    // drop the whole mapping instead of publishing a wrong day line.
+    if (open === undefined || close === undefined) return undefined;
+    const ranges = byDay.get(day) ?? [];
+    ranges.push(`${open}-${close}`);
+    byDay.set(day, ranges);
+  }
+  if (byDay.size === 0) return undefined;
+
+  return DAY_ORDER.map((day) => {
+    const ranges = byDay.get(day);
+    return ranges === undefined || ranges.length === 0
+      ? `${DAY_LABELS[day]} closed`
+      : `${DAY_LABELS[day]} ${ranges.sort().join(",")}`;
+  });
 }
 
 function toCandidate(raw: RawPlace): PlaceCandidate | null {
@@ -290,6 +347,8 @@ export class PlacesClient {
     if (typeof raw.user_ratings_total === "number") details.ratingCount = raw.user_ratings_total;
     const photoRef = raw.photos?.[0]?.photo_reference;
     if (typeof photoRef === "string" && photoRef !== "") details.photoReference = photoRef;
+    const hours = mapOpeningHours(raw);
+    if (hours !== undefined) details.hours = hours;
     return details;
   }
 
