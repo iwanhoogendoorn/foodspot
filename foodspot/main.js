@@ -20049,7 +20049,8 @@ function card(spot, o) {
     rows.push(`<div class="price">${esc(o.currency.repeat(Math.min(4, spot.price)))}</div>`);
   }
   if (spot.address) rows.push(`<div class="line addr">${esc(spot.address)}</div>`);
-  const place = [spot.city, spot.country].filter(Boolean).join(", ");
+  const addrLower = (spot.address ?? "").toLowerCase();
+  const place = [spot.city, spot.country].filter((part) => !!part && !addrLower.includes(part.toLowerCase())).join(", ");
   if (place) rows.push(`<div class="line place">${esc(place)}</div>`);
   if (spot.phone) rows.push(`<div class="line phone">${esc(spot.phone)}</div>`);
   if (spot.url) {
@@ -20069,21 +20070,22 @@ function card(spot, o) {
 var CSS = `
   * { box-sizing: border-box; }
   body {
-    margin: 0; padding: 24px 22px 32px;
+    margin: 0; padding: 12mm 11mm 14mm;
+    width: 210mm;
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     color: #1d1f24; background: #fff;
   }
   header { border-bottom: 2px solid #1d1f24; padding-bottom: 10px; margin-bottom: 18px; }
   h1 { margin: 0; font-size: 27px; letter-spacing: -0.4px; }
   .sub { margin-top: 5px; color: #6b7080; font-size: 12.5px; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .card {
-    display: flex; gap: 12px; align-items: stretch;
+    display: flex; gap: 10px; align-items: stretch; min-width: 0;
     border: 1px solid #dfe2e8; border-radius: 10px; padding: 10px;
     break-inside: avoid; page-break-inside: avoid;
   }
   .cover {
-    width: 104px; height: 104px; flex: none;
+    width: 92px; height: 92px; flex: none;
     object-fit: cover; border-radius: 7px; background: #eef0f4;
   }
   .cover-placeholder {
@@ -20106,9 +20108,10 @@ var CSS = `
   .line.phone, .line.web { color: #2b5fa8; }
   a { color: inherit; text-decoration: none; }
   footer { margin-top: 20px; color: #8a90a0; font-size: 10.5px; text-align: center; }
-  @page { size: A4; margin: 12mm; }
+  /* printToPDF renders with zero hardware margins; the page padding above is
+     the margin, so the layout width matches A4 exactly and nothing overflows. */
+  @page { size: A4; margin: 0; }
   @media print {
-    body { padding: 0; }
     .card { border-color: #c9ccd6; }
   }
 `;
@@ -20320,7 +20323,8 @@ async function exportHtmlToPdf(html, suggestedName) {
   const tmpPath = bits.tmpFile(`foodspot-guide-${Date.now()}.html`, html);
   const view = document.createElement("webview");
   view.setAttribute("nodeintegration", "false");
-  view.style.cssText = "position:fixed;left:-10000px;top:0;width:900px;height:1200px;opacity:0;pointer-events:none;";
+  view.style.cssText = // 794x1123 = A4 at 96dpi, so CSS layout == printed page.
+  "position:fixed;left:-10000px;top:0;width:794px;height:1123px;opacity:0;pointer-events:none;";
   view.src = `file://${tmpPath}`;
   return new Promise((resolve) => {
     let settled = false;
@@ -20341,7 +20345,8 @@ async function exportHtmlToPdf(html, suggestedName) {
             const data = await view.printToPDF({
               pageSize: "A4",
               printBackground: true,
-              margins: { marginType: "custom", top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 }
+              // Margins live in the document's own page padding.
+              margins: { marginType: "none" }
             });
             bits.writeFile(res.filePath, data);
             settled = true;

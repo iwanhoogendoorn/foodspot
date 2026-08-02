@@ -84,7 +84,8 @@ export async function exportHtmlToPdf(html: string, suggestedName: string): Prom
   const view = document.createElement("webview") as PrintableWebview;
   view.setAttribute("nodeintegration", "false");
   view.style.cssText =
-    "position:fixed;left:-10000px;top:0;width:900px;height:1200px;opacity:0;pointer-events:none;";
+    // 794x1123 = A4 at 96dpi, so CSS layout == printed page.
+    "position:fixed;left:-10000px;top:0;width:794px;height:1123px;opacity:0;pointer-events:none;";
   view.src = `file://${tmpPath}`;
 
   return new Promise<boolean>((resolve) => {
@@ -108,7 +109,8 @@ export async function exportHtmlToPdf(html: string, suggestedName: string): Prom
             const data = await view.printToPDF({
               pageSize: "A4",
               printBackground: true,
-              margins: { marginType: "custom", top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 },
+              // Margins live in the document's own page padding.
+              margins: { marginType: "none" },
             });
             bits.writeFile(res.filePath as string, data);
             settled = true;
