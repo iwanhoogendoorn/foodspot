@@ -10,6 +10,7 @@
 import { Modal, Notice, TFile } from "obsidian";
 import type { FoodSpot, FoodSpotPluginApi } from "../../types";
 import { buildCityGuide } from "../../tools/cityGuide";
+import { buildGuideHtml, guidePhotoPaths } from "../../tools/guideHtml";
 import { ensureFolder, availablePath } from "../../store/noteWriter";
 import { saveToDisk } from "../../store/backup";
 
@@ -35,6 +36,15 @@ function cityOptions(spots: FoodSpot[]): { city: string; count: number }[] {
 }
 
 /** A guide filename still has to be a legal vault filename. */
+const MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  avif: "image/avif",
+};
+
 function sanitizeFileName(name: string): string {
   return name
     .replace(/[\\/:*?"<>|#^[\]]/g, " ")
@@ -45,7 +55,9 @@ function sanitizeFileName(name: string): string {
 class CityGuideModal extends Modal {
   private city = "";
   private includeWantToTry = true;
-  private previewEl!: HTMLElement;
+  private previewEl!: HTMLIFrameElement;
+  private html = "";
+  private images = new Map<string, string>();
   private cities: { city: string; count: number }[] = [];
 
   constructor(
@@ -103,10 +115,19 @@ class CityGuideModal extends Modal {
       this.renderPreview();
     });
 
-    this.previewEl = body.createEl("pre", { cls: "fs-guide-preview" });
+    this.previewEl = body.createEl("iframe", { cls: "fs-guide-preview" });
+    this.previewEl.setAttribute("sandbox", "allow-same-origin allow-modals");
 
-    const buttons = body.createDiv({ cls: "fs-modal-buttons" });
-    const copy = buttons.createEl("button", { text: "Copy to clipboard" });
+    const buttons = body.createDiv({ cls: "fs-modal-buttons fs-guide-buttons" });
+    const pdf = buttons.createEl("button", { cls: "mod-cta", text: "Save as PDF…" });
+    pdf.type = "button";
+    pdf.addEventListener("click", () => this.print());
+    const htmlBtn = buttons.createEl("button", { text: "Save HTML…" });
+    htmlBtn.type = "button";
+    htmlBtn.addEventListener("click", () => {
+      void saveToDisk(`${sanitizeFileName(this.noteTitle())}.html`, this.html);
+    });
+    const copy = buttons.createEl("button", { text: "Copy markdown" });
     copy.type = "button";
     copy.addEventListener("click", () => {
       void navigator.clipboard
@@ -114,15 +135,7 @@ class CityGuideModal extends Modal {
         .then(() => new Notice(`Guide for ${this.city} copied.`))
         .catch((e: unknown) => new Notice(`Couldn't copy — ${errorMessage(e)}`));
     });
-    const disk = buttons.createEl("button", { text: "Save to disk…" });
-    disk.type = "button";
-    disk.addEventListener("click", () => {
-      void saveToDisk(`${sanitizeFileName(this.noteTitle())}.md`, this.markdown());
-    });
-    const save = buttons.createEl("button", {
-      cls: "mod-cta",
-      text: "Save as note in vault",
-    });
+    const save = buttons.createEl("button", { text: "Save as note" });
     save.type = "button";
     save.addEventListener("click", () => void this.saveAsNote());
 
@@ -140,9 +153,56 @@ class CityGuideModal extends Modal {
     });
   }
 
+  /** Vault images -> data URIs so the exported document is standalone. */
+  private async loadImages(paths: string[]): Promise<void> {
+    for (const p of paths) {
+      if (this.images.has(p)) continue;
+      const file =
+        this.plugin.app.metadataCache.getFirstLinkpathDest(p, "") ??
+        this.plugin.app.vault.getAbstractFileByPath(p);
+      if (!(file instanceof TFile)) continue;
+      try {
+        const bytes = new Uint8Array(await this.plugin.app.vault.readBinary(file));
+        let bin = "";
+        const CHUNK = 0x8000;
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+          bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+        }
+        const mime = MIME[file.extension.toLowerCase()] ?? "image/jpeg";
+        this.images.set(p, `data:${mime};base64,${btoa(bin)}`);
+      } catch {
+        // A broken image just falls back to the letter tile.
+      }
+    }
+  }
+
   private renderPreview(): void {
-    this.previewEl.setText(this.markdown());
-    this.previewEl.scrollTop = 0;
+    void (async () => {
+      const spots = this.plugin.store.getSpots();
+      await this.loadImages(guidePhotoPaths(spots, this.city, this.includeWantToTry));
+      this.html = buildGuideHtml(spots, this.city, {
+        includeWantToTry: this.includeWantToTry,
+        currency: this.plugin.settings.currencySymbol || "€",
+        images: this.images,
+        generatedOn: new Date().toLocaleDateString(),
+      });
+      this.previewEl.srcdoc = this.html;
+    })();
+  }
+
+  /** Print the preview: the OS dialog offers "Save as PDF". */
+  private print(): void {
+    const win = this.previewEl.contentWindow;
+    if (!win) {
+      new Notice("Preview isn't ready yet — try again in a second.");
+      return;
+    }
+    try {
+      win.focus();
+      win.print();
+    } catch (e) {
+      new Notice(`Couldn't open the print dialog — ${errorMessage(e)}. Use "Save HTML…" instead.`);
+    }
   }
 
   private async saveAsNote(): Promise<void> {

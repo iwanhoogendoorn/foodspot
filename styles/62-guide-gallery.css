@@ -33,20 +33,13 @@
 }
 
 .fs-guide-preview {
-  max-height: 40vh;
-  overflow: auto;
-  margin: 0;
-  padding: 10px 12px;
-  background: var(--background-primary-alt);
+  width: 100%;
+  height: 46vh;
+  min-height: 280px;
+  margin-top: 10px;
   border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s);
-  font-family: var(--font-monospace);
-  font-size: var(--font-ui-smaller);
-  line-height: 1.5;
-  color: var(--text-normal);
-  white-space: pre-wrap;
-  word-break: break-word;
-  user-select: text;
+  border-radius: 8px;
+  background: #fff;
 }
 
 /* ---------- dish gallery ---------- */
@@ -111,4 +104,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+
+.fs-city-guide-modal {
+  max-width: 860px;
+  width: 92vw;
+}
+
+.fs-guide-buttons {
+  flex-wrap: wrap;
 }

@@ -16100,9 +16100,9 @@ var DetailModal = class extends import_obsidian10.Modal {
       return;
     }
     row.createSpan({ cls: "fs-visit-date", text: this.formatDate(visit.date) });
-    const stars = row.createSpan({ cls: "fs-visit-stars" });
+    const stars2 = row.createSpan({ cls: "fs-visit-stars" });
     if (visit.rating !== void 0) {
-      starRating(stars, {
+      starRating(stars2, {
         value: visit.rating,
         halfSteps: this.plugin.settings.halfStarRatings,
         tiers: this.plugin.settings.ratingTiers,
@@ -16895,15 +16895,15 @@ function spotMenu(plugin, spot) {
   return menu;
 }
 function buildMiniCard(parent, spot, plugin) {
-  const card = parent.createDiv({ cls: "fs-mini-card" });
-  card.dataset.path = spot.path;
-  card.setAttribute("role", "button");
-  card.tabIndex = 0;
-  card.setAttribute("aria-label", spot.name);
-  const photo = card.createDiv({ cls: "fs-mini-photo" });
+  const card2 = parent.createDiv({ cls: "fs-mini-card" });
+  card2.dataset.path = spot.path;
+  card2.setAttribute("role", "button");
+  card2.tabIndex = 0;
+  card2.setAttribute("aria-label", spot.name);
+  const photo = card2.createDiv({ cls: "fs-mini-photo" });
   photo.style.setProperty("--fs-cuisine-tint", cuisineTint(spot));
   photo.createSpan({ cls: "fs-card-letter", text: (spot.name[0] ?? "?").toUpperCase() });
-  attachLazyPhoto(photo, plugin, spot, card);
+  attachLazyPhoto(photo, plugin, spot, card2);
   const dot = photo.createSpan({
     cls: "fs-mini-dot",
     attr: { title: spot.status === "visited" ? "Visited" : "Want to try" }
@@ -16920,7 +16920,7 @@ function buildMiniCard(parent, spot, plugin) {
     const tier = tierFor(spot.rating, plugin.settings.ratingTiers);
     if (tier) badge.style.setProperty("--fs-tier", tier.color);
   }
-  const menuBtn = card.createEl("button", {
+  const menuBtn = card2.createEl("button", {
     cls: "fs-card-menu fs-mini-menu",
     attr: { "aria-label": "More actions" }
   });
@@ -16929,15 +16929,15 @@ function buildMiniCard(parent, spot, plugin) {
     e.stopPropagation();
     spotMenu(plugin, spot).showAtMouseEvent(e);
   });
-  const body = card.createDiv({ cls: "fs-mini-body" });
+  const body = card2.createDiv({ cls: "fs-mini-body" });
   body.createDiv({ cls: "fs-mini-name", text: spot.name });
   const sub = [spot.city, spot.cuisines[0]].filter(Boolean).join(" \xB7 ");
   if (sub) body.createDiv({ cls: "fs-mini-sub", text: sub });
-  card.addEventListener("click", () => openDetailModal(plugin, spot.path));
-  card.addEventListener("keydown", (e) => {
+  card2.addEventListener("click", () => openDetailModal(plugin, spot.path));
+  card2.addEventListener("keydown", (e) => {
     if (e.key === "Enter") openDetailModal(plugin, spot.path);
   });
-  return card;
+  return card2;
 }
 function buildSpotCard(parent, spot, ctx) {
   const plugin = ctx.plugin;
@@ -16945,19 +16945,19 @@ function buildSpotCard(parent, spot, ctx) {
   return ctx.compact ? buildCompactRow(parent, spot, plugin) : buildFullCard(parent, spot, plugin);
 }
 function buildFullCard(parent, spot, plugin) {
-  const card = parent.createDiv({ cls: "fs-card" });
-  if (plugin.settings.cardTextPlacement === "under") card.addClass("fs-card-text-under");
-  card.dataset.path = spot.path;
-  card.setAttribute("role", "button");
-  card.tabIndex = 0;
-  card.setAttribute("aria-label", spot.name);
-  if (!spot.photo) card.addClass("fs-card-nophoto");
-  const photo = card.createDiv({ cls: "fs-card-photo" });
+  const card2 = parent.createDiv({ cls: "fs-card" });
+  if (plugin.settings.cardTextPlacement === "under") card2.addClass("fs-card-text-under");
+  card2.dataset.path = spot.path;
+  card2.setAttribute("role", "button");
+  card2.tabIndex = 0;
+  card2.setAttribute("aria-label", spot.name);
+  if (!spot.photo) card2.addClass("fs-card-nophoto");
+  const photo = card2.createDiv({ cls: "fs-card-photo" });
   photo.style.setProperty("--fs-cuisine-tint", cuisineTint(spot));
   photo.createDiv({ cls: "fs-card-letter", text: (spot.name[0] ?? "?").toUpperCase() });
-  attachLazyPhoto(photo, plugin, spot, card);
+  attachLazyPhoto(photo, plugin, spot, card2);
   if (isUnderfilled(spot)) {
-    const pull = card.createEl("button", {
+    const pull = card2.createEl("button", {
       cls: "fs-card-pull",
       attr: { "aria-label": "Pull photo & info from Google", title: "Pull photo & info from Google" }
     });
@@ -16976,7 +16976,7 @@ function buildFullCard(parent, spot, plugin) {
       });
     });
   }
-  const badge = card.createDiv({ cls: "fs-card-status" });
+  const badge = card2.createDiv({ cls: "fs-card-status" });
   badge.createSpan({ cls: "fs-card-status-dot" });
   badge.createSpan({
     cls: "fs-card-status-label",
@@ -16987,12 +16987,12 @@ function buildFullCard(parent, spot, plugin) {
     spot.status === "visited" ? plugin.settings.statusColors.visited : plugin.settings.statusColors.wantToTry
   );
   if (spot.price && spot.price > 0) {
-    card.createDiv({
+    card2.createDiv({
       cls: "fs-card-price",
       text: plugin.settings.currencySymbol.repeat(Math.min(4, spot.price))
     });
   }
-  const fav = card.createEl("button", {
+  const fav = card2.createEl("button", {
     cls: "fs-card-fav",
     attr: { "aria-label": spot.favorite ? "Remove from favorites" : "Add to favorites" }
   });
@@ -17003,7 +17003,7 @@ function buildFullCard(parent, spot, plugin) {
     e.stopPropagation();
     void plugin.store.updateSpot(spot.path, { favorite: !spot.favorite });
   });
-  const menuBtn = card.createEl("button", {
+  const menuBtn = card2.createEl("button", {
     cls: "fs-card-menu",
     attr: { "aria-label": "More actions" }
   });
@@ -17012,11 +17012,11 @@ function buildFullCard(parent, spot, plugin) {
     e.stopPropagation();
     spotMenu(plugin, spot).showAtMouseEvent(e);
   });
-  card.addEventListener("contextmenu", (e) => {
+  card2.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     spotMenu(plugin, spot).showAtMouseEvent(e);
   });
-  const scrim = card.createDiv({ cls: "fs-card-scrim" });
+  const scrim = card2.createDiv({ cls: "fs-card-scrim" });
   scrim.createDiv({ cls: "fs-card-name", text: spot.name });
   if (spot.cuisines.length > 0) {
     const chips = scrim.createDiv({ cls: "fs-card-chips" });
@@ -17065,14 +17065,14 @@ function buildFullCard(parent, spot, plugin) {
   }
   const when = spot.lastVisit ? relTime(spot.lastVisit) : spot.created ? `added ${relTime(spot.created)}` : "";
   if (when) meta.createSpan({ cls: "fs-meta-time", text: when });
-  card.addEventListener("click", () => openDetailModal(plugin, spot.path));
-  card.addEventListener("keydown", (e) => {
+  card2.addEventListener("click", () => openDetailModal(plugin, spot.path));
+  card2.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       openDetailModal(plugin, spot.path);
     }
   });
-  return card;
+  return card2;
 }
 function buildCompactRow(parent, spot, plugin) {
   const row = parent.createDiv({ cls: "fs-card-row" });
@@ -20017,6 +20017,127 @@ function buildCityGuide(spots, city, opts) {
   return lines.join("\n");
 }
 
+// src/tools/guideHtml.ts
+function esc(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function stars(rating) {
+  if (rating === void 0) return "";
+  const full = Math.floor(rating);
+  const half = rating - full >= 0.25 && rating - full < 0.75;
+  const extra = rating - full >= 0.75 ? 1 : 0;
+  const filled = "\u2605".repeat(Math.min(5, full + extra));
+  const halfChar = half ? "\u2BE8" : "";
+  const empty = "\u2606".repeat(Math.max(0, 5 - full - extra - (half ? 1 : 0)));
+  return `${filled}${halfChar}${empty}`;
+}
+function hostOf2(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  }
+}
+function card(spot, o) {
+  const img = spot.photo ? o.images.get(spot.photo) : void 0;
+  const cover = img ? `<img class="cover" src="${img}" alt="">` : `<div class="cover cover-placeholder">${esc((spot.name.trim()[0] ?? "?").toUpperCase())}</div>`;
+  const rows = [];
+  const rating = spot.rating !== void 0 ? `<span class="stars">${stars(spot.rating)}</span><span class="ratingnum">${spot.rating.toFixed(1)}</span>` : "";
+  const google = spot.external.googleRating !== void 0 ? `<span class="google">G ${spot.external.googleRating.toFixed(1)}</span>` : "";
+  if (rating || google) rows.push(`<div class="ratings">${rating}${google}</div>`);
+  if (spot.price !== void 0 && spot.price > 0) {
+    rows.push(`<div class="price">${esc(o.currency.repeat(Math.min(4, spot.price)))}</div>`);
+  }
+  if (spot.address) rows.push(`<div class="line addr">${esc(spot.address)}</div>`);
+  const place = [spot.city, spot.country].filter(Boolean).join(", ");
+  if (place) rows.push(`<div class="line place">${esc(place)}</div>`);
+  if (spot.phone) rows.push(`<div class="line phone">${esc(spot.phone)}</div>`);
+  if (spot.url) {
+    rows.push(
+      `<div class="line web"><a href="${esc(spot.url)}">${esc(hostOf2(spot.url))}</a></div>`
+    );
+  }
+  const visited = spot.status === "visited" ? ' <span class="badge">visited</span>' : "";
+  return `<article class="card">
+  ${cover}
+  <div class="body">
+    <h2>${esc(spot.name)}${visited}</h2>
+    ${rows.join("\n    ")}
+  </div>
+</article>`;
+}
+var CSS = `
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 22px 32px;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1d1f24; background: #fff;
+  }
+  header { border-bottom: 2px solid #1d1f24; padding-bottom: 10px; margin-bottom: 18px; }
+  h1 { margin: 0; font-size: 27px; letter-spacing: -0.4px; }
+  .sub { margin-top: 5px; color: #6b7080; font-size: 12.5px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card {
+    display: flex; gap: 12px; align-items: stretch;
+    border: 1px solid #dfe2e8; border-radius: 10px; padding: 10px;
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  .cover {
+    width: 104px; height: 104px; flex: none;
+    object-fit: cover; border-radius: 7px; background: #eef0f4;
+  }
+  .cover-placeholder {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 34px; font-weight: 700; color: #b6bcc8;
+  }
+  .body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  h2 { margin: 0 0 2px; font-size: 15px; line-height: 1.2; }
+  .badge {
+    font-size: 9px; text-transform: uppercase; letter-spacing: .5px;
+    vertical-align: middle; padding: 1px 5px; border-radius: 8px;
+    background: #e8f3ec; color: #2f7d4f; font-weight: 600;
+  }
+  .ratings { display: flex; align-items: baseline; gap: 7px; margin: 1px 0 2px; }
+  .stars { color: #e2a33c; font-size: 13px; letter-spacing: 1px; }
+  .ratingnum { font-weight: 700; font-size: 12px; }
+  .google { color: #6b7080; font-size: 11.5px; }
+  .price { font-weight: 700; font-size: 12px; color: #2f7d4f; }
+  .line { font-size: 11.5px; color: #4a4f5a; line-height: 1.35; overflow-wrap: anywhere; }
+  .line.phone, .line.web { color: #2b5fa8; }
+  a { color: inherit; text-decoration: none; }
+  footer { margin-top: 20px; color: #8a90a0; font-size: 10.5px; text-align: center; }
+  @page { size: A4; margin: 12mm; }
+  @media print {
+    body { padding: 0; }
+    .card { border-color: #c9ccd6; }
+  }
+`;
+function buildGuideHtml(spots, city, o) {
+  const inCity = spots.filter((s) => (s.city ?? "").trim().toLowerCase() === city.trim().toLowerCase()).filter((s) => o.includeWantToTry || s.status === "visited").sort(
+    (a, b) => Number(b.status === "visited") - Number(a.status === "visited") || (b.rating ?? 0) - (a.rating ?? 0) || (b.external.googleRating ?? 0) - (a.external.googleRating ?? 0) || a.name.localeCompare(b.name)
+  );
+  const visited = inCity.filter((s) => s.status === "visited").length;
+  const summary = `${inCity.length} ${inCity.length === 1 ? "place" : "places"}${visited > 0 ? ` \xB7 ${visited} visited` : ""}`;
+  const body = inCity.length > 0 ? `<div class="grid">
+${inCity.map((s) => card(s, o)).join("\n")}
+</div>` : `<p class="sub">No restaurants for this city yet.</p>`;
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Eating in ${esc(city)}</title>
+<style>${CSS}</style>
+</head><body>
+<header>
+  <h1>Eating in ${esc(city)}</h1>
+  <div class="sub">${esc(summary)}</div>
+</header>
+${body}
+<footer>Food Spot \xB7 ${esc(o.generatedOn)}</footer>
+</body></html>`;
+}
+function guidePhotoPaths(spots, city, includeWantToTry) {
+  return spots.filter((s) => (s.city ?? "").trim().toLowerCase() === city.trim().toLowerCase()).filter((s) => includeWantToTry || s.status === "visited").map((s) => s.photo).filter((p) => !!p && !/^https?:\/\//i.test(p));
+}
+
 // src/store/backup.ts
 var import_obsidian23 = require("obsidian");
 var BACKUP_VERSION = 1;
@@ -20172,6 +20293,14 @@ function cityOptions(spots) {
   }
   return [...counts.entries()].map(([city, count]) => ({ city, count })).sort((a, b) => b.count - a.count || a.city.localeCompare(b.city));
 }
+var MIME = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  avif: "image/avif"
+};
 function sanitizeFileName3(name) {
   return name.replace(/[\\/:*?"<>|#^[\]]/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -20182,6 +20311,8 @@ var CityGuideModal = class extends import_obsidian24.Modal {
     this.preselect = preselect;
     this.city = "";
     this.includeWantToTry = true;
+    this.html = "";
+    this.images = /* @__PURE__ */ new Map();
     this.cities = [];
   }
   onOpen() {
@@ -20223,22 +20354,23 @@ var CityGuideModal = class extends import_obsidian24.Modal {
       this.includeWantToTry = wantBox.checked;
       this.renderPreview();
     });
-    this.previewEl = body.createEl("pre", { cls: "fs-guide-preview" });
-    const buttons = body.createDiv({ cls: "fs-modal-buttons" });
-    const copy = buttons.createEl("button", { text: "Copy to clipboard" });
+    this.previewEl = body.createEl("iframe", { cls: "fs-guide-preview" });
+    this.previewEl.setAttribute("sandbox", "allow-same-origin allow-modals");
+    const buttons = body.createDiv({ cls: "fs-modal-buttons fs-guide-buttons" });
+    const pdf = buttons.createEl("button", { cls: "mod-cta", text: "Save as PDF\u2026" });
+    pdf.type = "button";
+    pdf.addEventListener("click", () => this.print());
+    const htmlBtn = buttons.createEl("button", { text: "Save HTML\u2026" });
+    htmlBtn.type = "button";
+    htmlBtn.addEventListener("click", () => {
+      void saveToDisk(`${sanitizeFileName3(this.noteTitle())}.html`, this.html);
+    });
+    const copy = buttons.createEl("button", { text: "Copy markdown" });
     copy.type = "button";
     copy.addEventListener("click", () => {
       void navigator.clipboard.writeText(this.markdown()).then(() => new import_obsidian24.Notice(`Guide for ${this.city} copied.`)).catch((e) => new import_obsidian24.Notice(`Couldn't copy \u2014 ${errorMessage7(e)}`));
     });
-    const disk = buttons.createEl("button", { text: "Save to disk\u2026" });
-    disk.type = "button";
-    disk.addEventListener("click", () => {
-      void saveToDisk(`${sanitizeFileName3(this.noteTitle())}.md`, this.markdown());
-    });
-    const save = buttons.createEl("button", {
-      cls: "mod-cta",
-      text: "Save as note in vault"
-    });
+    const save = buttons.createEl("button", { text: "Save as note" });
     save.type = "button";
     save.addEventListener("click", () => void this.saveAsNote());
     this.renderPreview();
@@ -20252,9 +20384,51 @@ var CityGuideModal = class extends import_obsidian24.Modal {
       currency: this.plugin.settings.currencySymbol
     });
   }
+  /** Vault images -> data URIs so the exported document is standalone. */
+  async loadImages(paths) {
+    for (const p of paths) {
+      if (this.images.has(p)) continue;
+      const file = this.plugin.app.metadataCache.getFirstLinkpathDest(p, "") ?? this.plugin.app.vault.getAbstractFileByPath(p);
+      if (!(file instanceof import_obsidian24.TFile)) continue;
+      try {
+        const bytes = new Uint8Array(await this.plugin.app.vault.readBinary(file));
+        let bin = "";
+        const CHUNK = 32768;
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+          bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+        }
+        const mime = MIME[file.extension.toLowerCase()] ?? "image/jpeg";
+        this.images.set(p, `data:${mime};base64,${btoa(bin)}`);
+      } catch {
+      }
+    }
+  }
   renderPreview() {
-    this.previewEl.setText(this.markdown());
-    this.previewEl.scrollTop = 0;
+    void (async () => {
+      const spots = this.plugin.store.getSpots();
+      await this.loadImages(guidePhotoPaths(spots, this.city, this.includeWantToTry));
+      this.html = buildGuideHtml(spots, this.city, {
+        includeWantToTry: this.includeWantToTry,
+        currency: this.plugin.settings.currencySymbol || "\u20AC",
+        images: this.images,
+        generatedOn: (/* @__PURE__ */ new Date()).toLocaleDateString()
+      });
+      this.previewEl.srcdoc = this.html;
+    })();
+  }
+  /** Print the preview: the OS dialog offers "Save as PDF". */
+  print() {
+    const win = this.previewEl.contentWindow;
+    if (!win) {
+      new import_obsidian24.Notice("Preview isn't ready yet \u2014 try again in a second.");
+      return;
+    }
+    try {
+      win.focus();
+      win.print();
+    } catch (e) {
+      new import_obsidian24.Notice(`Couldn't open the print dialog \u2014 ${errorMessage7(e)}. Use "Save HTML\u2026" instead.`);
+    }
   }
   async saveAsNote() {
     const folder = `${this.plugin.settings.spotsFolder}/Guides`;
@@ -20814,12 +20988,12 @@ function mountVisitsTab(container, plugin) {
         openDetailModal(plugin, spot.path);
       });
       if (visit.rating !== void 0) {
-        const stars = top.createSpan({ cls: "fs-tl-stars" });
-        const star = stars.createSpan({ cls: "fs-star-icon" });
+        const stars2 = top.createSpan({ cls: "fs-tl-stars" });
+        const star = stars2.createSpan({ cls: "fs-star-icon" });
         (0, import_obsidian27.setIcon)(star, "star");
-        stars.createSpan({ text: fmtRating(visit.rating) });
+        stars2.createSpan({ text: fmtRating(visit.rating) });
         const tier = tierFor(visit.rating, plugin.settings.ratingTiers);
-        if (tier) stars.style.setProperty("--fs-tier", tier.color);
+        if (tier) stars2.style.setProperty("--fs-tier", tier.color);
       }
       if (visit.spent !== void 0) {
         top.createSpan({
@@ -20944,8 +21118,8 @@ function mountDashboardTab(container, plugin) {
   let suggestionPath;
   let gradSeq = 0;
   const ringCard = (parent, o) => {
-    const card = parent.createDiv({ cls: "fs-stat-card" });
-    const wrap = card.createDiv({ cls: "fs-ring-wrap" });
+    const card2 = parent.createDiv({ cls: "fs-stat-card" });
+    const wrap = card2.createDiv({ cls: "fs-ring-wrap" });
     const svg = wrap.createSvg("svg", {
       cls: "fs-ring",
       attr: { viewBox: "0 0 120 120", width: 120, height: 120 }
@@ -20991,15 +21165,15 @@ function mountDashboardTab(container, plugin) {
     const center = wrap.createDiv({ cls: "fs-ring-center" });
     center.createDiv({ cls: "fs-ring-value", text: o.value });
     center.createDiv({ cls: "fs-ring-label", text: o.label });
-    card.createDiv({ cls: "fs-stat-sub", text: o.sub });
+    card2.createDiv({ cls: "fs-stat-sub", text: o.sub });
     const target = (RING_C * (1 - clamp01(o.frac))).toFixed(2);
     window.requestAnimationFrame(
       () => window.requestAnimationFrame(() => prog.setAttribute("stroke-dashoffset", target))
     );
   };
   const progressRing = (parent, o) => {
-    const card = parent.createDiv({ cls: "fs-stat-card" });
-    const wrap = card.createDiv({ cls: "fs-ring-wrap" });
+    const card2 = parent.createDiv({ cls: "fs-stat-card" });
+    const wrap = card2.createDiv({ cls: "fs-ring-wrap" });
     const svg = wrap.createSvg("svg", {
       cls: "fs-ring",
       attr: { viewBox: "0 0 120 120", width: 120, height: 120 }
@@ -21044,7 +21218,7 @@ function mountDashboardTab(container, plugin) {
       text: `${o.visited} / ${o.total}`
     });
     center.createDiv({ cls: "fs-ring-label", text: "Visited" });
-    const sub = card.createDiv({ cls: "fs-stat-sub fs-progress-legend" });
+    const sub = card2.createDiv({ cls: "fs-stat-sub fs-progress-legend" });
     const leg = (cls, text) => {
       const item = sub.createSpan({ cls: "fs-legend-item" });
       item.createSpan({ cls: `fs-legend-dot ${cls}` });
@@ -21058,10 +21232,10 @@ function mountDashboardTab(container, plugin) {
     );
   };
   const rectCard = (parent, o) => {
-    const card = parent.createDiv({ cls: "fs-stat-card fs-stat-rect" });
-    card.createDiv({ cls: `fs-rect-value fs-tone-${o.tone}`, text: o.value });
-    card.createDiv({ cls: "fs-ring-label", text: o.label });
-    card.createDiv({ cls: "fs-stat-sub", text: o.sub });
+    const card2 = parent.createDiv({ cls: "fs-stat-card fs-stat-rect" });
+    card2.createDiv({ cls: `fs-rect-value fs-tone-${o.tone}`, text: o.value });
+    card2.createDiv({ cls: "fs-ring-label", text: o.label });
+    card2.createDiv({ cls: "fs-stat-sub", text: o.sub });
   };
   const emptyLine = (parent, text) => {
     parent.createDiv({ cls: "fs-empty", text });
@@ -21412,8 +21586,8 @@ function mountDashboardTab(container, plugin) {
     root.createDiv({ cls: "fs-dash-section-title", text: "Suggestions" });
     const sug = root.createDiv({ cls: "fs-suggestions" });
     {
-      const card = sug.createDiv({ cls: "fs-sug-card" });
-      const head = card.createDiv({ cls: "fs-sug-head" });
+      const card2 = sug.createDiv({ cls: "fs-sug-card" });
+      const head = card2.createDiv({ cls: "fs-sug-head" });
       head.createSpan({ cls: "fs-sug-title", text: "Where do we eat tonight?" });
       const controls = head.createDiv({ cls: "fs-sug-controls" });
       const cities = [
@@ -21431,8 +21605,8 @@ function mountDashboardTab(container, plugin) {
         attr: { "aria-label": "Shuffle suggestion" }
       });
       (0, import_obsidian28.setIcon)(shuffleBtn, "shuffle");
-      const slot = card.createDiv({ cls: "fs-sug-slot" });
-      const note = card.createDiv({ cls: "fs-sug-sub" });
+      const slot = card2.createDiv({ cls: "fs-sug-slot" });
+      const note = card2.createDiv({ cls: "fs-sug-sub" });
       const inCity = (s) => !suggestionCity || (s.city ?? "").trim() === suggestionCity;
       const pool = () => {
         const wtt = spots.filter((s) => s.status === "want-to-try" && inCity(s));
@@ -21475,23 +21649,23 @@ function mountDashboardTab(container, plugin) {
       roll(false);
     }
     {
-      const card = sug.createDiv({ cls: "fs-sug-card" });
-      const head = card.createDiv({ cls: "fs-sug-head" });
+      const card2 = sug.createDiv({ cls: "fs-sug-card" });
+      const head = card2.createDiv({ cls: "fs-sug-head" });
       head.createSpan({ cls: "fs-sug-title", text: "Longest on the list" });
-      const slot = card.createDiv({ cls: "fs-sug-slot" });
+      const slot = card2.createDiv({ cls: "fs-sug-slot" });
       const oldest = spots.filter((s) => s.status === "want-to-try").sort((a, b) => a.created.localeCompare(b.created))[0];
       if (!oldest) {
         emptyLine(slot, "Nothing is waiting on your want-to-try list right now.");
       } else {
-        card.createDiv({ cls: "fs-sug-sub", text: `On the list since ${agoText(oldest.created)}` });
+        card2.createDiv({ cls: "fs-sug-sub", text: `On the list since ${agoText(oldest.created)}` });
         cardSlot(slot, oldest);
       }
     }
     {
-      const card = sug.createDiv({ cls: "fs-sug-card" });
-      const head = card.createDiv({ cls: "fs-sug-head" });
+      const card2 = sug.createDiv({ cls: "fs-sug-card" });
+      const head = card2.createDiv({ cls: "fs-sug-head" });
       head.createSpan({ cls: "fs-sug-title", text: "Back for more?" });
-      const slot = card.createDiv({ cls: "fs-sug-slot" });
+      const slot = card2.createDiv({ cls: "fs-sug-slot" });
       const candidate = spots.filter(
         (s) => s.status === "visited" && (s.rating ?? 0) >= 4 && daysSince(s.lastVisit) > 90
       ).sort((a, b) => daysSince(b.lastVisit) - daysSince(a.lastVisit))[0];
@@ -21501,7 +21675,7 @@ function mountDashboardTab(container, plugin) {
           "No 4\u2605+ spots you haven't been back to in over 90 days \u2014 you're keeping up."
         );
       } else {
-        card.createDiv({
+        card2.createDiv({
           cls: "fs-sug-sub",
           text: `Last visit ${agoText(candidate.lastVisit)}`
         });
@@ -22722,8 +22896,8 @@ var FoodSpotSettingTab = class extends import_obsidian32.PluginSettingTab {
       }
     });
     const c = g.content;
-    const card = c.createDiv({ cls: "fs-provider-card" });
-    const head = card.createDiv({ cls: "fs-provider-head" });
+    const card2 = c.createDiv({ cls: "fs-provider-card" });
+    const head = card2.createDiv({ cls: "fs-provider-head" });
     head.createDiv({ cls: "fs-provider-avatar", text: "G" });
     const titles = head.createDiv({ cls: "fs-provider-titles" });
     titles.createDiv({ cls: "fs-provider-name", text: "Google Places API" });
@@ -22741,7 +22915,7 @@ var FoodSpotSettingTab = class extends import_obsidian32.PluginSettingTab {
       );
     };
     paintBadge();
-    const row = card.createDiv({ cls: "fs-provider-keyrow" });
+    const row = card2.createDiv({ cls: "fs-provider-keyrow" });
     const input = row.createEl("input", {
       cls: "fs-provider-key",
       type: "password",
@@ -22795,9 +22969,9 @@ var FoodSpotSettingTab = class extends import_obsidian32.PluginSettingTab {
         testBtn.disabled = false;
       }
     };
-    const links = card.createDiv({ cls: "fs-provider-links" });
+    const links = card2.createDiv({ cls: "fs-provider-links" });
     links.createEl("a", { text: "Get a key", href: GOOGLE_KEY_URL });
-    const warn = card.createDiv({ cls: "fs-provider-warning" });
+    const warn = card2.createDiv({ cls: "fs-provider-warning" });
     const warnIcon = warn.createSpan();
     (0, import_obsidian32.setIcon)(warnIcon, "alert-triangle");
     warn.createSpan({
@@ -23005,8 +23179,8 @@ var FoodSpotSettingTab = class extends import_obsidian32.PluginSettingTab {
       return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Italian";
     })();
     const example = (title, block) => {
-      const card = c.createDiv({ cls: "fs-example-card" });
-      const head = card.createDiv({ cls: "fs-example-head" });
+      const card2 = c.createDiv({ cls: "fs-example-card" });
+      const head = card2.createDiv({ cls: "fs-example-head" });
       head.createSpan({ cls: "fs-example-title", text: title });
       const copy = head.createEl("button", { cls: "fs-btn fs-small-btn" });
       const ic = copy.createSpan({ cls: "fs-btn-icon" });
@@ -23017,7 +23191,7 @@ var FoodSpotSettingTab = class extends import_obsidian32.PluginSettingTab {
           new import_obsidian32.Notice(`Copied "${title}" \u2014 paste it into any note.`);
         });
       });
-      card.createEl("pre", { text: block });
+      card2.createEl("pre", { text: block });
     };
     example(
       "Wishlist cards for a city",
