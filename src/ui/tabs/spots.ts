@@ -22,11 +22,8 @@ import { buildSpotCard, fmtRating, relTime, releaseLazyPhotos } from "../compone
 import { buildSearchBox, debounce, iconButton, setButtonIcon } from "../components/toolbar";
 import { buildFiltersControl, cloneFilters } from "../components/filtersDropdown";
 import { buildSortButton } from "../components/sortMenu";
-import {
-  cardMinWidth,
-  createVirtualGrid,
-  createVirtualTable,
-} from "../components/virtualGrid";
+import { cardMinWidth, createVirtualGrid } from "../components/virtualGrid";
+import { createEditableTable } from "./list";
 import type { VirtualHandle } from "../components/virtualGrid";
 import type { MountEnrichProgress } from "../modals/enrich";
 import { openAddChooser } from "../modals/addChooser";
@@ -262,50 +259,12 @@ export function mountSpotsTab(container: HTMLElement, plugin: FoodSpotPluginApi)
 
   function buildRenderer(): VirtualHandle<FoodSpot> {
     if (viewMode === "table") {
-      const table = createVirtualTable<FoodSpot>(bodyEl, {
-        columns: [
-          { label: "Name", cls: "fs-col-name" },
-          { label: "Cuisine" },
-          { label: "City" },
-          { label: "Price" },
-          { label: "My ★" },
-          { label: "Google ★" },
-          { label: "Visits" },
-          { label: "Last visit" },
-        ],
-        rowHeight: 40,
-        renderRow: (spot, row) => {
-          row.dataset.path = spot.path;
-          if (selected.has(spot.path)) row.addClass("is-selected");
-          const cell = (text: string, cls?: string): void => {
-            row.createDiv({ cls: ["fs-vtable-cell", cls ?? ""].join(" ").trim(), text });
-          };
-          cell(spot.name, "fs-col-name");
-          cell(spot.cuisines.join(", ") || "—");
-          cell(spot.city ?? "—");
-          cell(
-            spot.price
-              ? plugin.settings.currencySymbol.repeat(Math.min(4, spot.price))
-              : "—"
-          );
-          cell(spot.rating !== undefined ? `★ ${fmtRating(spot.rating)}` : "—");
-          cell(
-            spot.external.googleRating !== undefined
-              ? `G ${fmtRating(spot.external.googleRating)}`
-              : "—"
-          );
-          cell(String(spot.visitCount));
-          cell(spot.lastVisit ? relTime(spot.lastVisit) : "—");
-        },
-        onRowClick: (spot) => {
-          if (!selectMode) openDetailModal(plugin, spot.path);
-        },
+      // The table view IS the editable list: inline cuisine/price/rating/
+      // favorite plus note + maps actions, fed by this tab's filters + sort.
+      return createEditableTable(bodyEl, plugin, {
+        isSelected: (path: string) => selected.has(path),
+        selectMode: () => selectMode,
       });
-      table.el.style.setProperty(
-        "--fs-table-cols",
-        "minmax(140px, 2fr) 1.4fr 1fr 64px 72px 84px 56px 90px"
-      );
-      return table;
     }
     const grid = createVirtualGrid<FoodSpot>(bodyEl, {
       minItemWidth: () => cardMinWidth(plugin.settings),

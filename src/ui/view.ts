@@ -8,7 +8,6 @@ import { ItemView, Platform, WorkspaceLeaf, setIcon } from "obsidian";
 import { DATA_CHANGED_EVENT, PLUGIN_ICON, VIEW_TYPE } from "../types";
 import type { FoodSpotPluginApi, TabHandle } from "../types";
 import { mountSpotsTab, applySpotsLocation, applySpotsQuery } from "./tabs/spots";
-import { mountListTab } from "./tabs/list";
 import type { LocationFilter } from "./tabs/spots";
 import { mountDiscoverTab } from "./tabs/discover";
 import { mountPlacesTab } from "./tabs/places";
@@ -26,7 +25,6 @@ interface TabDef {
 const TABS: TabDef[] = [
   { id: "dashboard", label: "Dashboard", icon: "layout-dashboard", mount: mountDashboardTab },
   { id: "spots", label: "Spots", icon: "utensils", mount: mountSpotsTab },
-  { id: "list", label: "List", icon: "table-2", mount: mountListTab },
   { id: "discover", label: "Discover", icon: "compass", mount: mountDiscoverTab },
   { id: "places", label: "Places", icon: "map-pin", mount: mountPlacesTab },
   { id: "map", label: "Map", icon: "map", mount: mountMapTab },

@@ -1,16 +1,16 @@
 /**
- * Food Spot — List tab: the whole library as one editable table.
+ * Food Spot — the editable list: the Spots tab's table view.
  *
- * Everything you change often is inline here — price, cuisine, your rating,
- * favorite — plus one-click access to the note and Google Maps. Edits write
- * straight to the note; a store change while a control has focus defers the
- * repaint so typing/selecting is never interrupted.
+ * Everything you change often is inline here — cuisines, price, your rating,
+ * favorite — plus one-click access to the note and Google Maps. Filtering,
+ * search and sorting come from the Spots toolbar; column headers apply a
+ * local override on top. Edits write straight to the note, and a store change
+ * while a control has focus defers the repaint so editing is never
+ * interrupted mid-selection.
  */
 import { Menu, Notice, setIcon } from "obsidian";
-import type { FoodSpot, FoodSpotPluginApi, TabHandle } from "../../types";
-import { EMPTY_FILTER_STATE } from "../../types";
-import { buildSearchBox } from "../components/toolbar";
-import { filterSpots } from "../../search/query";
+import type { FoodSpot, FoodSpotPluginApi } from "../../types";
+import type { VirtualHandle } from "../components/virtualGrid";
 import { starRating } from "../components/starRating";
 import { openDetailModal } from "../modals/detail";
 import { fmtRating } from "../components/card";
@@ -26,47 +26,24 @@ function mapsUrl(spot: FoodSpot): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
-export function mountListTab(container: HTMLElement, plugin: FoodSpotPluginApi): TabHandle {
+export interface EditableTableOpts {
+  /** Select-mode plumbing owned by the Spots tab. */
+  isSelected(path: string): boolean;
+  selectMode(): boolean;
+}
+
+export function createEditableTable(
+  container: HTMLElement,
+  plugin: FoodSpotPluginApi,
+  opts: EditableTableOpts,
+): VirtualHandle<FoodSpot> {
   const root = container.createDiv({ cls: "fs-list-tab" });
 
-  let query = "";
-  let city = "";
-  let cuisine = "";
-  let status = "";
-  let sortKey: SortKey = "name";
+  let items: FoodSpot[] = [];
+  /** null = keep the order the Spots toolbar produced. */
+  let sortKey: SortKey | null = null;
   let sortAsc = true;
   let pendingRefresh = false;
-
-  // -- toolbar -------------------------------------------------------------
-  const toolbar = root.createDiv({ cls: "fs-toolbar fs-list-toolbar" });
-  buildSearchBox(toolbar, {
-    placeholder: "Filter the list…",
-    onQuery: (q) => {
-      query = q;
-      renderRows();
-    },
-  });
-
-  const select = (label: string, onChange: (v: string) => void): HTMLSelectElement => {
-    const el = toolbar.createEl("select", { cls: "dropdown fs-list-filter" });
-    el.setAttribute("aria-label", label);
-    el.addEventListener("change", () => onChange(el.value));
-    return el;
-  };
-  const citySel = select("City", (v) => {
-    city = v;
-    renderRows();
-  });
-  const cuisineSel = select("Cuisine", (v) => {
-    cuisine = v;
-    renderRows();
-  });
-  const statusSel = select("Status", (v) => {
-    status = v;
-    renderRows();
-  });
-
-  const countEl = toolbar.createSpan({ cls: "fs-list-count" });
 
   // -- table ---------------------------------------------------------------
   const scroller = root.createDiv({ cls: "fs-list-scroll" });
@@ -109,13 +86,7 @@ export function mountListTab(container: HTMLElement, plugin: FoodSpotPluginApi):
 
   // -- data ----------------------------------------------------------------
   function visible(): FoodSpot[] {
-    const all = plugin.store.getSpots();
-    let rows = filterSpots(all, query, EMPTY_FILTER_STATE);
-    if (city) rows = rows.filter((s) => (s.city ?? "").trim() === city);
-    if (cuisine) rows = rows.filter((s) => s.cuisines.includes(cuisine));
-    if (status === "favorite") rows = rows.filter((s) => s.favorite);
-    else if (status) rows = rows.filter((s) => s.status === status);
-
+    if (sortKey === null) return items;
     const dir = sortAsc ? 1 : -1;
     const cmp: Record<SortKey, (a: FoodSpot, b: FoodSpot) => number> = {
       name: (a, b) => a.name.localeCompare(b.name),
@@ -128,41 +99,11 @@ export function mountListTab(container: HTMLElement, plugin: FoodSpotPluginApi):
         (a.external.googleRating ?? 0) - (b.external.googleRating ?? 0) ||
         a.name.localeCompare(b.name),
     };
-    return [...rows].sort((a, b) => cmp[sortKey](a, b) * dir);
-  }
-
-  function syncFilterOptions(): void {
-    const fill = (
-      el: HTMLSelectElement,
-      allLabel: string,
-      values: string[],
-      current: string
-    ): void => {
-      const wanted = [allLabel, ...values].join("|");
-      if (el.dataset.filled === wanted) {
-        el.value = current;
-        return;
-      }
-      el.dataset.filled = wanted;
-      el.empty();
-      el.createEl("option", { text: allLabel, value: "" });
-      for (const v of values) el.createEl("option", { text: v, value: v });
-      el.value = current;
-    };
-    fill(citySel, "All cities", plugin.store.distinct("city"), city);
-    fill(cuisineSel, "All cuisines", plugin.store.distinct("cuisines"), cuisine);
-    if (statusSel.options.length === 0) {
-      statusSel.createEl("option", { text: "All statuses", value: "" });
-      statusSel.createEl("option", { text: "Want to try", value: "want-to-try" });
-      statusSel.createEl("option", { text: "Visited", value: "visited" });
-      statusSel.createEl("option", { text: "Favorites", value: "favorite" });
-    }
-    statusSel.value = status;
+    return [...items].sort((a, b) => cmp[sortKey as SortKey](a, b) * dir);
   }
 
   // -- row rendering -------------------------------------------------------
   function renderRows(): void {
-    syncFilterOptions();
     for (const th of Array.from(headRow.querySelectorAll(".fs-list-arrow"))) {
       // Arrows repaint via the header buttons' own closures on click; keep the
       // DOM honest after a programmatic sort change.
@@ -175,24 +116,14 @@ export function mountListTab(container: HTMLElement, plugin: FoodSpotPluginApi):
     });
 
     const rows = visible();
-    const total = plugin.store.getSpots().length;
-    countEl.setText(`${rows.length} of ${total}`);
     tbody.empty();
-
-    if (rows.length === 0) {
-      const tr = tbody.createEl("tr");
-      const td = tr.createEl("td", { attr: { colspan: String(COLS.length) } });
-      td.createDiv({
-        cls: "fs-list-empty",
-        text: total === 0 ? "No spots yet." : "Nothing matches these filters.",
-      });
-      return;
-    }
     for (const spot of rows) renderRow(spot);
   }
 
   function renderRow(spot: FoodSpot): void {
     const tr = tbody.createEl("tr", { cls: "fs-list-row" });
+    tr.dataset.path = spot.path;
+    if (opts.selectMode() && opts.isSelected(spot.path)) tr.addClass("is-selected");
 
     // Name -> detail modal
     const nameTd = tr.createEl("td", { cls: "fs-list-name" });
@@ -357,6 +288,15 @@ export function mountListTab(container: HTMLElement, plugin: FoodSpotPluginApi):
   renderRows();
 
   return {
+    el: root,
+    setItems: (next: FoodSpot[]) => {
+      items = next;
+      if (busy()) {
+        pendingRefresh = true;
+        return;
+      }
+      renderRows();
+    },
     refresh: () => {
       if (busy()) {
         pendingRefresh = true;

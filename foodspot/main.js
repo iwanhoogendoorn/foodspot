@@ -12087,7 +12087,7 @@ var ImportPipeline = class {
 var import_obsidian31 = require("obsidian");
 
 // src/ui/tabs/spots.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 
 // node_modules/fuse.js/dist/fuse.mjs
 function isArray(value) {
@@ -18010,59 +18010,266 @@ function createVirtualList(parent, opts) {
     }
   };
 }
-function createVirtualTable(parent, opts) {
-  const wrap = parent.createDiv({ cls: "fs-vtable" });
-  const header = wrap.createDiv({ cls: "fs-vtable-header" });
-  for (const col of opts.columns) {
-    header.createDiv({
-      cls: ["fs-vtable-cell", col.cls ?? ""].join(" ").trim(),
-      text: col.label
+
+// src/ui/tabs/list.ts
+var import_obsidian17 = require("obsidian");
+var CUSTOM = "__custom__";
+function mapsUrl2(spot) {
+  const q = spot.coordinates ? `${spot.coordinates.lat},${spot.coordinates.lng}` : [spot.name, spot.city, spot.country].filter(Boolean).join(" ");
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}
+function createEditableTable(container, plugin, opts) {
+  const root = container.createDiv({ cls: "fs-list-tab" });
+  let items = [];
+  let sortKey = null;
+  let sortAsc = true;
+  let pendingRefresh = false;
+  const scroller = root.createDiv({ cls: "fs-list-scroll" });
+  const table = scroller.createEl("table", { cls: "fs-list-table" });
+  const thead = table.createEl("thead");
+  const headRow = thead.createEl("tr");
+  const COLS = [
+    { key: "name", label: "Name" },
+    { key: "cuisine", label: "Cuisine" },
+    { key: "city", label: "City" },
+    { key: "price", label: "Price" },
+    { key: "rating", label: "My rating" },
+    { key: "google", label: "Google" },
+    { label: "\u2605", cls: "fs-col-fav" },
+    { label: "", cls: "fs-col-actions" }
+  ];
+  for (const col of COLS) {
+    const th = headRow.createEl("th", { cls: col.cls });
+    if (!col.key) {
+      th.setText(col.label);
+      continue;
+    }
+    const btn = th.createEl("button", { cls: "fs-list-sort", text: col.label });
+    btn.type = "button";
+    const arrow = btn.createSpan({ cls: "fs-list-arrow" });
+    const paint = () => {
+      arrow.setText(sortKey === col.key ? sortAsc ? " \u2191" : " \u2193" : "");
+    };
+    paint();
+    btn.addEventListener("click", () => {
+      if (sortKey === col.key) sortAsc = !sortAsc;
+      else {
+        sortKey = col.key;
+        sortAsc = col.key === "name" || col.key === "city" || col.key === "cuisine";
+      }
+      renderRows();
     });
   }
-  const list = createVirtualList(wrap, {
-    itemHeight: () => opts.rowHeight,
-    render: (item, rowEl, index) => {
-      rowEl.addClass("fs-vtable-row");
-      if (opts.onRowClick) {
-        rowEl.addEventListener("click", (e) => opts.onRowClick?.(item, e));
-      }
-      opts.renderRow(item, rowEl, index);
+  const tbody = table.createEl("tbody");
+  function visible() {
+    if (sortKey === null) return items;
+    const dir = sortAsc ? 1 : -1;
+    const cmp = {
+      name: (a, b) => a.name.localeCompare(b.name),
+      city: (a, b) => (a.city ?? "").localeCompare(b.city ?? "") || a.name.localeCompare(b.name),
+      cuisine: (a, b) => (a.cuisines[0] ?? "").localeCompare(b.cuisines[0] ?? "") || a.name.localeCompare(b.name),
+      price: (a, b) => (a.price ?? 0) - (b.price ?? 0) || a.name.localeCompare(b.name),
+      rating: (a, b) => (a.rating ?? 0) - (b.rating ?? 0) || a.name.localeCompare(b.name),
+      google: (a, b) => (a.external.googleRating ?? 0) - (b.external.googleRating ?? 0) || a.name.localeCompare(b.name)
+    };
+    return [...items].sort((a, b) => cmp[sortKey](a, b) * dir);
+  }
+  function renderRows() {
+    for (const th of Array.from(headRow.querySelectorAll(".fs-list-arrow"))) {
+      th.setText("");
     }
-  });
+    const headerButtons = Array.from(headRow.querySelectorAll(".fs-list-sort"));
+    COLS.filter((c) => c.key).forEach((col, i) => {
+      const arrow = headerButtons[i]?.querySelector(".fs-list-arrow");
+      if (arrow) arrow.setText(sortKey === col.key ? sortAsc ? " \u2191" : " \u2193" : "");
+    });
+    const rows = visible();
+    tbody.empty();
+    for (const spot of rows) renderRow(spot);
+  }
+  function renderRow(spot) {
+    const tr = tbody.createEl("tr", { cls: "fs-list-row" });
+    tr.dataset.path = spot.path;
+    if (opts.selectMode() && opts.isSelected(spot.path)) tr.addClass("is-selected");
+    const nameTd = tr.createEl("td", { cls: "fs-list-name" });
+    const nameBtn = nameTd.createEl("button", { cls: "fs-list-link", text: spot.name });
+    nameBtn.type = "button";
+    nameBtn.addEventListener("click", () => openDetailModal(plugin, spot.path));
+    if (spot.status === "visited") {
+      const dot = nameTd.createSpan({ cls: "fs-status-dot" });
+      dot.style.setProperty("--fs-status", plugin.settings.statusColors.visited);
+      dot.title = "Visited";
+    }
+    const cuisineTd = tr.createEl("td", { cls: "fs-list-cuisines" });
+    const chips = cuisineTd.createDiv({ cls: "fs-list-chiprow" });
+    for (const c of spot.cuisines) {
+      const chip = chips.createSpan({ cls: "fs-list-chip" });
+      chip.createSpan({ cls: "fs-chip-text", text: c });
+      const rm = chip.createEl("button", {
+        cls: "fs-chip-x",
+        attr: { "aria-label": `Remove ${c}` }
+      });
+      rm.type = "button";
+      rm.setText("\xD7");
+      rm.addEventListener("click", () => {
+        void save(spot, { cuisines: spot.cuisines.filter((x) => x !== c) });
+      });
+    }
+    const addSel = chips.createEl("select", { cls: "dropdown fs-list-cuisine-add" });
+    addSel.setAttribute("aria-label", `Add a cuisine to ${spot.name}`);
+    addSel.createEl("option", { text: spot.cuisines.length > 0 ? "+" : "+ cuisine", value: "" });
+    for (const c of plugin.store.distinct("cuisines").filter((c2) => !spot.cuisines.some((x) => x.toLowerCase() === c2.toLowerCase()))) {
+      addSel.createEl("option", { text: c, value: c });
+    }
+    addSel.createEl("option", { text: "Something else\u2026", value: CUSTOM });
+    addSel.addEventListener("change", () => {
+      let value = addSel.value;
+      if (value === "") return;
+      if (value === CUSTOM) {
+        const typed = window.prompt(`New cuisine for ${spot.name}`, "");
+        addSel.value = "";
+        if (typed === null || typed.trim() === "") return;
+        value = typed.trim();
+      }
+      if (spot.cuisines.some((x) => x.toLowerCase() === value.toLowerCase())) return;
+      void save(spot, { cuisines: [...spot.cuisines, value] });
+    });
+    tr.createEl("td", { cls: "fs-list-city", text: spot.city ?? "" });
+    const priceTd = tr.createEl("td");
+    const pSel = priceTd.createEl("select", { cls: "dropdown fs-list-cell-select fs-list-price" });
+    const symbol = plugin.settings.currencySymbol || "\u20AC";
+    pSel.createEl("option", { text: "\u2014", value: "" });
+    for (let t = 1; t <= 4; t++) pSel.createEl("option", { text: symbol.repeat(t), value: String(t) });
+    pSel.value = spot.price ? String(spot.price) : "";
+    pSel.addEventListener("change", () => {
+      void save(spot, { price: pSel.value === "" ? void 0 : Number(pSel.value) });
+    });
+    const ratingTd = tr.createEl("td", { cls: "fs-list-rating" });
+    starRating(ratingTd, {
+      value: spot.rating,
+      halfSteps: plugin.settings.halfStarRatings,
+      tiers: plugin.settings.ratingTiers,
+      onChange: (v) => {
+        void save(spot, v > 0 ? { rating: v, ratingLocked: true } : { rating: void 0 });
+      }
+    });
+    const g = spot.external.googleRating;
+    tr.createEl("td", {
+      cls: "fs-list-google",
+      text: g !== void 0 ? fmtRating(g) : ""
+    });
+    const favTd = tr.createEl("td", { cls: "fs-col-fav" });
+    const fav = favTd.createEl("button", {
+      cls: "fs-list-fav",
+      attr: { "aria-label": spot.favorite ? "Remove favorite" : "Mark favorite" }
+    });
+    fav.type = "button";
+    (0, import_obsidian17.setIcon)(fav, "star");
+    fav.toggleClass("is-active", spot.favorite);
+    fav.style.setProperty("--fs-fav", plugin.settings.statusColors.favorite);
+    fav.addEventListener("click", () => void save(spot, { favorite: !spot.favorite }));
+    const actTd = tr.createEl("td", { cls: "fs-col-actions" });
+    const action = (icon, label, fn) => {
+      const b = actTd.createEl("button", { cls: "fs-list-action", attr: { "aria-label": label } });
+      b.type = "button";
+      b.title = label;
+      (0, import_obsidian17.setIcon)(b, icon);
+      b.addEventListener("click", fn);
+    };
+    action("file-text", "Open note", () => void plugin.store.openNote(spot.path));
+    action("map-pin", "Open in Google Maps", () => window.open(mapsUrl2(spot), "_blank"));
+    const moreBtn = actTd.createEl("button", {
+      cls: "fs-list-action",
+      attr: { "aria-label": "More" }
+    });
+    moreBtn.type = "button";
+    moreBtn.title = "More";
+    (0, import_obsidian17.setIcon)(moreBtn, "more-vertical");
+    moreBtn.addEventListener("click", (ev) => {
+      const menu = new import_obsidian17.Menu();
+      menu.addItem(
+        (i) => i.setTitle(spot.status === "visited" ? "Mark want to try" : "Mark visited").setIcon("check").onClick(
+          () => void save(spot, { status: spot.status === "visited" ? "want-to-try" : "visited" })
+        )
+      );
+      if (spot.url) {
+        const url = spot.url;
+        menu.addItem(
+          (i) => i.setTitle("Open website").setIcon("globe").onClick(() => window.open(url, "_blank"))
+        );
+      }
+      menu.showAtMouseEvent(ev);
+    });
+  }
+  async function save(spot, patch) {
+    try {
+      await plugin.store.updateSpot(spot.path, patch);
+    } catch (e) {
+      new import_obsidian17.Notice(`Couldn't save \u2014 ${e instanceof Error ? e.message : String(e)}`);
+      renderRows();
+    }
+  }
+  function busy() {
+    const ae = document.activeElement;
+    return ae instanceof HTMLElement && root.contains(ae) && (ae.tagName === "SELECT" || ae.tagName === "INPUT");
+  }
+  const onFocusOut = () => {
+    window.setTimeout(() => {
+      if (pendingRefresh && !busy()) {
+        pendingRefresh = false;
+        renderRows();
+      }
+    }, 120);
+  };
+  root.addEventListener("focusout", onFocusOut);
+  renderRows();
   return {
-    el: wrap,
-    setItems: (items) => list.setItems(items),
-    refresh: () => list.refresh(),
+    el: root,
+    setItems: (next) => {
+      items = next;
+      if (busy()) {
+        pendingRefresh = true;
+        return;
+      }
+      renderRows();
+    },
+    refresh: () => {
+      if (busy()) {
+        pendingRefresh = true;
+        return;
+      }
+      renderRows();
+    },
     destroy: () => {
-      list.destroy();
-      wrap.remove();
+      root.removeEventListener("focusout", onFocusOut);
+      root.remove();
     }
   };
 }
 
 // src/ui/modals/addChooser.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 
 // src/ui/modals/importFlow.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 function importFromClipboard(plugin) {
   navigator.clipboard.readText().then((text) => {
     const url = (text ?? "").trim();
     if (/^https?:\/\/\S+$/i.test(url)) {
       openImportModal(plugin, url);
     } else {
-      new import_obsidian17.Notice("Clipboard doesn't contain a web link \u2014 paste one into the import box.");
+      new import_obsidian18.Notice("Clipboard doesn't contain a web link \u2014 paste one into the import box.");
       openImportModal(plugin);
     }
   }).catch(() => {
-    new import_obsidian17.Notice("Couldn't read the clipboard \u2014 paste the link manually.");
+    new import_obsidian18.Notice("Couldn't read the clipboard \u2014 paste the link manually.");
     openImportModal(plugin);
   });
 }
 function openImportModal(plugin, url) {
   new ImportModal(plugin, url).open();
 }
-var ImportModal = class extends import_obsidian17.Modal {
+var ImportModal = class extends import_obsidian18.Modal {
   constructor(plugin, initialUrl) {
     super(plugin.app);
     this.plugin = plugin;
@@ -18106,7 +18313,7 @@ var ImportModal = class extends import_obsidian17.Modal {
     if (text === "") return;
     if (spinning) {
       const icon = this.statusEl.createSpan({ cls: "fs-spin" });
-      (0, import_obsidian17.setIcon)(icon, "loader-2");
+      (0, import_obsidian18.setIcon)(icon, "loader-2");
     }
     this.statusEl.createSpan({ text });
   }
@@ -18153,7 +18360,7 @@ var ImportModal = class extends import_obsidian17.Modal {
     const input = draftToInput(this.plugin, draft);
     if (!input) {
       this.close();
-      new import_obsidian17.Notice("Couldn't read a name from that link \u2014 review the details before saving.");
+      new import_obsidian18.Notice("Couldn't read a name from that link \u2014 review the details before saving.");
       openAddModal(this.plugin, draft);
       return;
     }
@@ -18161,7 +18368,7 @@ var ImportModal = class extends import_obsidian17.Modal {
       const created = await this.plugin.store.createSpot(input);
       this.close();
       showUndoNotice(this.plugin, created);
-      for (const w of draft.warnings) new import_obsidian17.Notice(`Import warning \u2014 ${w}`, 1e4);
+      for (const w of draft.warnings) new import_obsidian18.Notice(`Import warning \u2014 ${w}`, 1e4);
     } catch (e) {
       this.running = false;
       this.importBtn.disabled = false;
@@ -18192,7 +18399,7 @@ var ImportModal = class extends import_obsidian17.Modal {
   showAttachChoice(target, source, draft) {
     const banner = this.contentEl.createDiv({ cls: "fs-dup-banner fs-attach-banner" });
     const icon = banner.createSpan({ cls: "fs-dup-icon" });
-    (0, import_obsidian17.setIcon)(icon, "star");
+    (0, import_obsidian18.setIcon)(icon, "star");
     const text = banner.createDiv({ cls: "fs-dup-text" });
     text.createDiv({
       text: `This ${SOURCE_LABELS[source]} page looks like \u201C${target.name}\u201D${target.city ? ` in ${target.city}` : ""}, which is already in your library.`
@@ -18207,7 +18414,7 @@ var ImportModal = class extends import_obsidian17.Modal {
       attach.disabled = true;
       void this.attachRatingSource(target, source, draft.sourceUrl).catch((e) => {
         attach.disabled = false;
-        new import_obsidian17.Notice(`Couldn't attach the rating source \u2014 ${errorMessage4(e)}`);
+        new import_obsidian18.Notice(`Couldn't attach the rating source \u2014 ${errorMessage4(e)}`);
       });
     });
     const merge = actions.createEl("button", { text: "Merge into existing" });
@@ -18230,7 +18437,7 @@ var ImportModal = class extends import_obsidian17.Modal {
       external: { ...target.external, [key]: url }
     });
     this.close();
-    new import_obsidian17.Notice(`Attached ${SOURCE_LABELS[source]} as a rating source for \u201C${target.name}\u201D.`);
+    new import_obsidian18.Notice(`Attached ${SOURCE_LABELS[source]} as a rating source for \u201C${target.name}\u201D.`);
     void refreshSpotRatings(this.plugin, updated);
   }
   onClose() {
@@ -18311,12 +18518,12 @@ function showUndoNotice(plugin, spot) {
   frag.createSpan({ text: `Added \u201C${spot.name}\u201D. ` });
   const btn = frag.createEl("button", { text: "Undo", cls: "fs-notice-undo" });
   btn.type = "button";
-  const notice = new import_obsidian17.Notice(frag, 1e4);
+  const notice = new import_obsidian18.Notice(frag, 1e4);
   btn.addEventListener("click", () => {
     notice.hide();
     plugin.store.deleteSpot(spot.path).then(
-      () => new import_obsidian17.Notice("Import undone \u2014 the note went to the trash."),
-      (e) => new import_obsidian17.Notice(`Couldn't undo the import \u2014 ${errorMessage4(e)}`)
+      () => new import_obsidian18.Notice("Import undone \u2014 the note went to the trash."),
+      (e) => new import_obsidian18.Notice(`Couldn't undo the import \u2014 ${errorMessage4(e)}`)
     );
   });
 }
@@ -18325,7 +18532,7 @@ function errorMessage4(e) {
 }
 
 // src/ui/modals/listImport.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 
 // src/import/listParse.ts
 var MAX_NAMES = 100;
@@ -18466,7 +18673,7 @@ function isConfident(pasted, c) {
   if (a === "" || b === "") return false;
   return a === b || a.includes(b) || b.includes(a);
 }
-var ListImportModal = class extends import_obsidian18.Modal {
+var ListImportModal = class extends import_obsidian19.Modal {
   constructor(plugin) {
     super(plugin.app);
     this.plugin = plugin;
@@ -18537,7 +18744,7 @@ var ListImportModal = class extends import_obsidian18.Modal {
     const lookupBtn = buttons.createEl("button", { cls: "mod-cta" });
     lookupBtn.type = "button";
     const lookupIcon = lookupBtn.createSpan({ cls: "fs-btn-icon" });
-    (0, import_obsidian18.setIcon)(lookupIcon, "search");
+    (0, import_obsidian19.setIcon)(lookupIcon, "search");
     lookupBtn.createSpan({ text: "Look up on Google" });
     const hasKey = this.plugin.importer.hasGoogleKey();
     if (!hasKey) lookupBtn.title = NO_KEY_HINT;
@@ -18566,7 +18773,7 @@ var ListImportModal = class extends import_obsidian18.Modal {
     });
     lookupBtn.addEventListener("click", () => {
       if (!hasKey) {
-        new import_obsidian18.Notice(NO_KEY_HINT);
+        new import_obsidian19.Notice(NO_KEY_HINT);
         return;
       }
       void this.runLookup(parseNameListVerbose(this.text).names);
@@ -18869,7 +19076,7 @@ var ListImportModal = class extends import_obsidian18.Modal {
     if (skipped > 0) parts.push(`${skipped} skipped (already saved)`);
     if (failed > 0) parts.push(`${failed} failed`);
     this.close();
-    new import_obsidian18.Notice(
+    new import_obsidian19.Notice(
       `${cancelled ? "List import cancelled" : "List import done"} \u2014 ${parts.join(" \xB7 ")}.`,
       1e4
     );
@@ -18910,7 +19117,7 @@ var ListImportModal = class extends import_obsidian18.Modal {
 function openAddChooser(plugin) {
   new AddChooserModal(plugin).open();
 }
-var AddChooserModal = class extends import_obsidian19.Modal {
+var AddChooserModal = class extends import_obsidian20.Modal {
   constructor(plugin) {
     super(plugin.app);
     this.plugin = plugin;
@@ -18961,7 +19168,7 @@ var AddChooserModal = class extends import_obsidian19.Modal {
       btn.disabled = true;
     }
     const icon = btn.createSpan({ cls: "fs-chooser-icon" });
-    (0, import_obsidian19.setIcon)(icon, opts.icon);
+    (0, import_obsidian20.setIcon)(icon, opts.icon);
     const text = btn.createDiv({ cls: "fs-chooser-text" });
     text.createDiv({ cls: "fs-chooser-title", text: opts.title });
     text.createDiv({ cls: "fs-chooser-desc", text: opts.desc });
@@ -19091,7 +19298,7 @@ function mountSpotsTab(container, plugin) {
     text: "Status",
     onClick: (e) => {
       if (selected.size === 0) return;
-      const menu = new import_obsidian20.Menu();
+      const menu = new import_obsidian21.Menu();
       const statuses = [
         { st: "want-to-try", label: "Want to try" },
         { st: "visited", label: "Visited" }
@@ -19158,46 +19365,10 @@ function mountSpotsTab(container, plugin) {
   bodyEl.addEventListener("click", onBodyClickCapture, { capture: true });
   function buildRenderer() {
     if (viewMode === "table") {
-      const table = createVirtualTable(bodyEl, {
-        columns: [
-          { label: "Name", cls: "fs-col-name" },
-          { label: "Cuisine" },
-          { label: "City" },
-          { label: "Price" },
-          { label: "My \u2605" },
-          { label: "Google \u2605" },
-          { label: "Visits" },
-          { label: "Last visit" }
-        ],
-        rowHeight: 40,
-        renderRow: (spot, row) => {
-          row.dataset.path = spot.path;
-          if (selected.has(spot.path)) row.addClass("is-selected");
-          const cell = (text, cls) => {
-            row.createDiv({ cls: ["fs-vtable-cell", cls ?? ""].join(" ").trim(), text });
-          };
-          cell(spot.name, "fs-col-name");
-          cell(spot.cuisines.join(", ") || "\u2014");
-          cell(spot.city ?? "\u2014");
-          cell(
-            spot.price ? plugin.settings.currencySymbol.repeat(Math.min(4, spot.price)) : "\u2014"
-          );
-          cell(spot.rating !== void 0 ? `\u2605 ${fmtRating(spot.rating)}` : "\u2014");
-          cell(
-            spot.external.googleRating !== void 0 ? `G ${fmtRating(spot.external.googleRating)}` : "\u2014"
-          );
-          cell(String(spot.visitCount));
-          cell(spot.lastVisit ? relTime(spot.lastVisit) : "\u2014");
-        },
-        onRowClick: (spot) => {
-          if (!selectMode) openDetailModal(plugin, spot.path);
-        }
+      return createEditableTable(bodyEl, plugin, {
+        isSelected: (path) => selected.has(path),
+        selectMode: () => selectMode
       });
-      table.el.style.setProperty(
-        "--fs-table-cols",
-        "minmax(140px, 2fr) 1.4fr 1fr 64px 72px 84px 56px 90px"
-      );
-      return table;
     }
     const grid = createVirtualGrid(bodyEl, {
       minItemWidth: () => cardMinWidth(plugin.settings),
@@ -19223,7 +19394,7 @@ function mountSpotsTab(container, plugin) {
     if (!kind) return;
     emptyEl = bodyEl.createDiv({ cls: "fs-empty" });
     const ic = emptyEl.createDiv({ cls: "fs-empty-icon" });
-    (0, import_obsidian20.setIcon)(ic, kind === "first-run" ? "utensils" : "search-x");
+    (0, import_obsidian21.setIcon)(ic, kind === "first-run" ? "utensils" : "search-x");
     if (kind === "first-run") {
       emptyEl.createDiv({ cls: "fs-empty-title", text: "No food spots yet" });
       emptyEl.createDiv({
@@ -19323,7 +19494,7 @@ function mountSpotsTab(container, plugin) {
       } catch {
       }
     }
-    new import_obsidian20.Notice(`Status set on ${n} spot${n === 1 ? "" : "s"}.`);
+    new import_obsidian21.Notice(`Status set on ${n} spot${n === 1 ? "" : "s"}.`);
   }
   async function bulkTag(tag) {
     let n = 0;
@@ -19336,7 +19507,7 @@ function mountSpotsTab(container, plugin) {
       } catch {
       }
     }
-    new import_obsidian20.Notice(`Tag "${tag}" added to ${n} spot${n === 1 ? "" : "s"}.`);
+    new import_obsidian21.Notice(`Tag "${tag}" added to ${n} spot${n === 1 ? "" : "s"}.`);
   }
   async function bulkDelete() {
     const n = selected.size;
@@ -19358,7 +19529,7 @@ function mountSpotsTab(container, plugin) {
     }
     selected.clear();
     syncSelection();
-    new import_obsidian20.Notice(`Deleted ${deleted} spot${deleted === 1 ? "" : "s"} \u2014 recoverable from the trash.`);
+    new import_obsidian21.Notice(`Deleted ${deleted} spot${deleted === 1 ? "" : "s"} \u2014 recoverable from the trash.`);
   }
   const controller = {
     applyLocation(loc) {
@@ -19439,301 +19610,6 @@ function mountSpotsTab(container, plugin) {
       renderer = null;
       bodyEl.removeEventListener("click", onBodyClickCapture, { capture: true });
       void plugin.saveSettings();
-      root.remove();
-    }
-  };
-}
-
-// src/ui/tabs/list.ts
-var import_obsidian21 = require("obsidian");
-var CUSTOM = "__custom__";
-function mapsUrl2(spot) {
-  const q = spot.coordinates ? `${spot.coordinates.lat},${spot.coordinates.lng}` : [spot.name, spot.city, spot.country].filter(Boolean).join(" ");
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
-}
-function mountListTab(container, plugin) {
-  const root = container.createDiv({ cls: "fs-list-tab" });
-  let query = "";
-  let city = "";
-  let cuisine = "";
-  let status = "";
-  let sortKey = "name";
-  let sortAsc = true;
-  let pendingRefresh = false;
-  const toolbar = root.createDiv({ cls: "fs-toolbar fs-list-toolbar" });
-  buildSearchBox(toolbar, {
-    placeholder: "Filter the list\u2026",
-    onQuery: (q) => {
-      query = q;
-      renderRows();
-    }
-  });
-  const select = (label, onChange) => {
-    const el = toolbar.createEl("select", { cls: "dropdown fs-list-filter" });
-    el.setAttribute("aria-label", label);
-    el.addEventListener("change", () => onChange(el.value));
-    return el;
-  };
-  const citySel = select("City", (v) => {
-    city = v;
-    renderRows();
-  });
-  const cuisineSel = select("Cuisine", (v) => {
-    cuisine = v;
-    renderRows();
-  });
-  const statusSel = select("Status", (v) => {
-    status = v;
-    renderRows();
-  });
-  const countEl = toolbar.createSpan({ cls: "fs-list-count" });
-  const scroller = root.createDiv({ cls: "fs-list-scroll" });
-  const table = scroller.createEl("table", { cls: "fs-list-table" });
-  const thead = table.createEl("thead");
-  const headRow = thead.createEl("tr");
-  const COLS = [
-    { key: "name", label: "Name" },
-    { key: "cuisine", label: "Cuisine" },
-    { key: "city", label: "City" },
-    { key: "price", label: "Price" },
-    { key: "rating", label: "My rating" },
-    { key: "google", label: "Google" },
-    { label: "\u2605", cls: "fs-col-fav" },
-    { label: "", cls: "fs-col-actions" }
-  ];
-  for (const col of COLS) {
-    const th = headRow.createEl("th", { cls: col.cls });
-    if (!col.key) {
-      th.setText(col.label);
-      continue;
-    }
-    const btn = th.createEl("button", { cls: "fs-list-sort", text: col.label });
-    btn.type = "button";
-    const arrow = btn.createSpan({ cls: "fs-list-arrow" });
-    const paint = () => {
-      arrow.setText(sortKey === col.key ? sortAsc ? " \u2191" : " \u2193" : "");
-    };
-    paint();
-    btn.addEventListener("click", () => {
-      if (sortKey === col.key) sortAsc = !sortAsc;
-      else {
-        sortKey = col.key;
-        sortAsc = col.key === "name" || col.key === "city" || col.key === "cuisine";
-      }
-      renderRows();
-    });
-  }
-  const tbody = table.createEl("tbody");
-  function visible() {
-    const all = plugin.store.getSpots();
-    let rows = filterSpots(all, query, EMPTY_FILTER_STATE);
-    if (city) rows = rows.filter((s) => (s.city ?? "").trim() === city);
-    if (cuisine) rows = rows.filter((s) => s.cuisines.includes(cuisine));
-    if (status === "favorite") rows = rows.filter((s) => s.favorite);
-    else if (status) rows = rows.filter((s) => s.status === status);
-    const dir = sortAsc ? 1 : -1;
-    const cmp = {
-      name: (a, b) => a.name.localeCompare(b.name),
-      city: (a, b) => (a.city ?? "").localeCompare(b.city ?? "") || a.name.localeCompare(b.name),
-      cuisine: (a, b) => (a.cuisines[0] ?? "").localeCompare(b.cuisines[0] ?? "") || a.name.localeCompare(b.name),
-      price: (a, b) => (a.price ?? 0) - (b.price ?? 0) || a.name.localeCompare(b.name),
-      rating: (a, b) => (a.rating ?? 0) - (b.rating ?? 0) || a.name.localeCompare(b.name),
-      google: (a, b) => (a.external.googleRating ?? 0) - (b.external.googleRating ?? 0) || a.name.localeCompare(b.name)
-    };
-    return [...rows].sort((a, b) => cmp[sortKey](a, b) * dir);
-  }
-  function syncFilterOptions() {
-    const fill = (el, allLabel, values, current) => {
-      const wanted = [allLabel, ...values].join("|");
-      if (el.dataset.filled === wanted) {
-        el.value = current;
-        return;
-      }
-      el.dataset.filled = wanted;
-      el.empty();
-      el.createEl("option", { text: allLabel, value: "" });
-      for (const v of values) el.createEl("option", { text: v, value: v });
-      el.value = current;
-    };
-    fill(citySel, "All cities", plugin.store.distinct("city"), city);
-    fill(cuisineSel, "All cuisines", plugin.store.distinct("cuisines"), cuisine);
-    if (statusSel.options.length === 0) {
-      statusSel.createEl("option", { text: "All statuses", value: "" });
-      statusSel.createEl("option", { text: "Want to try", value: "want-to-try" });
-      statusSel.createEl("option", { text: "Visited", value: "visited" });
-      statusSel.createEl("option", { text: "Favorites", value: "favorite" });
-    }
-    statusSel.value = status;
-  }
-  function renderRows() {
-    syncFilterOptions();
-    for (const th of Array.from(headRow.querySelectorAll(".fs-list-arrow"))) {
-      th.setText("");
-    }
-    const headerButtons = Array.from(headRow.querySelectorAll(".fs-list-sort"));
-    COLS.filter((c) => c.key).forEach((col, i) => {
-      const arrow = headerButtons[i]?.querySelector(".fs-list-arrow");
-      if (arrow) arrow.setText(sortKey === col.key ? sortAsc ? " \u2191" : " \u2193" : "");
-    });
-    const rows = visible();
-    const total = plugin.store.getSpots().length;
-    countEl.setText(`${rows.length} of ${total}`);
-    tbody.empty();
-    if (rows.length === 0) {
-      const tr = tbody.createEl("tr");
-      const td = tr.createEl("td", { attr: { colspan: String(COLS.length) } });
-      td.createDiv({
-        cls: "fs-list-empty",
-        text: total === 0 ? "No spots yet." : "Nothing matches these filters."
-      });
-      return;
-    }
-    for (const spot of rows) renderRow(spot);
-  }
-  function renderRow(spot) {
-    const tr = tbody.createEl("tr", { cls: "fs-list-row" });
-    const nameTd = tr.createEl("td", { cls: "fs-list-name" });
-    const nameBtn = nameTd.createEl("button", { cls: "fs-list-link", text: spot.name });
-    nameBtn.type = "button";
-    nameBtn.addEventListener("click", () => openDetailModal(plugin, spot.path));
-    if (spot.status === "visited") {
-      const dot = nameTd.createSpan({ cls: "fs-status-dot" });
-      dot.style.setProperty("--fs-status", plugin.settings.statusColors.visited);
-      dot.title = "Visited";
-    }
-    const cuisineTd = tr.createEl("td", { cls: "fs-list-cuisines" });
-    const chips = cuisineTd.createDiv({ cls: "fs-list-chiprow" });
-    for (const c of spot.cuisines) {
-      const chip = chips.createSpan({ cls: "fs-list-chip" });
-      chip.createSpan({ cls: "fs-chip-text", text: c });
-      const rm = chip.createEl("button", {
-        cls: "fs-chip-x",
-        attr: { "aria-label": `Remove ${c}` }
-      });
-      rm.type = "button";
-      rm.setText("\xD7");
-      rm.addEventListener("click", () => {
-        void save(spot, { cuisines: spot.cuisines.filter((x) => x !== c) });
-      });
-    }
-    const addSel = chips.createEl("select", { cls: "dropdown fs-list-cuisine-add" });
-    addSel.setAttribute("aria-label", `Add a cuisine to ${spot.name}`);
-    addSel.createEl("option", { text: spot.cuisines.length > 0 ? "+" : "+ cuisine", value: "" });
-    for (const c of plugin.store.distinct("cuisines").filter((c2) => !spot.cuisines.some((x) => x.toLowerCase() === c2.toLowerCase()))) {
-      addSel.createEl("option", { text: c, value: c });
-    }
-    addSel.createEl("option", { text: "Something else\u2026", value: CUSTOM });
-    addSel.addEventListener("change", () => {
-      let value = addSel.value;
-      if (value === "") return;
-      if (value === CUSTOM) {
-        const typed = window.prompt(`New cuisine for ${spot.name}`, "");
-        addSel.value = "";
-        if (typed === null || typed.trim() === "") return;
-        value = typed.trim();
-      }
-      if (spot.cuisines.some((x) => x.toLowerCase() === value.toLowerCase())) return;
-      void save(spot, { cuisines: [...spot.cuisines, value] });
-    });
-    tr.createEl("td", { cls: "fs-list-city", text: spot.city ?? "" });
-    const priceTd = tr.createEl("td");
-    const pSel = priceTd.createEl("select", { cls: "dropdown fs-list-cell-select fs-list-price" });
-    const symbol = plugin.settings.currencySymbol || "\u20AC";
-    pSel.createEl("option", { text: "\u2014", value: "" });
-    for (let t = 1; t <= 4; t++) pSel.createEl("option", { text: symbol.repeat(t), value: String(t) });
-    pSel.value = spot.price ? String(spot.price) : "";
-    pSel.addEventListener("change", () => {
-      void save(spot, { price: pSel.value === "" ? void 0 : Number(pSel.value) });
-    });
-    const ratingTd = tr.createEl("td", { cls: "fs-list-rating" });
-    starRating(ratingTd, {
-      value: spot.rating,
-      halfSteps: plugin.settings.halfStarRatings,
-      tiers: plugin.settings.ratingTiers,
-      onChange: (v) => {
-        void save(spot, v > 0 ? { rating: v, ratingLocked: true } : { rating: void 0 });
-      }
-    });
-    const g = spot.external.googleRating;
-    tr.createEl("td", {
-      cls: "fs-list-google",
-      text: g !== void 0 ? fmtRating(g) : ""
-    });
-    const favTd = tr.createEl("td", { cls: "fs-col-fav" });
-    const fav = favTd.createEl("button", {
-      cls: "fs-list-fav",
-      attr: { "aria-label": spot.favorite ? "Remove favorite" : "Mark favorite" }
-    });
-    fav.type = "button";
-    (0, import_obsidian21.setIcon)(fav, "star");
-    fav.toggleClass("is-active", spot.favorite);
-    fav.style.setProperty("--fs-fav", plugin.settings.statusColors.favorite);
-    fav.addEventListener("click", () => void save(spot, { favorite: !spot.favorite }));
-    const actTd = tr.createEl("td", { cls: "fs-col-actions" });
-    const action = (icon, label, fn) => {
-      const b = actTd.createEl("button", { cls: "fs-list-action", attr: { "aria-label": label } });
-      b.type = "button";
-      b.title = label;
-      (0, import_obsidian21.setIcon)(b, icon);
-      b.addEventListener("click", fn);
-    };
-    action("file-text", "Open note", () => void plugin.store.openNote(spot.path));
-    action("map-pin", "Open in Google Maps", () => window.open(mapsUrl2(spot), "_blank"));
-    const moreBtn = actTd.createEl("button", {
-      cls: "fs-list-action",
-      attr: { "aria-label": "More" }
-    });
-    moreBtn.type = "button";
-    moreBtn.title = "More";
-    (0, import_obsidian21.setIcon)(moreBtn, "more-vertical");
-    moreBtn.addEventListener("click", (ev) => {
-      const menu = new import_obsidian21.Menu();
-      menu.addItem(
-        (i) => i.setTitle(spot.status === "visited" ? "Mark want to try" : "Mark visited").setIcon("check").onClick(
-          () => void save(spot, { status: spot.status === "visited" ? "want-to-try" : "visited" })
-        )
-      );
-      if (spot.url) {
-        const url = spot.url;
-        menu.addItem(
-          (i) => i.setTitle("Open website").setIcon("globe").onClick(() => window.open(url, "_blank"))
-        );
-      }
-      menu.showAtMouseEvent(ev);
-    });
-  }
-  async function save(spot, patch) {
-    try {
-      await plugin.store.updateSpot(spot.path, patch);
-    } catch (e) {
-      new import_obsidian21.Notice(`Couldn't save \u2014 ${e instanceof Error ? e.message : String(e)}`);
-      renderRows();
-    }
-  }
-  function busy() {
-    const ae = document.activeElement;
-    return ae instanceof HTMLElement && root.contains(ae) && (ae.tagName === "SELECT" || ae.tagName === "INPUT");
-  }
-  const onFocusOut = () => {
-    window.setTimeout(() => {
-      if (pendingRefresh && !busy()) {
-        pendingRefresh = false;
-        renderRows();
-      }
-    }, 120);
-  };
-  root.addEventListener("focusout", onFocusOut);
-  renderRows();
-  return {
-    refresh: () => {
-      if (busy()) {
-        pendingRefresh = true;
-        return;
-      }
-      renderRows();
-    },
-    destroy: () => {
-      root.removeEventListener("focusout", onFocusOut);
       root.remove();
     }
   };
@@ -22299,7 +22175,6 @@ function mountDashboardTab(container, plugin) {
 var TABS = [
   { id: "dashboard", label: "Dashboard", icon: "layout-dashboard", mount: mountDashboardTab },
   { id: "spots", label: "Spots", icon: "utensils", mount: mountSpotsTab },
-  { id: "list", label: "List", icon: "table-2", mount: mountListTab },
   { id: "discover", label: "Discover", icon: "compass", mount: mountDiscoverTab },
   { id: "places", label: "Places", icon: "map-pin", mount: mountPlacesTab },
   { id: "map", label: "Map", icon: "map", mount: mountMapTab },
