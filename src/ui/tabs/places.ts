@@ -1,5 +1,5 @@
 /**
- * Food Spot — Places tab: location tree Country → City → District that SKIPS
+ * Food Spot — Locations tab: location tree Country → City → District that SKIPS
  * missing levels (v0.1 defect #2: never `break` on an empty level — a spot
  * with a district but no city hangs the district straight off the country).
  *

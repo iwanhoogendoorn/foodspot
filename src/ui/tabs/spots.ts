@@ -445,7 +445,7 @@ export function mountSpotsTab(container: HTMLElement, plugin: FoodSpotPluginApi)
     new Notice(`Deleted ${deleted} spot${deleted === 1 ? "" : "s"} — recoverable from the trash.`);
   }
 
-  // -- location filter entry point (Places tab / view) ----------------------
+  // -- location filter entry point (Locations tab / view) ----------------------
 
   const controller: SpotsController = {
     applyLocation(loc: LocationFilter) {

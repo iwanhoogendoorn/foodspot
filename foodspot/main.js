@@ -22176,7 +22176,7 @@ var TABS = [
   { id: "dashboard", label: "Dashboard", icon: "layout-dashboard", mount: mountDashboardTab },
   { id: "spots", label: "Spots", icon: "utensils", mount: mountSpotsTab },
   { id: "discover", label: "Discover", icon: "compass", mount: mountDiscoverTab },
-  { id: "places", label: "Places", icon: "map-pin", mount: mountPlacesTab },
+  { id: "places", label: "Locations", icon: "list-tree", mount: mountPlacesTab },
   { id: "map", label: "Map", icon: "map", mount: mountMapTab },
   { id: "visits", label: "Visits", icon: "history", mount: mountVisitsTab }
 ];
@@ -22271,7 +22271,7 @@ var FoodSpotView = class extends import_obsidian31.ItemView {
       }
     }
   }
-  /** Switch to Spots and narrow it to a location (used by the Places tab). */
+  /** Switch to Spots and narrow it to a location (used by the Locations tab). */
   applyLocationFilter(loc) {
     this.setActiveTab("spots");
     applySpotsLocation(this.plugin, loc);

@@ -1,6 +1,6 @@
 /**
  * Food Spot — the single ItemView shell: tab bar (Dashboard / Spots /
- * Discover / Places / Map / Visits) with Lucide icons, a visits-this-month badge, icon-only tabs with
+ * Discover / Locations / Map / Visits) with Lucide icons, a visits-this-month badge, icon-only tabs with
  * dot badges on mobile, lazily mounted tabs, store-driven refresh, and
  * persisted active tab.
  */
@@ -26,7 +26,7 @@ const TABS: TabDef[] = [
   { id: "dashboard", label: "Dashboard", icon: "layout-dashboard", mount: mountDashboardTab },
   { id: "spots", label: "Spots", icon: "utensils", mount: mountSpotsTab },
   { id: "discover", label: "Discover", icon: "compass", mount: mountDiscoverTab },
-  { id: "places", label: "Places", icon: "map-pin", mount: mountPlacesTab },
+  { id: "places", label: "Locations", icon: "list-tree", mount: mountPlacesTab },
   { id: "map", label: "Map", icon: "map", mount: mountMapTab },
   { id: "visits", label: "Visits", icon: "history", mount: mountVisitsTab },
 ];
@@ -144,7 +144,7 @@ export class FoodSpotView extends ItemView {
     }
   }
 
-  /** Switch to Spots and narrow it to a location (used by the Places tab). */
+  /** Switch to Spots and narrow it to a location (used by the Locations tab). */
   applyLocationFilter(loc: LocationFilter): void {
     this.setActiveTab("spots");
     applySpotsLocation(this.plugin, loc);
