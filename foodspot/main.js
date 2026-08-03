@@ -15790,18 +15790,74 @@ var DetailModal = class extends import_obsidian10.Modal {
     }
   }
   renderChips(parent, spot) {
-    if (spot.cuisines.length === 0 && spot.tags.length === 0) return;
     const row = parent.createDiv({ cls: "fs-detail-chips" });
     for (const c of spot.cuisines) {
-      const chip = row.createSpan({ cls: "fs-chip fs-chip-cuisine", text: c });
+      const chip = row.createSpan({ cls: "fs-chip fs-chip-cuisine" });
+      chip.createSpan({ cls: "fs-chip-text", text: c });
       chip.title = `Show all ${c} spots`;
       chip.addEventListener("click", () => this.jumpToQuery(`cuisine:"${c}"`));
+      const rm = chip.createEl("button", {
+        cls: "fs-chip-x",
+        attr: { "aria-label": `Remove ${c}` }
+      });
+      rm.type = "button";
+      rm.setText("\xD7");
+      rm.addEventListener("click", (e) => {
+        e.stopPropagation();
+        void this.update({ cuisines: spot.cuisines.filter((x) => x !== c) });
+      });
     }
+    this.cuisineAdder(row, spot);
     for (const t of spot.tags) {
       const chip = row.createSpan({ cls: "fs-chip fs-chip-tag", text: `#${t}` });
       chip.title = `Show all #${t} spots`;
       chip.addEventListener("click", () => this.jumpToQuery(`tag:"${t}"`));
     }
+  }
+  /** "+ Cuisine" → dropdown of every cuisine in the library, plus free text. */
+  cuisineAdder(row, spot) {
+    const addBtn = row.createEl("button", { cls: "fs-chip fs-chip-add" });
+    addBtn.type = "button";
+    addBtn.setText(spot.cuisines.length > 0 ? "+ Cuisine" : "+ Add cuisine");
+    addBtn.title = "Add a cuisine to this spot";
+    const commit = (value) => {
+      const clean = value.trim();
+      if (clean === "") return;
+      const exists = spot.cuisines.some((c) => c.toLowerCase() === clean.toLowerCase());
+      if (!exists) void this.update({ cuisines: [...spot.cuisines, clean] });
+      else this.render();
+    };
+    addBtn.addEventListener("click", () => {
+      addBtn.hide();
+      const known = this.plugin.store.distinct("cuisines").filter((c) => !spot.cuisines.some((x) => x.toLowerCase() === c.toLowerCase()));
+      const select = row.createEl("select", { cls: "dropdown fs-cuisine-select" });
+      select.createEl("option", { text: "Choose a cuisine\u2026", value: "" });
+      for (const c of known) select.createEl("option", { text: c, value: c });
+      select.createEl("option", { text: "Something else\u2026", value: "__custom__" });
+      select.focus();
+      select.addEventListener("change", () => {
+        if (select.value === "__custom__") {
+          select.remove();
+          const input = row.createEl("input", {
+            type: "text",
+            cls: "fs-cuisine-input",
+            attr: { placeholder: "New cuisine" }
+          });
+          input.focus();
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") commit(input.value);
+            else if (e.key === "Escape") this.render();
+          });
+          input.addEventListener("blur", () => commit(input.value));
+          return;
+        }
+        if (select.value !== "") commit(select.value);
+        else this.render();
+      });
+      select.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") this.render();
+      });
+    });
   }
   jumpToQuery(query) {
     this.plugin.pendingQuery = query;

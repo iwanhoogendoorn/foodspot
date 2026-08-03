@@ -4220,6 +4220,47 @@ a.fs-info-text {
   cursor: pointer;
 }
 
+/* ---------- editable cuisine chips ---------- */
+.fs-detail-chips .fs-chip-cuisine {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fs-chip-x {
+  display: none;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fs-detail-chips .fs-chip-cuisine:hover .fs-chip-x {
+  display: inline;
+}
+
+.fs-chip-x:hover {
+  color: var(--text-error);
+}
+
+.fs-chip-add {
+  border-style: dashed !important;
+  color: var(--text-muted);
+}
+
+.fs-chip-add:hover {
+  color: var(--interactive-accent);
+}
+
+.fs-cuisine-select,
+.fs-cuisine-input {
+  max-width: 190px;
+  font-size: var(--font-ui-small);
+}
+
 
 /* === 41-list-import.css === */
 /* ==========================================================================
