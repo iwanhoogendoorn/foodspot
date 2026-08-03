@@ -19942,7 +19942,7 @@ function mountDiscoverTab(container, plugin) {
     });
     return btn;
   };
-  clearButton(locWrap, locationInput, () => {
+  const dropResults = () => {
     state.location = "";
     state.keyword = keywordInput.value.trim();
     state.query = "";
@@ -19951,6 +19951,10 @@ function mountDiscoverTab(container, plugin) {
     delete state.error;
     state.searched = false;
     render();
+  };
+  clearButton(locWrap, locationInput, dropResults);
+  locationInput.addEventListener("input", () => {
+    if (locationInput.value.trim() === "" && state.results.length > 0) dropResults();
   });
   clearButton(kwWrap, keywordInput, () => {
     state.keyword = "";

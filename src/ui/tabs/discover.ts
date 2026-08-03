@@ -256,8 +256,8 @@ export function mountDiscoverTab(
     return btn;
   };
 
-  clearButton(locWrap, locationInput, () => {
-    // No location = nothing those results belong to any more.
+  /** No location = nothing those results belong to any more. */
+  const dropResults = (): void => {
     state.location = "";
     state.keyword = keywordInput.value.trim();
     state.query = "";
@@ -266,6 +266,12 @@ export function mountDiscoverTab(
     delete state.error;
     state.searched = false;
     render();
+  };
+  clearButton(locWrap, locationInput, dropResults);
+  // Emptying the field by hand (select-all + delete, backspacing) must behave
+  // exactly like pressing the ×.
+  locationInput.addEventListener("input", () => {
+    if (locationInput.value.trim() === "" && state.results.length > 0) dropResults();
   });
   clearButton(kwWrap, keywordInput, () => {
     state.keyword = "";
