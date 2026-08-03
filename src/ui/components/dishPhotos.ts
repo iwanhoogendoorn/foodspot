@@ -9,6 +9,7 @@
 import { Notice, TFile, normalizePath } from "obsidian";
 import type { FoodSpot, FoodSpotPluginApi } from "../../types";
 import { ensureFolder } from "../../store/noteWriter";
+import { embedRefPath } from "../../store/visitsParser";
 
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|avif)$/i;
 
@@ -25,7 +26,9 @@ export function resolveDishFile(
   ref: string,
   sourcePath: string
 ): TFile | null {
-  const raw = ref.trim();
+  // A stored ref keeps its embed suffix ("dishes/x.jpg|300") so the note
+  // round-trips; only the path before the pipe addresses a file.
+  const raw = embedRefPath(ref);
   if (!raw || /^https?:\/\//i.test(raw)) return null;
   const direct = plugin.app.metadataCache.getFirstLinkpathDest(raw, sourcePath);
   if (direct) return direct;

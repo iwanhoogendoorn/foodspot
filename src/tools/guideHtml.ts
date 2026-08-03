@@ -36,6 +36,19 @@ function stars(rating: number | undefined): string {
   return `${filled}${halfChar}${empty}`;
 }
 
+/**
+ * The only schemes that may reach an `href` in the exported document. The
+ * guide is a standalone file opened outside Obsidian by people who did not
+ * author it, so a `javascript:` or `data:` value in a note field would execute
+ * in their browser on a click. Anything else is rendered as plain text.
+ */
+const SAFE_SCHEME = /^(?:https?|mailto|tel):/i;
+
+function safeHref(url: string): string | null {
+  const trimmed = url.trim();
+  return SAFE_SCHEME.test(trimmed) ? trimmed : null;
+}
+
 function hostOf(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -71,8 +84,11 @@ function card(spot: FoodSpot, o: GuideOptions): string {
   if (place) rows.push(`<div class="line place">${esc(place)}</div>`);
   if (spot.phone) rows.push(`<div class="line phone">${esc(spot.phone)}</div>`);
   if (spot.url) {
+    const href = safeHref(spot.url);
     rows.push(
-      `<div class="line web"><a href="${esc(spot.url)}">${esc(hostOf(spot.url))}</a></div>`
+      href !== null
+        ? `<div class="line web"><a href="${esc(href)}">${esc(hostOf(href))}</a></div>`
+        : `<div class="line web">${esc(spot.url.trim())}</div>`
     );
   }
   const visited = spot.status === "visited" ? ' <span class="badge">visited</span>' : "";

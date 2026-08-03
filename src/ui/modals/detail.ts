@@ -23,12 +23,13 @@ import type {
 import { SPOT_STATUSES } from "../../types";
 import { starRating } from "../components/starRating";
 import { isStaleRatings } from "../components/card";
-import { formatHoursForDisplay, openState } from "../components/hours";
+import { formatHoursForDisplay, localClockApplies, openState } from "../components/hours";
 import { confirmModal } from "./confirm";
 import { openEditModal } from "./addEdit";
 import { canBrowserFetch, openBrowserFetchQueue } from "./browserFetch";
 import { importDishPhotos, pickImageFiles, renderDishThumbs } from "../components/dishPhotos";
 import { openGalleryModal } from "./gallery";
+import { todayIso } from "../../util/dates";
 
 export function openDetailModal(plugin: FoodSpotPluginApi, path: string): void {
   new DetailModal(plugin, path).open();
@@ -423,7 +424,12 @@ class DetailModal extends Modal {
    */
   private renderHours(block: HTMLElement, spot: FoodSpot): void {
     if (!spot.hours || spot.hours.length === 0) return;
-    const state = openState(spot.hours, new Date());
+    // Same guard as the card: this machine's clock only speaks for spots in
+    // the user's own country, so a Dubai spot gets the schedule without an
+    // open/closed claim rather than a confidently wrong one.
+    const state = localClockApplies(spot.country, this.plugin.settings.defaultCountry)
+      ? openState(spot.hours, new Date())
+      : null;
 
     const row = block.createDiv({ cls: "fs-info-row" });
     const icon = row.createSpan({ cls: "fs-info-icon" });
@@ -923,17 +929,32 @@ class DetailModal extends Modal {
     cancel.type = "button";
 
     const doSave = (): void => {
+      dateInput.removeClass("fs-input-invalid");
+      spentInput.removeClass("fs-input-invalid");
       if (!dateInput.value) {
         dateInput.addClass("fs-input-invalid");
         return;
       }
+      // Same hole as the Log visit modal: `min="0"` is only enforced by a
+      // native form submit, so a typed or pasted "-5" reaches us intact.
+      // Silently dropping it would be no better — the user typed a number and
+      // would see the field come back empty with no explanation.
       const spentRaw = spentInput.value.trim();
-      const spent = spentRaw === "" ? undefined : Number(spentRaw);
+      let spent: number | undefined;
+      if (spentRaw !== "") {
+        const parsed = Number(spentRaw);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          spentInput.addClass("fs-input-invalid");
+          spentInput.focus();
+          return;
+        }
+        spent = parsed;
+      }
       save.disabled = true;
       void onSave({
         date: dateInput.value,
         rating: rating > 0 ? rating : undefined,
-        spent: spent !== undefined && !Number.isNaN(spent) ? spent : undefined,
+        spent,
         note: noteInput.value.trim(),
         photos: photos.length > 0 ? photos : undefined,
       }).catch((e: unknown) => {
@@ -1108,12 +1129,6 @@ function formatDate(iso: string, fmt: DateFormat): string {
   }
 }
 
-function todayIso(): string {
-  const d = new Date();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${m}-${day}`;
-}
 
 function prettyUrl(url: string): string {
   try {

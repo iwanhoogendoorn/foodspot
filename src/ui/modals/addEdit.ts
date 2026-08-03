@@ -128,6 +128,9 @@ class AddEditModal extends Modal {
   private taUrlInput!: HTMLInputElement;
   private yelpUrlInput!: HTMLInputElement;
   private theforkUrlInput!: HTMLInputElement;
+  private facebookUrlInput!: HTMLInputElement;
+  private opentableUrlInput!: HTMLInputElement;
+  private eetnuUrlInput!: HTMLInputElement;
   private notesArea!: HTMLTextAreaElement;
   private saveBtn!: HTMLButtonElement;
 
@@ -662,7 +665,7 @@ class AddEditModal extends Modal {
         this.state.external.theforkUrl = emptyToUndef(v);
       },
     });
-    this.textField(grid, "Facebook URL", "facebookUrl", {
+    this.facebookUrlInput = this.textField(grid, "Facebook URL", "facebookUrl", {
       value: this.state.external.facebookUrl ?? "",
       placeholder: "https://www.facebook.com/…",
       wide: true,
@@ -670,7 +673,7 @@ class AddEditModal extends Modal {
         this.state.external.facebookUrl = emptyToUndef(v);
       },
     });
-    this.textField(grid, "OpenTable URL", "opentableUrl", {
+    this.opentableUrlInput = this.textField(grid, "OpenTable URL", "opentableUrl", {
       value: this.state.external.opentableUrl ?? "",
       placeholder: "https://www.opentable.com/r/…",
       wide: true,
@@ -678,7 +681,7 @@ class AddEditModal extends Modal {
         this.state.external.opentableUrl = emptyToUndef(v);
       },
     });
-    this.textField(grid, "Eet.nu URL", "eetnuUrl", {
+    this.eetnuUrlInput = this.textField(grid, "Eet.nu URL", "eetnuUrl", {
       value: this.state.external.eetnuUrl ?? "",
       placeholder: "https://www.eet.nu/…",
       wide: true,
@@ -768,6 +771,9 @@ class AddEditModal extends Modal {
     this.taUrlInput.value = this.state.external.tripadvisorUrl ?? "";
     this.yelpUrlInput.value = this.state.external.yelpUrl ?? "";
     this.theforkUrlInput.value = this.state.external.theforkUrl ?? "";
+    this.facebookUrlInput.value = this.state.external.facebookUrl ?? "";
+    this.opentableUrlInput.value = this.state.external.opentableUrl ?? "";
+    this.eetnuUrlInput.value = this.state.external.eetnuUrl ?? "";
     this.notesArea.value = this.state.notes;
     this.starHandle.set(this.state.rating);
     this.paintStatus();
@@ -804,7 +810,17 @@ class AddEditModal extends Modal {
   }
 
   private validate(): { ok: boolean; coordinates?: Coordinates } {
-    for (const key of ["name", "coords", "url", "tripadvisorUrl", "yelpUrl", "theforkUrl"]) {
+    for (const key of [
+      "name",
+      "coords",
+      "url",
+      "tripadvisorUrl",
+      "yelpUrl",
+      "theforkUrl",
+      "facebookUrl",
+      "opentableUrl",
+      "eetnuUrl",
+    ]) {
       this.clearError(key);
     }
     let firstBad: HTMLElement | null = null;
@@ -835,6 +851,9 @@ class AddEditModal extends Modal {
       ["tripadvisorUrl", this.state.external.tripadvisorUrl, this.taUrlInput],
       ["yelpUrl", this.state.external.yelpUrl, this.yelpUrlInput],
       ["theforkUrl", this.state.external.theforkUrl, this.theforkUrlInput],
+      ["facebookUrl", this.state.external.facebookUrl, this.facebookUrlInput],
+      ["opentableUrl", this.state.external.opentableUrl, this.opentableUrlInput],
+      ["eetnuUrl", this.state.external.eetnuUrl, this.eetnuUrlInput],
     ];
     for (const [key, value, input] of sourceUrls) {
       if (value !== undefined && !/^https?:\/\//i.test(value)) {
@@ -1098,22 +1117,20 @@ function sameList(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
+/**
+ * Key-driven on purpose: a hand-written field list silently dropped the
+ * Facebook / OpenTable / Eet.nu URLs — the modal reported "Saved" while the
+ * edit was never sent. Every ExternalRatings value is flat, so identity
+ * comparison over the union of both key sets is exhaustive by construction and
+ * a field added to the type can never be forgotten here.
+ */
 function sameExternal(a: ExternalRatings, b: ExternalRatings): boolean {
-  return (
-    a.googleRating === b.googleRating &&
-    a.googleRatingCount === b.googleRatingCount &&
-    a.googlePlaceId === b.googlePlaceId &&
-    a.tripadvisorRating === b.tripadvisorRating &&
-    a.tripadvisorRatingCount === b.tripadvisorRatingCount &&
-    a.tripadvisorUrl === b.tripadvisorUrl &&
-    a.yelpRating === b.yelpRating &&
-    a.yelpRatingCount === b.yelpRatingCount &&
-    a.yelpUrl === b.yelpUrl &&
-    a.theforkRating === b.theforkRating &&
-    a.theforkRatingCount === b.theforkRatingCount &&
-    a.theforkUrl === b.theforkUrl &&
-    a.ratingsUpdated === b.ratingsUpdated
-  );
+  const av = a as Record<string, unknown>;
+  const bv = b as Record<string, unknown>;
+  for (const key of new Set([...Object.keys(av), ...Object.keys(bv)])) {
+    if (av[key] !== bv[key]) return false;
+  }
+  return true;
 }
 
 function stripUndefined<T extends object>(obj: T): Partial<T> {

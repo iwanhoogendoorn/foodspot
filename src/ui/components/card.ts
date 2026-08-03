@@ -18,7 +18,9 @@ import type {
   FoodSpotPluginApi,
   RatingTier,
 } from "../../types";
-import { openState } from "./hours";
+import { localClockApplies, openState } from "./hours";
+import { daysSinceCalendar } from "../../util/dates";
+import { EnrichStepError } from "../../import/pipeline";
 import { openDetailModal } from "../modals/detail";
 import { openEditModal } from "../modals/addEdit";
 import { openLogVisitPicker } from "../modals/logVisit";
@@ -29,11 +31,14 @@ import { confirmModalWithOption } from "../modals/confirm";
 // Formatting helpers (shared by my tabs)
 // ---------------------------------------------------------------------------
 
-/** "3 mo ago" style relative time from an ISO date. */
+/**
+ * "3 mo ago" style relative time from a calendar date. Counted in whole
+ * calendar days, not elapsed milliseconds: a visit logged this evening reads
+ * "today" everywhere on earth, never "yesterday".
+ */
 export function relTime(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "";
-  const days = Math.floor((Date.now() - then) / 86_400_000);
+  const days = daysSinceCalendar(iso);
+  if (Number.isNaN(days)) return "";
   if (days <= 0) return "today";
   if (days === 1) return "yesterday";
   if (days < 7) return `${days} d ago`;
@@ -77,9 +82,9 @@ export function cuisineTint(spot: FoodSpot): string {
  */
 export function isStaleRatings(plugin: FoodSpotPluginApi, ext: ExternalRatings): boolean {
   if (!ext.ratingsUpdated) return true;
-  const t = new Date(ext.ratingsUpdated).getTime();
-  if (Number.isNaN(t)) return true;
-  return (Date.now() - t) / 86_400_000 > plugin.settings.staleRatingThresholdDays;
+  const days = daysSinceCalendar(ext.ratingsUpdated);
+  if (Number.isNaN(days)) return true;
+  return days > plugin.settings.staleRatingThresholdDays;
 }
 
 /**
@@ -294,6 +299,23 @@ export async function pullSpotInfo(
       new Notice(`Nothing new found for "${spot.name}".`);
     }
   } catch (e) {
+    // A step the user asked for failed, but the run may still have gathered
+    // ratings/address/coordinates. Persist that before reporting the failure —
+    // throwing the partial away would be a silent regression on the path that
+    // used to save everything except the photo.
+    if (e instanceof EnrichStepError && e.partial && Object.keys(e.partial).length > 0) {
+      try {
+        await plugin.store.updateSpot(spot.path, e.partial);
+        new Notice(`Pull partly failed for "${spot.name}": ${e.message} The rest was saved.`, 10000);
+        return;
+      } catch (writeError) {
+        new Notice(
+          `Pull failed for "${spot.name}": ${e.message} Saving what was found also failed — ${writeError instanceof Error ? writeError.message : String(writeError)}`,
+          10000,
+        );
+        return;
+      }
+    }
     new Notice(`Pull failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
@@ -637,8 +659,11 @@ function buildFullCard(
     o.createSpan({ text: ` ${fmtRating(other.rating)}${other.scale10 ? "/10" : ""}` });
   }
   // Open-now chip — only for spots whose hours we can actually read; unknown
-  // hours leave the meta row exactly as it was.
-  const hours = openState(spot.hours, new Date());
+  // hours leave the meta row exactly as it was. Spots in another country are
+  // judged by this machine's clock, so they get no open/closed claim at all.
+  const hours = localClockApplies(spot.country, plugin.settings.defaultCountry)
+    ? openState(spot.hours, new Date())
+    : null;
   if (hours) {
     const chip = meta.createSpan({
       cls: `fs-open-chip ${hours.open ? "is-open" : "is-closed"}`,

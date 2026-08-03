@@ -11,16 +11,13 @@
 import { Modal, Notice, setIcon } from "obsidian";
 import type { FoodSpotPluginApi, SpotInput, SpotStatus } from "../../types";
 import { starRating } from "../components/starRating";
+import { todayIso } from "../../util/dates";
 
 export interface QuickAddResult {
   status: SpotStatus;
   rating?: number;
   price?: number;
   visit?: { date: string; spent?: number; note: string };
-}
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 class QuickAddModal extends Modal {

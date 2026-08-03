@@ -17,6 +17,21 @@
  *      (the v1.1 field a Partial merge silently drops when omitted)
  *   9. pasted-list name parser (bullets, numbering, emoji, dedupe, URL and
  *      long-line dropping, the 100-name cap)
+ *  10. managed-section fence scanning (CommonMark closers only, so a code
+ *      sample containing ```not-a-close never ends the block early and a
+ *      heading inside it is not mistaken for a section boundary)
+ *  11. visit embed refs keep their `|alias` display suffix through a
+ *      parse/serialize round-trip; embedRefPath strips it for link resolution
+ *  12. duplicate-merge visit dedupe keys on every typed field, so two visits
+ *      on the same date with a different spend both survive
+ *  13. opening hours: 24:30 is unparseable, 24:00 is midnight, and an
+ *      overnight range is open after midnight
+ *  14. exported guide HTML renders only http(s)/mailto/tel in an href; a
+ *      javascript: URL is escaped plain text
+ *  15. calendar-date helpers are LOCAL, asserted under several TZs — the
+ *      UTC-based idioms they replaced shifted the day by one
+ *  16. source guard: spotStore.updateSpot's merged literal carries `menu` and
+ *      `hours`, and keeps its compile-time CompleteSpotInput gate
  *
  * noteWriter.ts imports `obsidian` for types only, so the bundle aliases
  * `obsidian` to an empty stub — the tested fns are pure.
@@ -45,14 +60,41 @@ writeFileSync(
     `export * from ${JSON.stringify(join(root, "src/import/jsonld.ts"))};`,
     `export * from ${JSON.stringify(join(root, "src/import/menuDiscovery.ts"))};`,
     `export * from ${JSON.stringify(join(root, "src/import/listParse.ts"))};`,
-    `export { frontmatterFromInput, buildSpot, computeDerived } from ${JSON.stringify(join(root, "src/store/noteWriter.ts"))};`,
+    `export * from ${JSON.stringify(join(root, "src/tools/duplicates.ts"))};`,
+    `export * from ${JSON.stringify(join(root, "src/ui/components/hours.ts"))};`,
+    `export * from ${JSON.stringify(join(root, "src/util/dates.ts"))};`,
+    `export { buildGuideHtml } from ${JSON.stringify(join(root, "src/tools/guideHtml.ts"))};`,
+    `export { frontmatterFromInput, buildSpot, computeDerived, extractSection, replaceSection } from ${JSON.stringify(join(root, "src/store/noteWriter.ts"))};`,
     `export { DEFAULT_SETTINGS, EMPTY_FILTER_STATE } from ${JSON.stringify(join(root, "src/types.ts"))};`,
   ].join("\n"),
 );
 
-// noteWriter's `obsidian` import is type-only at runtime for the fns we test.
+// noteWriter's `obsidian` import is type-only at runtime for the fns we test,
+// and duplicates.ts reaches pipeline.ts (for haversineMeters/normalizeName),
+// which drags the network layer in. None of it runs: the stub only has to
+// satisfy esbuild's import resolution, so every runtime member throws.
 const obsidianStub = join(tmp, "obsidian-stub.mjs");
-writeFileSync(obsidianStub, "export class App {}\nexport class TFile {}\n");
+writeFileSync(
+  obsidianStub,
+  [
+    "export class App {}",
+    "export class TFile {}",
+    "export class TFolder {}",
+    "export class Notice {}",
+    "export class Modal {}",
+    "export class Plugin {}",
+    "export class PluginSettingTab {}",
+    "export class Setting {}",
+    "export class FuzzySuggestModal {}",
+    "export const Platform = { isDesktopApp: false, isMobile: false };",
+    "export function normalizePath(p) { return p; }",
+    "export function setIcon() {}",
+    "export function requestUrl() {",
+    "  throw new Error('smoke bundle: no network');",
+    "}",
+    "",
+  ].join("\n"),
+);
 
 const outfile = join(tmp, "bundle.mjs");
 await esbuild.build({
@@ -87,6 +129,18 @@ const {
   frontmatterFromInput,
   buildSpot,
   computeDerived,
+  extractSection,
+  replaceSection,
+  embedRefPath,
+  planMerge,
+  parseHours,
+  openState,
+  localClockApplies,
+  buildGuideHtml,
+  todayIso,
+  parseCalendarDate,
+  formatCalendarDate,
+  daysBetweenCalendar,
   DEFAULT_SETTINGS,
   EMPTY_FILTER_STATE,
 } = mod;
@@ -703,20 +757,440 @@ ok("theforkRating10: 10-scale passes through; 5-scale normalized TO 10-scale", (
 });
 
 // ---------------------------------------------------------------------------
+console.log("managed-section fence scanning (finding 10)");
+// ---------------------------------------------------------------------------
+
+/** A three-backtick fence, kept out of the literals so they stay readable. */
+const BT = "```";
+
+// A note whose FIRST "## Notes" heading sits inside a fenced code sample. The
+// opener is BT + "markdown"; the line BT + "not-a-close" carries an info string,
+// which CommonMark forbids on a CLOSING fence, so it does not end the block.
+// The scanner that treated any backtick run as a closer ended the fence there,
+// found the fake heading, and rewrote the user's code sample as the managed
+// section.
+const fencedNote = [
+  "---",
+  "name: Momiji",
+  "---",
+  "Here is how the plugin lays a note out:",
+  "",
+  BT + "markdown",
+  BT + "not-a-close",
+  "## Notes",
+  "fake notes body that must never be treated as a section",
+  "## Visits",
+  "- [date:: 1999-01-01] fake visit",
+  BT,
+  "",
+  "## Notes",
+  "",
+  "real notes body",
+  "",
+  "## Visits",
+  "",
+  "- [date:: 2026-08-01] real visit",
+  "",
+].join("\n");
+
+ok("a code sample containing " + BT + "not-a-close is not a section boundary", () => {
+  // The real section is the one OUTSIDE the fence, not the sample's heading.
+  assert.equal(extractSection(fencedNote, "## Notes"), "real notes body");
+  assert.equal(
+    extractSection(fencedNote, "## Visits"),
+    "- [date:: 2026-08-01] real visit",
+  );
+});
+
+ok("rewriting a managed section leaves the fenced sample byte-for-byte intact", () => {
+  const out = replaceSection(fencedNote, "## Notes", "brand new notes");
+  assert.match(out, /brand new notes/);
+  // Everything inside the fence survives: the fake headings, the fake visit
+  // bullet and the not-a-close line itself.
+  assert.match(out, new RegExp(BT + "markdown"));
+  assert.match(out, new RegExp(BT + "not-a-close"));
+  assert.match(out, /fake notes body that must never be treated as a section/);
+  assert.match(out, /- \[date:: 1999-01-01\] fake visit/);
+  // ...and the real visit section is untouched.
+  assert.match(out, /- \[date:: 2026-08-01\] real visit/);
+});
+
+ok("a PROPER closing fence still closes: the heading after it is a boundary", () => {
+  const note = [
+    "---",
+    "name: X",
+    "---",
+    "## Notes",
+    "",
+    BT,
+    "not a heading: ## Visits",
+    BT,
+    "",
+    "## Visits",
+    "",
+    "- [date:: 2026-08-02] real",
+    "",
+  ].join("\n");
+  assert.equal(extractSection(note, "## Visits"), "- [date:: 2026-08-02] real");
+  assert.match(extractSection(note, "## Notes"), /not a heading: ## Visits/);
+});
+
+ok("a closer must be at least as long as its opener, and match its character", () => {
+  const note = [
+    "---",
+    "name: X",
+    "---",
+    "## Notes",
+    "",
+    BT + BT.slice(0, 1), // four backticks open
+    "~~~",               // wrong character: not a closer
+    BT,                  // too short: not a closer
+    "## Visits",         // still inside the fence
+    BT + BT.slice(0, 1), // four backticks close
+    "",
+    "## Visits",
+    "",
+    "- [date:: 2026-08-02] real",
+    "",
+  ].join("\n");
+  assert.equal(extractSection(note, "## Visits"), "- [date:: 2026-08-02] real");
+  assert.match(extractSection(note, "## Notes"), /## Visits/);
+});
+
+// ---------------------------------------------------------------------------
+console.log("visit embed alias round-trip (finding 20)");
+// ---------------------------------------------------------------------------
+
+ok("![[dish.jpg|300]] keeps its alias through parse + serialize", () => {
+  const line = "- [date:: 2026-08-01] [rating:: 4] ramen ![[dishes/ramen.jpg|300]] ![[side.jpg]]";
+  const visit = parseVisitLine(line);
+  assert.ok(visit, "line parsed as a visit");
+  assert.deepEqual(visit.photos, ["dishes/ramen.jpg|300", "side.jpg"]);
+  // The alias is display width the user typed — rewriting it away on the next
+  // edit silently changes their note.
+  const out = serializeVisit(visit);
+  assert.match(out, /!\[\[dishes\/ramen\.jpg\|300\]\]/);
+  assert.match(out, /!\[\[side\.jpg\]\]/);
+  // And it is a fixed point: a second cycle changes nothing.
+  assert.equal(serializeVisit(parseVisitLine(out)), out);
+});
+
+ok("embedRefPath strips the alias so link resolution can find the file", () => {
+  assert.equal(embedRefPath("dishes/ramen.jpg|300"), "dishes/ramen.jpg");
+  assert.equal(embedRefPath("dish.jpg"), "dish.jpg");
+  assert.equal(embedRefPath("  dish.jpg | left of bar  "), "dish.jpg");
+});
+
+// ---------------------------------------------------------------------------
+console.log("duplicate-merge visit dedupe (finding 11)");
+// ---------------------------------------------------------------------------
+
+ok("two visits on the same date with a different spend both survive a merge", () => {
+  const keep = spot({
+    name: "Momiji",
+    path: "keep.md",
+    visits: [{ date: "2026-08-03", spent: 20, note: "lunch" }],
+    visitCount: 1,
+  });
+  const drop = spot({
+    name: "Momiji",
+    path: "drop.md",
+    visits: [{ date: "2026-08-03", spent: 80, note: "dinner" }],
+    visitCount: 1,
+  });
+  const merged = planMerge(keep, drop).visits;
+  assert.equal(merged.length, 2, "same day, different spend = two evenings");
+  assert.deepEqual(
+    merged.map((v) => v.spent).sort((a, b) => a - b),
+    [20, 80],
+  );
+});
+
+ok("a different rating on the same date also survives", () => {
+  const keep = spot({ path: "a.md", visits: [{ date: "2026-08-03", rating: 3, note: "" }] });
+  const drop = spot({ path: "b.md", visits: [{ date: "2026-08-03", rating: 5, note: "" }] });
+  assert.equal(planMerge(keep, drop).visits.length, 2);
+});
+
+ok("a genuinely identical visit collapses to one, unioning its photos", () => {
+  const keep = spot({
+    path: "a.md",
+    visits: [{ date: "2026-08-03", spent: 20, note: "Lunch", photos: ["a.jpg"] }],
+  });
+  const drop = spot({
+    path: "b.md",
+    visits: [{ date: "2026-08-03", spent: 20, note: "lunch", photos: ["b.jpg|300"] }],
+  });
+  const merged = planMerge(keep, drop).visits;
+  assert.equal(merged.length, 1, "same evening logged twice is one bullet");
+  assert.deepEqual(merged[0].photos, ["a.jpg", "b.jpg|300"]);
+});
+
+// ---------------------------------------------------------------------------
+console.log("opening hours (findings 26, 16)");
+// ---------------------------------------------------------------------------
+
+ok("24:30 is unparseable; 24:00 is accepted as midnight", () => {
+  // "24:30" folded to 00:30 and rendered back as a plausible time, so an
+  // invalid line looked like a real one.
+  assert.deepEqual(parseHours(["Mon 10:00-24:30"]), [{ day: 1, ranges: [] }]);
+  assert.deepEqual(parseHours(["Mon 24:30-25:00"]), [{ day: 1, ranges: [] }]);
+  // 24:00 is the one legal hour-24 notation and means midnight (0 minutes).
+  assert.deepEqual(parseHours(["Mon 10:00-24:00"]), [
+    { day: 1, ranges: [{ open: 600, close: 0 }] },
+  ]);
+  // A minute overflow is rejected too.
+  assert.deepEqual(parseHours(["Mon 10:00-10:70"]), [{ day: 1, ranges: [] }]);
+});
+
+// A Tuesday, chosen so "yesterday" is the Monday the hours line names.
+const tuesday0130 = new Date(2026, 7, 4, 1, 30);
+const tuesday2300 = new Date(2026, 7, 4, 23, 0);
+assert.equal(tuesday0130.getDay(), 2, "fixture date really is a Tuesday");
+
+ok("an overnight range is open at 01:30 the next morning", () => {
+  const state = openState(["Mon 22:00-02:00"], tuesday0130);
+  assert.ok(state, "hours parsed");
+  assert.equal(state.open, true, "Monday's after-midnight tail covers Tue 01:30");
+  // The same clock time on a day with no overnight tail is closed, not open.
+  const closed = openState(["Mon 12:00-14:00"], tuesday0130);
+  assert.ok(closed);
+  assert.equal(closed.open, false);
+});
+
+ok("a 10:00-24:00 range is open at 23:00 and unknown hours give no claim", () => {
+  const state = openState(["Tue 10:00-24:00"], tuesday2300);
+  assert.ok(state);
+  assert.equal(state.open, true);
+  // Nothing parseable at all -> null, so the UI shows no indicator rather
+  // than a confident "Closed".
+  assert.equal(openState(undefined, tuesday2300), null);
+  assert.equal(openState([], tuesday2300), null);
+  assert.equal(openState(["nonsense line"], tuesday2300), null);
+  // An unusable IANA zone must not fall back to the machine clock.
+  assert.equal(openState(["Tue 10:00-24:00"], tuesday2300, "Mars/Olympus_Mons"), null);
+});
+
+ok("a known IANA zone is read instead of the machine clock", () => {
+  // 2026-08-04T23:00:00Z is Wednesday 09:00 in Sydney, still Tuesday in UTC.
+  const instant = new Date("2026-08-04T23:00:00Z");
+  const sydney = openState(["Wed 08:00-11:00"], instant, "Australia/Sydney");
+  assert.ok(sydney);
+  assert.equal(sydney.open, true);
+  const utc = openState(["Wed 08:00-11:00"], instant, "UTC");
+  assert.ok(utc);
+  assert.equal(utc.open, false, "still Tuesday 23:00 in UTC");
+});
+
+ok("localClockApplies: only same-country spots may use the machine clock", () => {
+  assert.equal(localClockApplies("Netherlands", "Netherlands"), true);
+  assert.equal(localClockApplies("netherlands ", "Netherlands"), true);
+  assert.equal(localClockApplies("United States", "Netherlands"), false);
+  // Unknown on either side falls back to "local" on purpose.
+  assert.equal(localClockApplies(undefined, "Netherlands"), true);
+  assert.equal(localClockApplies("Japan", undefined), true);
+});
+
+// ---------------------------------------------------------------------------
+console.log("exported guide HTML link safety (finding 18)");
+// ---------------------------------------------------------------------------
+
+const guideOpts = {
+  includeWantToTry: true,
+  currency: "€",
+  images: new Map(),
+  generatedOn: "2026-08-03",
+};
+
+ok("a javascript: URL is escaped text, never an href", () => {
+  const html = buildGuideHtml(
+    [spot({ name: "Evil", city: "Den Haag", url: "javascript:alert(document.cookie)" })],
+    "Den Haag",
+    guideOpts,
+  );
+  assert.doesNotMatch(html, /href="javascript:/i);
+  assert.doesNotMatch(html, /<a [^>]*javascript:/i);
+  // Still shown, so the user can see what is in the field — as plain text.
+  assert.match(html, /javascript:alert\(document\.cookie\)/);
+});
+
+ok("data: and vbscript: are refused too; http(s)/mailto/tel are linked", () => {
+  const bad = buildGuideHtml(
+    [
+      spot({ name: "A", city: "X", url: "data:text/html,<script>alert(1)</script>" }),
+      spot({ name: "B", city: "X", url: " VBScript:msgbox(1)" }),
+    ],
+    "X",
+    guideOpts,
+  );
+  assert.doesNotMatch(bad, /href="data:/i);
+  assert.doesNotMatch(bad, /href="\s*vbscript:/i);
+  // The escaped text must not reopen the hole either.
+  assert.doesNotMatch(bad, /<script>/i);
+
+  const good = buildGuideHtml(
+    [
+      spot({ name: "C", city: "X", url: "https://momiji.example/menu" }),
+      spot({ name: "D", city: "X", url: "mailto:table@momiji.example" }),
+    ],
+    "X",
+    guideOpts,
+  );
+  assert.match(good, /<a href="https:\/\/momiji\.example\/menu">momiji\.example<\/a>/);
+  assert.match(good, /<a href="mailto:table@momiji\.example">/);
+});
+
+// ---------------------------------------------------------------------------
+console.log("calendar dates are local, not UTC (finding 17)");
+// ---------------------------------------------------------------------------
+
+// The helpers read the process timezone at call time, so the whole group runs
+// under several zones. Node resets its timezone cache when process.env.TZ is
+// reassigned; if a runtime ever stops doing that, the guard below turns the
+// zone-specific asserts into a plain local-semantics check instead of passing
+// vacuously.
+const originalTz = process.env.TZ;
+function underTz(tz, fn) {
+  process.env.TZ = tz;
+  try {
+    fn(new Date(2026, 7, 2).getTimezoneOffset());
+  } finally {
+    process.env.TZ = originalTz;
+  }
+}
+process.env.TZ = "America/Los_Angeles";
+const laOffset = new Date(2026, 7, 2).getTimezoneOffset();
+process.env.TZ = "Australia/Sydney";
+const sydneyOffset = new Date(2026, 7, 2).getTimezoneOffset();
+process.env.TZ = originalTz;
+const tzSwitchWorks = laOffset !== sydneyOffset;
+
+ok("formatCalendarDate reads the LOCAL day, west and east of Greenwich", () => {
+  // 2026-08-03T04:00Z is still 2026-08-02 in Los Angeles, and already
+  // 2026-08-03 in Sydney. toISOString().slice(0, 10) says "2026-08-03" for
+  // both — that is exactly the bug.
+  const instant = new Date("2026-08-03T04:00:00Z");
+  assert.equal(instant.toISOString().slice(0, 10), "2026-08-03");
+  if (!tzSwitchWorks) {
+    // Fallback: prove the helper does not use UTC semantics at all.
+    const local = `${instant.getFullYear()}-${String(instant.getMonth() + 1).padStart(2, "0")}-${String(instant.getDate()).padStart(2, "0")}`;
+    assert.equal(formatCalendarDate(instant), local);
+    return;
+  }
+  underTz("America/Los_Angeles", () => {
+    assert.equal(formatCalendarDate(instant), "2026-08-02");
+  });
+  underTz("Australia/Sydney", () => {
+    assert.equal(formatCalendarDate(instant), "2026-08-03");
+  });
+  underTz("UTC", () => {
+    assert.equal(formatCalendarDate(instant), "2026-08-03");
+  });
+});
+
+ok("parseCalendarDate is LOCAL midnight in every zone (new Date(iso) is not)", () => {
+  for (const tz of ["America/Los_Angeles", "Australia/Sydney", "UTC", "Europe/Amsterdam"]) {
+    underTz(tz, () => {
+      const d = parseCalendarDate("2026-08-02");
+      assert.ok(d, `${tz}: parsed`);
+      assert.equal(d.getFullYear(), 2026, `${tz}: year`);
+      assert.equal(d.getMonth(), 7, `${tz}: month`);
+      assert.equal(d.getDate(), 2, `${tz}: day`);
+      assert.equal(d.getHours(), 0, `${tz}: local midnight`);
+      assert.equal(d.getMinutes(), 0, `${tz}: local midnight`);
+      // Round-trip is the invariant the whole plugin leans on.
+      assert.equal(formatCalendarDate(d), "2026-08-02", `${tz}: round-trip`);
+    });
+  }
+});
+
+ok("todayIso round-trips and always equals the local calendar day", () => {
+  for (const tz of ["America/Los_Angeles", "Australia/Sydney", "UTC", "Pacific/Kiritimati"]) {
+    underTz(tz, () => {
+      const iso = todayIso();
+      assert.match(iso, /^\d{4}-\d{2}-\d{2}$/, `${tz}: shape`);
+      const now = new Date();
+      const local = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      assert.equal(iso, local, `${tz}: matches the local clock`);
+      assert.equal(formatCalendarDate(parseCalendarDate(iso)), iso, `${tz}: round-trip`);
+    });
+  }
+});
+
+ok("parseCalendarDate rejects overflow dates instead of rolling them forward", () => {
+  assert.equal(parseCalendarDate("2026-02-31"), null);
+  assert.equal(parseCalendarDate("2026-13-01"), null);
+  assert.equal(parseCalendarDate("not a date"), null);
+  // A leap day that really exists is kept.
+  assert.equal(formatCalendarDate(parseCalendarDate("2028-02-29")), "2028-02-29");
+});
+
+ok("daysBetweenCalendar counts whole days across a DST transition", () => {
+  underTz("America/Los_Angeles", () => {
+    // 2026-03-08 is the US spring-forward: that day is only 23 hours long, so
+    // a raw ms division would report 1.958 -> 1 day.
+    assert.equal(daysBetweenCalendar("2026-03-07", "2026-03-09"), 2);
+    assert.equal(daysBetweenCalendar("2026-03-08", "2026-03-09"), 1);
+    // Autumn fall-back (25-hour day).
+    assert.equal(daysBetweenCalendar("2026-11-01", "2026-11-02"), 1);
+    assert.equal(daysBetweenCalendar("2026-08-03", "2026-08-03"), 0);
+    assert.equal(daysBetweenCalendar("2026-08-04", "2026-08-03"), -1);
+    assert.ok(Number.isNaN(daysBetweenCalendar("nope", "2026-08-03")));
+  });
+});
+
+// ---------------------------------------------------------------------------
 console.log("spotStore.updateSpot merged-literal guard");
 // ---------------------------------------------------------------------------
 
-ok("updateSpot's merged SpotInput carries `menu` (v1.1 regression guard)", () => {
+ok("updateSpot's merged SpotInput carries every optional field, `hours` included", () => {
   // spotStore imports live Obsidian APIs, so it can't run in this bundle —
-  // guard the source instead: the merged literal enumerates every optional
-  // field by hand, and omitting one (tsc-green, since Partial) makes every
-  // updateSpot call silently DELETE that frontmatter key.
+  // guard the source instead: the merged literal enumerates every field of the
+  // contract by hand, and omitting one makes every updateSpot call write it as
+  // undefined, which applyFrontmatter DELETES from the note. `hours` was the
+  // field that went missing: any favorite toggle wiped the opening hours.
   const src = readFileSync(join(root, "src/store/spotStore.ts"), "utf8");
-  const merged = src.match(/const merged: SpotInput = \{([\s\S]*?)\n    \};/);
-  assert.ok(merged, "found updateSpot's merged literal");
-  for (const key of ["menu", "photo", "url", "phone", "coordinates", "external"]) {
+  const merged = src.match(
+    /const merged: SpotInput = \{([\s\S]*?)\n\s*\} satisfies CompleteSpotInput;/,
+  );
+  assert.ok(merged, "found updateSpot's merged literal, gated by `satisfies`");
+  for (const key of [
+    "name",
+    "cuisines",
+    "country",
+    "city",
+    "district",
+    "address",
+    "coordinates",
+    "status",
+    "favorite",
+    "rating",
+    "ratingLocked",
+    "price",
+    "url",
+    "phone",
+    "source",
+    "sourceUrl",
+    "external",
+    "photo",
+    "menu",
+    "hours",
+    "tags",
+    "visits",
+    "legacyId",
+    "notes",
+    "ctime",
+    "created",
+  ]) {
     assert.match(merged[1], new RegExp(`\\b${key}:`), `merged literal carries ${key}`);
   }
+  // The compile-time half of the guard: a new SpotInput field must break the
+  // build here rather than vanish at runtime.
+  assert.match(
+    src,
+    /type CompleteSpotInput = SpotInput & Record<keyof SpotInput, unknown>/,
+    "CompleteSpotInput gate is still declared",
+  );
 });
 
 console.log(`\nall ${passed} asserts groups passed`);

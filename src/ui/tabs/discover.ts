@@ -81,6 +81,12 @@ const photoCache = new Map<string, string>();
 const inFlight = new Set<string>();
 const pendingLoaders = new WeakMap<Element, () => void>();
 let sharedObserver: IntersectionObserver | null = null;
+/**
+ * Bumped by disposeThumbs(). A request that resolves after teardown has no
+ * cache left to live in and no later teardown to revoke it, so it must revoke
+ * its own object URL and stay out of the (detached) DOM.
+ */
+let thumbGen = 0;
 
 function observer(): IntersectionObserver {
   if (!sharedObserver) {
@@ -113,6 +119,7 @@ function releaseThumbs(root: HTMLElement): void {
 }
 
 function disposeThumbs(): void {
+  thumbGen++;
   sharedObserver?.disconnect();
   sharedObserver = null;
   for (const url of photoCache.values()) {
@@ -144,6 +151,7 @@ function attachLazyThumb(
   thumbEl.dataset.needsPhoto = "true";
   pendingLoaders.set(thumbEl, () => {
     void (async () => {
+      const gen = thumbGen;
       const known = photoCache.get(photoRef);
       if (known !== undefined) {
         delete thumbEl.dataset.needsPhoto;
@@ -158,11 +166,16 @@ function attachLazyThumb(
       try {
         const { data, ext } = await places.fetchPlacePhoto(photoRef, 320);
         const url = URL.createObjectURL(new Blob([data], { type: mimeFor(ext) }));
+        if (gen !== thumbGen) {
+          URL.revokeObjectURL(url);
+          return;
+        }
         photoCache.set(photoRef, url);
         renderThumb(thumbEl, url);
       } catch {
-        // Sentinel: a photo that failed once is never re-requested.
-        photoCache.set(photoRef, NONE);
+        // Sentinel: a photo that failed once is never re-requested. A cache
+        // that was already torn down must stay empty.
+        if (gen === thumbGen) photoCache.set(photoRef, NONE);
       } finally {
         inFlight.delete(photoRef);
         delete thumbEl.dataset.needsPhoto;
@@ -195,9 +208,10 @@ export function mountDiscoverTab(
   const root = container.createDiv({ cls: "fs-discover" });
   const places = new PlacesClient(plugin);
 
-  /** Bumped on every new search so stale responses can be dropped. */
+  /** Bumped on every query change so stale responses can be dropped. */
   let searchGen = 0;
-  let loading = false;
+  /** Generation of the request in flight; null when nothing is outstanding. */
+  let busyGen: number | null = null;
   /** Per-tile saved-state updaters, keyed by place id. */
   let tileSync: { placeId: string; name: string; address?: string; sync(saved: boolean): void }[] = [];
   let loadMoreTimer: number | null = null;
@@ -256,8 +270,22 @@ export function mountDiscoverTab(
     return btn;
   };
 
+  /**
+   * A response only belongs to the query it was started for. Every edit to
+   * either field retires the generation in flight, so a Rotterdam answer can
+   * never repopulate results under a blank or Amsterdam query.
+   */
+  const invalidate = (): void => {
+    searchGen++;
+    setStatus("");
+  };
+
+  /** True only while a request for the query CURRENTLY on screen is running. */
+  const busy = (): boolean => busyGen !== null && busyGen === searchGen;
+
   /** No location = nothing those results belong to any more. */
   const dropResults = (): void => {
+    invalidate();
     state.location = "";
     state.keyword = keywordInput.value.trim();
     state.query = "";
@@ -271,11 +299,14 @@ export function mountDiscoverTab(
   // Emptying the field by hand (select-all + delete, backspacing) must behave
   // exactly like pressing the ×.
   locationInput.addEventListener("input", () => {
-    if (locationInput.value.trim() === "" && state.results.length > 0) dropResults();
+    if (locationInput.value.trim() === "") dropResults();
+    else invalidate();
   });
   clearButton(kwWrap, keywordInput, () => {
+    invalidate();
     state.keyword = "";
   });
+  keywordInput.addEventListener("input", invalidate);
 
   const searchBtn = controls.createEl("button", {
     cls: "fs-btn fs-btn-accent",
@@ -355,7 +386,9 @@ export function mountDiscoverTab(
   }
 
   async function runSearch(): Promise<void> {
-    if (loading) return;
+    // Only a request for the query as it stands now blocks a new one — a
+    // superseded search must never keep the user waiting for its own answer.
+    if (busy()) return;
     if (!places.hasKey()) {
       new Notice(NO_KEY_HINT);
       render();
@@ -374,7 +407,7 @@ export function mountDiscoverTab(
     state.location = location;
     state.keyword = keyword;
     state.query = query;
-    loading = true;
+    busyGen = gen;
     setStatus(`Searching Google for “${query}”…`);
     try {
       const page = await places.textSearchPaged(query);
@@ -390,17 +423,17 @@ export function mountDiscoverTab(
       state.error = errorMessage(e);
       state.searched = true;
     } finally {
-      // Unconditional: a stale generation must never strand the loading flag.
-      loading = false;
+      // Never clear a flag a NEWER request already claimed.
+      if (busyGen === gen) busyGen = null;
       if (gen === searchGen) setStatus("");
     }
     render();
   }
 
   async function loadMore(token: string, btn: HTMLButtonElement): Promise<void> {
-    if (loading) return;
+    if (busy()) return;
     const gen = searchGen;
-    loading = true;
+    busyGen = gen;
     btn.disabled = true;
     btn.setText("Loading…");
     try {
@@ -419,7 +452,7 @@ export function mountDiscoverTab(
       state.error = errorMessage(e);
       delete state.nextPageToken;
     } finally {
-      loading = false;
+      if (busyGen === gen) busyGen = null;
     }
     render();
   }
@@ -647,6 +680,7 @@ export function mountDiscoverTab(
     },
     destroy: () => {
       searchGen++;
+      busyGen = null;
       if (loadMoreTimer !== null) window.clearTimeout(loadMoreTimer);
       loadMoreTimer = null;
       releaseThumbs(bodyEl);

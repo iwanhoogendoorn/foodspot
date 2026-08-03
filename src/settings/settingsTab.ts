@@ -19,13 +19,15 @@ import {
   normalizePath,
   setIcon,
 } from "obsidian";
-import type { FoodSpot, FoodSpotPluginApi } from "../types";
+import type { FoodSpot, FoodSpotPluginApi, FoodSpotSettings } from "../types";
 import { DATA_CHANGED_EVENT } from "../types";
 import { confirmModal } from "../ui/modals/confirm";
 import { openDuplicatesModal } from "../ui/modals/duplicates";
 import { starRating } from "../ui/components/starRating";
 import { buildBackupJson, importBackup, saveToDisk } from "../store/backup";
 import { sanitizeFileName } from "../import/pipeline";
+import { embedRefPath } from "../store/visitsParser";
+import { todayIso } from "../util/dates";
 import { ProgressModal } from "../ui/modals/progress";
 
 type FoodSpotPlugin = Plugin & FoodSpotPluginApi;
@@ -91,6 +93,113 @@ function spotsToCsv(spots: FoodSpot[]): string {
     );
   }
   return lines.join("\n") + "\n";
+}
+
+/** Result of deciding which files inside the media folder Food Spot may trash. */
+interface MediaOwnership {
+  /** Every file in the media subtree Food Spot can prove it owns. */
+  owned: TFile[];
+  /** Files deliberately spared, with the reason shown to the user. */
+  leftAlone: { file: TFile; reason: string }[];
+  /** Vault paths a spot note references right now (resolved through links). */
+  referenced: Set<string>;
+  /** True when the media folder sits inside the spots folder (plugin's own). */
+  dedicated: boolean;
+  folderPath: string;
+}
+
+/** Dish imports name files "<spot> <YYYY-MM-DD> <n>" — our own fingerprint. */
+const DISH_FILE_SUFFIX = /\s\d{4}-\d{2}-\d{2}(\s\d+)?$/;
+
+/**
+ * Decide what Food Spot is allowed to trash inside `settings.mediaFolder`.
+ *
+ * The folder is user-configurable and may well be a shared attachment folder,
+ * so nothing is trashed on location alone: a file must either be referenced by
+ * a spot right now, carry a name this plugin generates, or live in a media
+ * folder nested inside the spots folder (which is ours by construction). A
+ * file any non-spot note links to is never ours, whatever its name.
+ *
+ * Callers must classify BEFORE deleting notes — a trashed note can no longer
+ * vouch for the photo it referenced.
+ */
+function classifyMediaFolder(
+  app: App,
+  settings: FoodSpotSettings,
+  spots: FoodSpot[],
+): MediaOwnership | null {
+  const folderPath = normalizePath(settings.mediaFolder);
+  const folder = app.vault.getFolderByPath(folderPath);
+  if (!folder) return null;
+  const spotsRoot = normalizePath(settings.spotsFolder);
+  const dedicated = folderPath !== spotsRoot && folderPath.startsWith(`${spotsRoot}/`);
+
+  const spotPaths = new Set(spots.map((s) => s.path));
+  const referenced = new Set<string>();
+  for (const spot of spots) {
+    const refs = [
+      spot.photo,
+      spot.menu,
+      // Dish photos are embed targets and may carry a `|300` display alias —
+      // an unstripped ref resolves to nothing, and the file behind it would
+      // then be classed as unreferenced and trashed by the sweep below.
+      ...spot.visits.flatMap((v) => (v.photos ?? []).map(embedRefPath)),
+    ];
+    for (const ref of refs) {
+      if (!ref || /^https?:\/\//i.test(ref)) continue;
+      const f =
+        app.metadataCache.getFirstLinkpathDest(ref, spot.path) ??
+        app.vault.getAbstractFileByPath(normalizePath(ref));
+      referenced.add(f instanceof TFile ? f.path : normalizePath(ref));
+    }
+  }
+
+  // Anything the rest of the vault links to belongs to that note, not to us.
+  const linkedElsewhere = new Set<string>();
+  for (const [source, targets] of Object.entries(app.metadataCache.resolvedLinks)) {
+    if (spotPaths.has(source)) continue;
+    for (const target of Object.keys(targets)) linkedElsewhere.add(target);
+  }
+
+  const dishDir = `${folderPath}/dishes`;
+  const spotBases = new Set<string>();
+  for (const spot of spots) {
+    const name = spot.name.trim().toLowerCase();
+    if (name) spotBases.add(name);
+    const sanitized = sanitizeFileName(spot.name).trim().toLowerCase();
+    if (sanitized) spotBases.add(sanitized);
+  }
+  const pluginNamed = (file: TFile): boolean => {
+    if (file.parent?.path === dishDir) return DISH_FILE_SUFFIX.test(file.basename);
+    const base = file.basename.trim().toLowerCase();
+    return spotBases.has(base) || spotBases.has(base.replace(/\s+\d+$/, "").trim());
+  };
+
+  const owned: TFile[] = [];
+  const leftAlone: { file: TFile; reason: string }[] = [];
+  const walk = (dir: TFolder): void => {
+    for (const child of dir.children) {
+      if (child instanceof TFolder) {
+        walk(child);
+        continue;
+      }
+      if (!(child instanceof TFile)) continue;
+      if (linkedElsewhere.has(child.path)) {
+        leftAlone.push({ file: child, reason: "linked from another note" });
+      } else if (referenced.has(child.path) || dedicated || pluginNamed(child)) {
+        owned.push(child);
+      } else {
+        leftAlone.push({ file: child, reason: "not created by Food Spot" });
+      }
+    }
+  };
+  walk(folder);
+  return { owned, leftAlone, referenced, dedicated, folderPath };
+}
+
+/** "3 files" / "1 file" */
+function plural(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 export class FoodSpotSettingTab extends PluginSettingTab {
@@ -268,7 +377,7 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     const relocate = new Setting(c)
       .setName("Apply folder layout to existing notes")
       .setDesc(
-        "Moves every spot note into the folder configured above (with per-country subfolders when enabled). Wiki-links keep working; emptied old folders are cleaned up.",
+        "Moves every spot note into the folder configured above (with per-country subfolders when enabled). Wiki-links keep working; subfolders of the spots folder that end up empty are cleaned up.",
       );
     relocate.addButton((b) =>
       b.setButtonText("Relocate notes").onClick(async () => {
@@ -288,7 +397,7 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     );
     this.addHelp(
       relocate,
-      "Use this after changing the spots folder or the per-country toggle. Notes are moved with Obsidian's rename (links and backlinks update automatically); nothing is copied or deleted.",
+      "Use this after changing the spots folder or the per-country toggle. Notes are moved with Obsidian's rename (links and backlinks update automatically); nothing is copied or deleted. Folders outside the spots folder are never trashed, even when they end up empty.",
     );
 
     const media = new Setting(c)
@@ -433,13 +542,13 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     exp.settingEl.addClass("fs-setting-stack");
     exp.addButton((b) =>
       b.setButtonText("Export CSV…").onClick(async () => {
-        const date = new Date().toISOString().slice(0, 10);
+        const date = todayIso();
         await saveToDisk(`Food Spot export ${date}.csv`, spotsToCsv(this.spots()));
       }),
     );
     exp.addButton((b) =>
       b.setButtonText("Export JSON…").onClick(async () => {
-        const date = new Date().toISOString().slice(0, 10);
+        const date = todayIso();
         await saveToDisk(
           `Food Spot export ${date}.json`,
           JSON.stringify(this.spots(), null, 2),
@@ -536,63 +645,54 @@ export class FoodSpotSettingTab extends PluginSettingTab {
       b.setButtonText("Find unused files").onClick(async () => {
         b.setDisabled(true);
         try {
-          const folder = this.app.vault.getFolderByPath(
-            normalizePath(this.plugin.settings.mediaFolder),
-          );
-          if (!folder) {
+          // Ownership first: the media folder can be shared with the rest of
+          // the vault, so a sweep must never reach past what Food Spot made.
+          const plan = classifyMediaFolder(this.app, this.plugin.settings, this.spots());
+          if (!plan) {
             new Notice("No media folder yet — nothing to clean up.");
             return;
           }
-          // Referenced = cover photo, menu file AND every dish photo embedded
-          // on a visit bullet. Refs may be link text rather than full paths,
-          // so resolve each one to its actual file.
-          const referenced = new Set<string>();
-          for (const spot of this.spots()) {
-            const refs = [
-              spot.photo,
-              spot.menu,
-              ...spot.visits.flatMap((v) => v.photos ?? []),
-            ];
-            for (const ref of refs) {
-              if (!ref || /^https?:\/\//i.test(ref)) continue;
-              const f =
-                this.app.metadataCache.getFirstLinkpathDest(ref, spot.path) ??
-                this.app.vault.getAbstractFileByPath(normalizePath(ref));
-              referenced.add(f instanceof TFile ? f.path : normalizePath(ref));
-            }
-          }
-          // Recurse: dish photos live in a `dishes/` subfolder.
-          const allMedia: TFile[] = [];
-          const walk = (dir: TFolder): void => {
-            for (const child of dir.children) {
-              if (child instanceof TFile) allMedia.push(child);
-              else if (child instanceof TFolder) walk(child);
-            }
-          };
-          walk(folder);
-          const orphans = allMedia.filter((f) => !referenced.has(f.path));
+          const spared = plan.leftAlone.length;
+          const sparedNote =
+            spared > 0
+              ? ` ${plural(spared, "other file")} in ${plan.folderPath} ${spared === 1 ? "is" : "are"} linked from other notes or not created by Food Spot — left alone.`
+              : "";
+          const orphans = plan.owned.filter((f) => !plan.referenced.has(f.path));
           if (orphans.length === 0) {
-            new Notice("No unused media files — the folder is tidy.");
+            new Notice(
+              spared > 0
+                ? `No unused Food Spot media.${sparedNote}`
+                : "No unused media files — the folder is tidy.",
+              spared > 0 ? 8000 : undefined,
+            );
             return;
           }
           const names = orphans.slice(0, 8).map((f) => f.name).join(", ");
           const ok = await confirmModal(this.app, {
-            title: `Trash ${orphans.length} unused file${orphans.length === 1 ? "" : "s"}?`,
-            body: `${names}${orphans.length > 8 ? `, and ${orphans.length - 8} more` : ""}. No spot references ${orphans.length === 1 ? "it" : "them"} any more. Files go to the trash and can be restored.`,
+            title: `Trash ${plural(orphans.length, "unused file")}?`,
+            body: `${names}${orphans.length > 8 ? `, and ${orphans.length - 8} more` : ""}. No spot references ${orphans.length === 1 ? "it" : "them"} any more. Files go to the trash and can be restored.${sparedNote}`,
             cta: "Trash them",
             danger: true,
           });
           if (!ok) return;
           let n = 0;
+          const failed: string[] = [];
           for (const f of orphans) {
             try {
               await this.app.fileManager.trashFile(f);
               n++;
             } catch {
-              // Skip locked files; the count reflects what actually moved.
+              failed.push(f.name);
             }
           }
-          new Notice(`Trashed ${n} unused media file${n === 1 ? "" : "s"}.`);
+          const problem =
+            failed.length > 0
+              ? ` ${plural(failed.length, "file")} couldn't be trashed (${failed.slice(0, 5).join(", ")}) — they may be open elsewhere or read-only.`
+              : "";
+          new Notice(
+            `Trashed ${plural(n, "unused media file")}.${problem}${sparedNote}`,
+            failed.length > 0 || spared > 0 ? 10000 : undefined,
+          );
         } catch (e) {
           new Notice(`Cleanup failed: ${errMsg(e)}`);
         } finally {
@@ -602,7 +702,7 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     );
     this.addHelp(
       sweep,
-      "Cover photos, menu files and every dish photo embedded on a visit count as referenced — only genuinely orphaned files are listed. Deleting a restaurant leaves its photo in place on purpose, so a mis-click never costs you an image; this sweeps the leftovers when you want the space back.",
+      "Cover photos, menu files and every dish photo embedded on a visit count as referenced — only genuinely orphaned files are listed. A file any other note in your vault links to, or that Food Spot cannot show it created, is never trashed — so pointing the media folder at a shared attachments folder is safe. Deleting a restaurant leaves its photo in place on purpose, so a mis-click never costs you an image; this sweeps the leftovers when you want the space back.",
     );
 
     // --- Danger zone ---
@@ -623,6 +723,11 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     const s = this.plugin.settings;
     const res = { moved: 0, kept: 0, failed: 0 };
     const sourceParents = new Set<string>();
+    // Media first: rewriting a note's photo/menu path goes through the store,
+    // which only knows notes at their currently indexed path. Renaming notes
+    // first would drop them from the index until the debounced re-index lands,
+    // and their references would silently stay behind in the old folder.
+    await this.relocateMedia();
     for (const spot of this.spots()) {
       const file = this.plugin.store.fileFor(spot.path);
       if (!file) {
@@ -654,55 +759,120 @@ export class FoodSpotSettingTab extends PluginSettingTab {
         res.failed++;
       }
     }
-    // If the media folder lives OUTSIDE the spots folder (typical after the
-    // spots folder was changed), bring it along: move the files, rewrite the
-    // photo/menu references, and update the setting — one folder, not two.
+    await this.sweepEmptyFolders(sourceParents);
+    return res;
+  }
+
+  /**
+   * If the media folder lives OUTSIDE the spots folder (typical after the
+   * spots folder was changed), bring it along: move every file (including
+   * `dishes/` and any other subfolder), rewrite the photo/menu references of
+   * the files that actually moved, and update the setting — one folder, not
+   * two. A file whose destination is taken stays put AND keeps its reference:
+   * repointing a note at a same-named stranger is worse than not moving.
+   */
+  private async relocateMedia(): Promise<void> {
+    const s = this.plugin.settings;
     const media = normalizePath(s.mediaFolder);
     const spotsRoot = normalizePath(s.spotsFolder);
-    if (media !== spotsRoot && !media.startsWith(`${spotsRoot}/`)) {
-      const oldFolder = this.app.vault.getFolderByPath(media);
-      const newMedia = `${spotsRoot}/_media`;
-      if (oldFolder) {
-        if (this.app.vault.getFolderByPath(newMedia) === null) {
-          await this.app.vault.createFolder(newMedia).catch(() => undefined);
+    if (media === spotsRoot || media.startsWith(`${spotsRoot}/`)) return;
+    const oldFolder = this.app.vault.getFolderByPath(media);
+    const newMedia = normalizePath(`${spotsRoot}/_media`);
+
+    if (oldFolder) {
+      // The reference rewrite must run against the spots as they were when
+      // the files moved, not against a live index read afterwards.
+      const before = this.spots().map((spot) => ({
+        path: spot.path,
+        photo: spot.photo,
+        menu: spot.menu,
+      }));
+      const moved = new Map<string, string>();
+      const blocked: string[] = [];
+      const moveInto = async (dir: TFolder, relative: string): Promise<void> => {
+        const targetDir = normalizePath(relative ? `${newMedia}/${relative}` : newMedia);
+        if (this.app.vault.getFolderByPath(targetDir) === null) {
+          await this.app.vault.createFolder(targetDir).catch(() => undefined);
         }
-        for (const child of [...oldFolder.children]) {
+        for (const child of [...dir.children]) {
+          if (child instanceof TFolder) {
+            await moveInto(child, relative ? `${relative}/${child.name}` : child.name);
+            continue;
+          }
           if (!(child instanceof TFile)) continue;
-          const target = normalizePath(`${newMedia}/${child.name}`);
-          if (this.app.vault.getAbstractFileByPath(target) !== null) continue;
-          await this.app.fileManager.renameFile(child, target).catch(() => undefined);
-        }
-        // Plain-string frontmatter refs don't follow renames — rewrite them.
-        for (const spot of this.spots()) {
-          const patch: { photo?: string; menu?: string } = {};
-          if (spot.photo?.startsWith(`${media}/`))
-            patch.photo = spot.photo.replace(`${media}/`, `${newMedia}/`);
-          if (spot.menu?.startsWith(`${media}/`))
-            patch.menu = spot.menu.replace(`${media}/`, `${newMedia}/`);
-          if (Object.keys(patch).length > 0) {
-            await this.plugin.store.updateSpot(spot.path, patch).catch(() => undefined);
+          const from = child.path;
+          const target = normalizePath(`${targetDir}/${child.name}`);
+          if (this.app.vault.getAbstractFileByPath(target) !== null) {
+            blocked.push(child.name);
+            continue;
+          }
+          try {
+            await this.app.fileManager.renameFile(child, target);
+            moved.set(from, target);
+          } catch {
+            blocked.push(child.name);
           }
         }
-        if (oldFolder.children.length === 0) {
-          await this.app.fileManager.trashFile(oldFolder).catch(() => undefined);
-        }
-        if (oldFolder.parent) sourceParents.add(oldFolder.parent.path);
-      }
-      s.mediaFolder = newMedia;
-      await this.save();
-      new Notice(`Media folder moved to ${newMedia}.`);
-    }
+      };
+      await moveInto(oldFolder, "");
 
-    // Trash source folders that became empty (walk up while empty).
-    for (const parentPath of sourceParents) {
+      // Plain-string frontmatter refs don't follow renames — rewrite them,
+      // but only where the file behind the ref really landed somewhere new.
+      const rewriteFailures: string[] = [];
+      for (const rec of before) {
+        const patch: { photo?: string; menu?: string } = {};
+        const photoTarget = rec.photo ? moved.get(normalizePath(rec.photo)) : undefined;
+        const menuTarget = rec.menu ? moved.get(normalizePath(rec.menu)) : undefined;
+        if (photoTarget) patch.photo = photoTarget;
+        if (menuTarget) patch.menu = menuTarget;
+        if (Object.keys(patch).length === 0) continue;
+        try {
+          await this.plugin.store.updateSpot(rec.path, patch);
+        } catch {
+          rewriteFailures.push(rec.path);
+        }
+      }
+      if (blocked.length > 0) {
+        new Notice(
+          `${plural(blocked.length, "media file")} stayed in ${media} — a file with the same name already exists in ${newMedia} (${blocked.slice(0, 5).join(", ")}). Their notes still point at the old folder.`,
+          10000,
+        );
+      }
+      if (rewriteFailures.length > 0) {
+        new Notice(
+          `${plural(rewriteFailures.length, "note")} kept a photo/menu path in ${media}: ${rewriteFailures.slice(0, 5).join(", ")}. Fix the path in the note or run the relocation again.`,
+          10000,
+        );
+      }
+      // The emptied old media folder is left standing on purpose: it sits
+      // outside the spots folder, so it may well be a folder the user made
+      // (and shares with the rest of the vault).
+    }
+    s.mediaFolder = newMedia;
+    await this.save();
+    new Notice(`Media folder moved to ${newMedia}.`);
+  }
+
+  /**
+   * Trash folders that relocation emptied — bounded to the configured spots
+   * and media subtrees. Walking up unconditionally could reach folders Food
+   * Spot never created (an indexed note may live anywhere in the vault), and
+   * the configured roots themselves are never candidates.
+   */
+  private async sweepEmptyFolders(candidates: Set<string>): Promise<void> {
+    const s = this.plugin.settings;
+    const roots = [normalizePath(s.spotsFolder), normalizePath(s.mediaFolder)];
+    const inside = (path: string): boolean =>
+      roots.some((root) => path !== root && path.startsWith(`${root}/`));
+    for (const parentPath of candidates) {
+      if (!inside(parentPath)) continue;
       let folder = this.app.vault.getFolderByPath(parentPath);
-      while (folder && folder.path !== "/" && folder.children.length === 0) {
+      while (folder && inside(folder.path) && folder.children.length === 0) {
         const above = folder.parent;
         await this.app.fileManager.trashFile(folder).catch(() => undefined);
-        folder = above && above.path !== "/" ? this.app.vault.getFolderByPath(above.path) : null;
+        folder = above ? this.app.vault.getFolderByPath(above.path) : null;
       }
     }
-    return res;
   }
 
 
@@ -1297,7 +1467,8 @@ const CURRENCIES: [string, string][] = [
 /**
  * Type-to-confirm guard for wiping the library: requires literally typing
  * DELETE, shows the exact blast radius, trashes (never hard-deletes) notes,
- * and optionally the downloaded media files.
+ * and optionally the media files Food Spot itself owns. Cancelling stops the
+ * whole run — notes, media and folder cleanup alike.
  */
 class DeleteAllModal extends Modal {
   private alsoMedia = false;
@@ -1321,8 +1492,35 @@ class DeleteAllModal extends Modal {
     mediaLabel.createSpan({
       text: ` Also trash downloaded photos/menus in ${this.plugin.settings.mediaFolder}`,
     });
+    const mediaNote = contentEl.createDiv({ cls: "fs-provider-warning" });
+    mediaNote.hide();
     mediaCb.addEventListener("change", () => {
       this.alsoMedia = mediaCb.checked;
+      if (!this.alsoMedia) {
+        mediaNote.hide();
+        return;
+      }
+      // Spell out the blast radius before the user types DELETE: the media
+      // folder can be shared, and then most of it is off limits.
+      const plan = classifyMediaFolder(this.app, this.plugin.settings, spots);
+      mediaNote.empty();
+      const icon = mediaNote.createSpan();
+      setIcon(icon, "alert-triangle");
+      let text: string;
+      if (!plan) {
+        text = `No ${this.plugin.settings.mediaFolder} folder yet — there is nothing to trash.`;
+      } else {
+        const spared =
+          plan.leftAlone.length > 0
+            ? ` ${plural(plan.leftAlone.length, "other file")} there ${plan.leftAlone.length === 1 ? "is" : "are"} linked from another note or not created by Food Spot — left alone.`
+            : "";
+        const shared = plan.dedicated
+          ? ""
+          : ` ${plan.folderPath} is not a Food Spot-only folder, so only files this plugin can prove it owns are touched.`;
+        text = `${plural(plan.owned.length, "file")} in ${plan.folderPath} (including subfolders) will be trashed.${spared}${shared}`;
+      }
+      mediaNote.createSpan({ text });
+      mediaNote.show();
     });
 
     contentEl.createEl("p", {
@@ -1351,40 +1549,69 @@ class DeleteAllModal extends Modal {
       cancel.disabled = true;
       const signal = { cancelled: false };
       const progress = new ProgressModal(this.app, "Deleting all spots…", signal);
+      const all = this.plugin.store.getSpots();
+      // Ownership has to be settled while the notes still exist: a trashed
+      // note can no longer vouch for the photo it referenced.
+      const plan = this.alsoMedia
+        ? classifyMediaFolder(this.app, this.plugin.settings, all)
+        : null;
       this.close();
       progress.open();
       void (async () => {
+        const media = plan?.owned ?? [];
+        const totalWork = all.length + media.length;
         let trashed = 0;
-        const all = this.plugin.store.getSpots();
-        const totalWork = all.length;
+        let mediaTrashed = 0;
+        const failedNotes: string[] = [];
+        const failedMedia: string[] = [];
+
+        let cancelled = false;
         for (const spot of all) {
-          if (signal.cancelled) break;
+          if (signal.cancelled) {
+            cancelled = true;
+            break;
+          }
           progress.update(trashed, totalWork, spot.name);
           try {
             await this.plugin.store.deleteSpot(spot.path);
             trashed++;
           } catch {
-            // keep going; report totals below
+            failedNotes.push(spot.name);
           }
         }
-        let mediaTrashed = 0;
-        if (this.alsoMedia) {
-          const folder = this.app.vault.getFolderByPath(
-            normalizePath(this.plugin.settings.mediaFolder),
+        // Cancelling means the whole operation stops: no media, no folder
+        // sweep. Half a wipe the user asked to abort is not a lesser wipe.
+        if (cancelled) {
+          progress.finish();
+          new Notice(
+            `Cancelled after ${trashed} of ${all.length} spot notes — nothing else was touched.`,
+            10000,
           );
-          if (folder) {
-            for (const child of [...folder.children]) {
-              if (child instanceof TFile) {
-                try {
-                  await this.app.fileManager.trashFile(child);
-                  mediaTrashed++;
-                } catch {
-                  // best effort
-                }
-              }
-            }
+          return;
+        }
+
+        for (const file of media) {
+          if (signal.cancelled) {
+            cancelled = true;
+            break;
+          }
+          progress.update(trashed + mediaTrashed, totalWork, file.name);
+          try {
+            await this.app.fileManager.trashFile(file);
+            mediaTrashed++;
+          } catch {
+            failedMedia.push(file.name);
           }
         }
+        if (cancelled) {
+          progress.finish();
+          new Notice(
+            `Cancelled after ${trashed} spot notes and ${mediaTrashed} of ${media.length} media files — the folder cleanup was skipped.`,
+            10000,
+          );
+          return;
+        }
+
         // Emptied subfolders (per-country dirs, the media dir) go too — but
         // ONLY empty ones, so anything else living in the tree survives. The
         // spots root folder itself is kept.
@@ -1402,11 +1629,21 @@ class DeleteAllModal extends Modal {
           };
           await sweep(root);
         }
-        new Notice(
-          `Deleted ${trashed} spot notes${this.alsoMedia ? ` and ${mediaTrashed} media files` : ""} — all recoverable from the trash.`,
-          10000,
-        );
         progress.finish();
+
+        let message = `Deleted ${plural(trashed, "spot note")}${
+          this.alsoMedia ? ` and ${plural(mediaTrashed, "media file")}` : ""
+        } — all recoverable from the trash.`;
+        if (failedNotes.length > 0) {
+          message += ` ${plural(failedNotes.length, "note")} couldn't be trashed: ${failedNotes.slice(0, 5).join(", ")}.`;
+        }
+        if (failedMedia.length > 0) {
+          message += ` ${plural(failedMedia.length, "media file")} couldn't be trashed: ${failedMedia.slice(0, 5).join(", ")}.`;
+        }
+        if (plan && plan.leftAlone.length > 0) {
+          message += ` ${plural(plan.leftAlone.length, "file")} in ${plan.folderPath} ${plan.leftAlone.length === 1 ? "was" : "were"} left alone — linked from another note or not created by Food Spot.`;
+        }
+        new Notice(message, 10000);
       })();
     });
     window.setTimeout(() => input.focus(), 0);

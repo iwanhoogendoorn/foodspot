@@ -8,6 +8,7 @@
 import { FuzzySuggestModal, Modal, Notice } from "obsidian";
 import type { FoodSpot, FoodSpotPluginApi, Visit } from "../../types";
 import { starRating } from "../components/starRating";
+import { todayIso } from "../../util/dates";
 
 export function openLogVisitPicker(plugin: FoodSpotPluginApi, path?: string): void {
   if (path) {
@@ -75,6 +76,7 @@ class VisitModal extends Modal {
     this.dateInput = dateField.createEl("input", { type: "date" });
     this.dateInput.value = todayIso();
     dateField.createDiv({ cls: "fs-field-msg" });
+    this.dateInput.addEventListener("input", () => this.clearFieldError(this.dateInput));
 
     const ratingField = form.createDiv({ cls: "fs-field" });
     ratingField.createEl("label", { cls: "fs-field-label", text: "Rating" });
@@ -98,6 +100,8 @@ class VisitModal extends Modal {
     });
     this.spentInput.min = "0";
     this.spentInput.step = "0.01";
+    spentField.createDiv({ cls: "fs-field-msg" });
+    this.spentInput.addEventListener("input", () => this.clearFieldError(this.spentInput));
 
     const noteField = form.createDiv({ cls: "fs-field" });
     noteField.createEl("label", { cls: "fs-field-label", text: "Note" });
@@ -118,21 +122,46 @@ class VisitModal extends Modal {
     save.addEventListener("click", () => void this.save());
   }
 
+  /** Inline, per-field feedback — this form never throws a Notice wall. */
+  private setFieldError(input: HTMLInputElement, msg: string): void {
+    const wrap = input.parentElement;
+    wrap?.addClass("fs-field-error");
+    wrap?.querySelector(".fs-field-msg")?.setText(msg);
+    input.focus();
+  }
+
+  private clearFieldError(input: HTMLInputElement): void {
+    const wrap = input.parentElement;
+    wrap?.removeClass("fs-field-error");
+    wrap?.querySelector(".fs-field-msg")?.setText("");
+  }
+
   private async save(): Promise<void> {
     if (this.saving) return;
+    this.clearFieldError(this.dateInput);
+    this.clearFieldError(this.spentInput);
+
     const date = this.dateInput.value;
     if (!date) {
-      const wrap = this.dateInput.parentElement;
-      wrap?.addClass("fs-field-error");
-      wrap?.querySelector(".fs-field-msg")?.setText("Pick a date for the visit.");
+      this.setFieldError(this.dateInput, "Pick a date for the visit.");
       return;
     }
+    // min="0" is a hint the browser only enforces on native form submit, so a
+    // pasted or typed "-5" reaches us intact and would be written to the note.
     const spentRaw = this.spentInput.value.trim();
-    const spent = spentRaw === "" ? undefined : Number(spentRaw);
+    let spent: number | undefined;
+    if (spentRaw !== "") {
+      const parsed = Number(spentRaw);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        this.setFieldError(this.spentInput, "Enter an amount of 0 or more, or leave it empty.");
+        return;
+      }
+      spent = parsed;
+    }
     const visit: Visit = {
       date,
       rating: this.rating > 0 ? this.rating : undefined,
-      spent: spent !== undefined && !Number.isNaN(spent) ? spent : undefined,
+      spent,
       note: this.noteInput.value.trim(),
     };
     this.saving = true;
@@ -158,12 +187,6 @@ class VisitModal extends Modal {
   }
 }
 
-function todayIso(): string {
-  const d = new Date();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${m}-${day}`;
-}
 
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);

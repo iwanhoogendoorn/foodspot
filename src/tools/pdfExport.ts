@@ -18,7 +18,15 @@ interface ElectronBits {
   showSaveDialog(opts: object): Promise<SaveDialogResult>;
   writeFile(path: string, data: Uint8Array): void;
   tmpFile(name: string, content: string): string;
+  removeFile(path: string): void;
   openPath?(path: string): void;
+}
+
+/** Outcome of a PDF export; `failed` is the caller's cue to offer printing. */
+export type PdfExportOutcome = "saved" | "cancelled" | "failed";
+
+function errorText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }
 
 /** Electron/node handles, or null when we're not on desktop. */
@@ -31,6 +39,7 @@ function electron(): ElectronBits | null {
     };
     const fs = req("fs") as {
       writeFileSync(p: string, d: Uint8Array | string): void;
+      unlinkSync(p: string): void;
     };
     const os = req("os") as { tmpdir(): string };
     const path = req("path") as { join(...p: string[]): string };
@@ -44,6 +53,7 @@ function electron(): ElectronBits | null {
         fs.writeFileSync(p, content);
         return p;
       },
+      removeFile: (p) => fs.unlinkSync(p),
       openPath: el.remote?.shell ? (p: string) => el.remote?.shell?.openPath(p) : undefined,
     };
   } catch {
@@ -62,25 +72,46 @@ interface PrintableWebview extends HTMLElement {
 }
 
 /**
- * Render `html` to a PDF file chosen in the save dialog. Resolves true when a
- * file was written, false when the user cancelled or the platform can't.
+ * Render `html` to a PDF file chosen in the save dialog.
+ *
+ * Never rejects: every failure shows its own Notice and resolves "failed" so
+ * the caller can offer the print dialog instead. The guide carries the user's
+ * restaurants and base64 photos, so the temp file it is rendered from is
+ * deleted on every exit — success, failure and timeout alike.
  */
-export async function exportHtmlToPdf(html: string, suggestedName: string): Promise<boolean> {
+export async function exportHtmlToPdf(
+  html: string,
+  suggestedName: string,
+): Promise<PdfExportOutcome> {
   const bits = electron();
   if (!bits) {
-    new Notice("Direct PDF export is only available on desktop.");
-    return false;
+    new Notice("Direct PDF export needs the desktop app — opening the print dialog instead.");
+    return "failed";
   }
 
-  const res = await bits.showSaveDialog({
-    defaultPath: suggestedName,
-    filters: [{ name: "PDF", extensions: ["pdf"] }],
-  });
-  if (res.canceled || !res.filePath) return false;
+  let res: SaveDialogResult;
+  try {
+    res = await bits.showSaveDialog({
+      defaultPath: suggestedName,
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+  } catch (e) {
+    new Notice(`Couldn't open the save dialog — ${errorText(e)}`);
+    return "failed";
+  }
+  if (res.canceled || !res.filePath) return "cancelled";
+  const target = res.filePath;
 
   // The document is self-contained (data-URI images), so a temp file loaded
   // over file:// needs no vault or network access.
-  const tmpPath = bits.tmpFile(`foodspot-guide-${Date.now()}.html`, html);
+  let tmpPath: string;
+  try {
+    tmpPath = bits.tmpFile(`foodspot-guide-${Date.now()}.html`, html);
+  } catch (e) {
+    new Notice(`Couldn't prepare the guide for printing — ${errorText(e)}`);
+    return "failed";
+  }
+
   const view = document.createElement("webview") as PrintableWebview;
   view.setAttribute("nodeintegration", "false");
   view.style.cssText =
@@ -88,17 +119,29 @@ export async function exportHtmlToPdf(html: string, suggestedName: string): Prom
     "position:fixed;left:-10000px;top:0;width:794px;height:1123px;opacity:0;pointer-events:none;";
   view.src = `file://${tmpPath}`;
 
-  return new Promise<boolean>((resolve) => {
+  return new Promise<PdfExportOutcome>((resolve) => {
     let settled = false;
+    let timeoutId = 0;
     const cleanup = (): void => {
+      window.clearTimeout(timeoutId);
       view.remove();
+      try {
+        bits.removeFile(tmpPath);
+      } catch (e) {
+        // A file the OS still holds open survives here; it contains the whole
+        // guide, so tell the user where it is instead of leaving it quietly.
+        new Notice(
+          `Couldn't remove the temporary guide file — delete ${tmpPath} yourself (${errorText(e)}).`,
+          10000,
+        );
+      }
     };
     const fail = (msg: string): void => {
       if (settled) return;
       settled = true;
       cleanup();
       new Notice(msg);
-      resolve(false);
+      resolve("failed");
     };
 
     const onReady = (): void => {
@@ -112,14 +155,14 @@ export async function exportHtmlToPdf(html: string, suggestedName: string): Prom
               // Margins live in the document's own page padding.
               margins: { marginType: "none" },
             });
-            bits.writeFile(res.filePath as string, data);
+            bits.writeFile(target, data);
             settled = true;
             cleanup();
-            new Notice(`PDF saved to ${res.filePath}`);
-            bits.openPath?.(res.filePath as string);
-            resolve(true);
+            new Notice(`PDF saved to ${target}`);
+            bits.openPath?.(target);
+            resolve("saved");
           } catch (e) {
-            fail(`Couldn't write the PDF — ${e instanceof Error ? e.message : String(e)}`);
+            fail(`Couldn't write the PDF — ${errorText(e)}`);
           }
         })();
       }, 350);
@@ -131,7 +174,7 @@ export async function exportHtmlToPdf(html: string, suggestedName: string): Prom
       () => fail("The guide couldn't be rendered for PDF export."),
       { once: true }
     );
-    window.setTimeout(() => fail("PDF export timed out."), 20000);
+    timeoutId = window.setTimeout(() => fail("PDF export timed out."), 20000);
     document.body.appendChild(view);
   });
 }

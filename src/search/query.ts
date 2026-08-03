@@ -14,6 +14,7 @@
  */
 import Fuse from "fuse.js";
 import type { FoodSpot, SortKey, SortSpec, SpotFilterState } from "../types";
+import { parseCalendarDate } from "../util/dates";
 
 // ---------------------------------------------------------------------------
 // Tokenizer
@@ -300,11 +301,13 @@ const SORT_VALUES: Record<SortKey, (s: FoodSpot) => string | number | undefined>
   "external-rating": (s) => s.external.googleRating ?? s.external.tripadvisorRating,
   price: (s) => s.price,
   // Always numeric: ctime breaks same-day ties (created is date-only), and a
-  // mixed number/string pair would compare as NaN.
+  // mixed number/string pair would compare as NaN. `created` is parsed at LOCAL
+  // midnight — Date.parse treats a bare YYYY-MM-DD as UTC, which sorts it
+  // against real ctime values as if it were up to a day off.
   "date-added": (s) => {
     if (s.ctime !== undefined) return s.ctime;
-    const t = s.created ? Date.parse(s.created) : NaN;
-    return Number.isNaN(t) ? undefined : t;
+    const d = s.created ? parseCalendarDate(s.created) : null;
+    return d === null ? undefined : d.getTime();
   },
   "last-visit": (s) => s.lastVisit,
   "visit-count": (s) => s.visitCount,

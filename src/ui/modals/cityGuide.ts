@@ -13,7 +13,7 @@ import { buildCityGuide } from "../../tools/cityGuide";
 import { buildGuideHtml, guidePhotoPaths } from "../../tools/guideHtml";
 import { ensureFolder, availablePath } from "../../store/noteWriter";
 import { saveToDisk } from "../../store/backup";
-import { canExportPdf, exportHtmlToPdf } from "../../tools/pdfExport";
+import { exportHtmlToPdf } from "../../tools/pdfExport";
 
 export function openCityGuideModal(plugin: FoodSpotPluginApi, city?: string): void {
   new CityGuideModal(plugin, city).open();
@@ -126,8 +126,14 @@ class CityGuideModal extends Modal {
       pdf.disabled = true;
       pdf.setText("Saving…");
       void exportHtmlToPdf(this.html, `${sanitizeFileName(this.noteTitle())}.pdf`)
-        .then((saved) => {
-          if (!saved && !canExportPdf()) this.print(); // desktop-less fallback
+        .then((outcome) => {
+          // Any failure — no desktop, no save dialog, unwritable temp dir, a
+          // printToPDF that exists but throws — still leaves the user with the
+          // OS print dialog, which offers "Save as PDF".
+          if (outcome === "failed") this.print();
+        })
+        .catch((e: unknown) => {
+          new Notice(`PDF export failed — ${errorMessage(e)}. Use "Save HTML…" instead.`);
         })
         .finally(() => {
           pdf.disabled = false;

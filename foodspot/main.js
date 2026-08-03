@@ -9655,10 +9655,46 @@ var FRONTMATTER_TYPE = "foodspot";
 // src/store/spotStore.ts
 var import_obsidian = require("obsidian");
 
+// src/util/dates.ts
+function todayIso() {
+  return formatCalendarDate(/* @__PURE__ */ new Date());
+}
+function parseCalendarDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso.trim());
+  if (m === null) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const d = new Date(year, month - 1, day);
+  if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) {
+    return null;
+  }
+  return d;
+}
+function formatCalendarDate(d) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function daysBetweenCalendar(aIso, bIso) {
+  const a = parseCalendarDate(aIso);
+  const b = parseCalendarDate(bIso);
+  if (a === null || b === null) return Number.NaN;
+  const DAY = 864e5;
+  return Math.round((b.getTime() - a.getTime()) / DAY);
+}
+function daysSinceCalendar(iso) {
+  return daysBetweenCalendar(iso, todayIso());
+}
+
 // src/store/visitsParser.ts
 var KNOWN_FIELD_RE = /\[\s*(date|rating|spent)\s*::\s*([^\]]*)\]/gi;
 var ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
-var EMBED_RE = /!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g;
+var EMBED_RE = /!\[\[([^\]]+?)\]\]/g;
+function embedRefPath(ref) {
+  const bar = ref.indexOf("|");
+  return (bar === -1 ? ref : ref.slice(0, bar)).trim();
+}
 function parseNumber(raw) {
   const cleaned = raw.trim().replace(",", ".");
   if (!cleaned) return void 0;
@@ -9751,15 +9787,19 @@ function spotFolder(settings, country) {
   return root;
 }
 function todayISO() {
-  return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  return todayIso();
 }
+var ZONED_TIMESTAMP_RE = /T.*(?:Z|[+-]\d{2}:?\d{2})$/i;
 function dateOnly(value) {
   if (typeof value !== "string" || !value.trim()) return void 0;
-  const m = /^(\d{4}-\d{2}-\d{2})/.exec(value.trim());
+  const raw = value.trim();
+  const parsed = new Date(raw);
+  const valid = !Number.isNaN(parsed.getTime());
+  if (valid && ZONED_TIMESTAMP_RE.test(raw)) return formatCalendarDate(parsed);
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(raw);
   if (m) return m[1];
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return void 0;
-  return parsed.toISOString().slice(0, 10);
+  if (!valid) return void 0;
+  return formatCalendarDate(parsed);
 }
 function roundHalf(n) {
   return Math.round(n * 2) / 2;
@@ -9819,9 +9859,10 @@ function splitFrontmatter(content) {
   const end = m.index + m[0].length;
   return [content.slice(0, end), content.slice(end)];
 }
-var FENCE_RE = /^ {0,3}(`{3,}|~{3,})/;
+var FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 function findSection(body, heading) {
   const nextHeading = /^#{1,2}[ \t]/;
+  const blank = /^[ \t]*$/;
   let inFence = false;
   let fenceChar = "";
   let fenceLen = 0;
@@ -9835,12 +9876,15 @@ function findSection(body, heading) {
     const fence2 = FENCE_RE.exec(line);
     if (fence2) {
       const marker = fence2[1];
-      if (!inFence) {
+      const rest = fence2[2];
+      if (inFence) {
+        if (marker[0] === fenceChar && marker.length >= fenceLen && blank.test(rest)) {
+          inFence = false;
+        }
+      } else if (marker[0] === "~" || !rest.includes("`")) {
         inFence = true;
         fenceChar = marker[0];
         fenceLen = marker.length;
-      } else if (marker[0] === fenceChar && marker.length >= fenceLen) {
-        inFence = false;
       }
     } else if (!inFence) {
       if (start === -1) {
@@ -10088,6 +10132,19 @@ async function mutateVisitLines(app, file, mutate) {
 // src/store/spotStore.ts
 var FILE_DEBOUNCE_MS = 150;
 var NOTIFY_DEBOUNCE_MS = 100;
+function sameFrontmatterValue(a, b) {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((v, i) => v === b[i]);
+  }
+  return a === b;
+}
+function changedFrontmatter(before, next) {
+  const patch = {};
+  for (const [key, value] of Object.entries(next)) {
+    if (!sameFrontmatterValue(before[key], value)) patch[key] = value;
+  }
+  return patch;
+}
 var SpotStore = class {
   constructor(plugin) {
     this.byPath = /* @__PURE__ */ new Map();
@@ -10095,6 +10152,8 @@ var SpotStore = class {
     this.list = [];
     this.listeners = /* @__PURE__ */ new Set();
     this.fileTimers = /* @__PURE__ */ new Map();
+    /** Tail of the in-flight write chain per note path (never rejects). */
+    this.writeChains = /* @__PURE__ */ new Map();
     this.notifyTimer = null;
     this.disposed = false;
     this.plugin = plugin;
@@ -10194,75 +10253,97 @@ var SpotStore = class {
     return spot;
   }
   async updateSpot(path, input) {
-    const existing = this.requireSpot(path);
-    const file = this.requireFile(path);
-    const merged = {
-      name: input.name ?? existing.name,
-      cuisines: input.cuisines ?? existing.cuisines,
-      country: input.country ?? existing.country,
-      city: "city" in input ? input.city : existing.city,
-      district: "district" in input ? input.district : existing.district,
-      address: "address" in input ? input.address : existing.address,
-      coordinates: "coordinates" in input ? input.coordinates : existing.coordinates,
-      status: input.status ?? existing.status,
-      favorite: input.favorite ?? existing.favorite,
-      rating: "rating" in input ? input.rating : existing.rating,
-      ratingLocked: input.ratingLocked ?? existing.ratingLocked,
-      price: "price" in input ? input.price : existing.price,
-      url: "url" in input ? input.url : existing.url,
-      phone: "phone" in input ? input.phone : existing.phone,
-      source: input.source ?? existing.source,
-      sourceUrl: "sourceUrl" in input ? input.sourceUrl : existing.sourceUrl,
-      external: input.external ?? existing.external,
-      photo: "photo" in input ? input.photo : existing.photo,
-      menu: "menu" in input ? input.menu : existing.menu,
-      tags: input.tags ?? existing.tags,
-      visits: input.visits ?? existing.visits,
-      legacyId: existing.legacyId,
-      notes: input.notes ?? existing.notes
-    };
-    const updated = todayISO();
-    const derived = computeDerived(merged.visits, merged.ratingLocked, merged.rating);
-    await writeSpotFrontmatter(
-      this.plugin.app,
-      file,
-      frontmatterFromInput(merged, derived, { created: existing.created, updated })
-    );
-    if (input.notes !== void 0 && input.notes !== existing.notes) {
-      await writeNotesSection(this.plugin.app, file, input.notes);
-    }
-    if (input.visits !== void 0) {
-      const nextVisits = input.visits;
-      await mutateVisitLines(this.plugin.app, file, (lines) => {
-        let vi = 0;
-        const out = [];
-        for (const line of lines) {
-          if (line.kind === "raw") {
-            out.push(line);
-            continue;
-          }
-          if (vi < nextVisits.length) {
-            out.push({ kind: "visit", visit: nextVisits[vi] });
-            vi += 1;
-          }
-        }
-        for (; vi < nextVisits.length; vi += 1) {
-          out.push({ kind: "visit", visit: nextVisits[vi] });
-        }
-        return out;
+    return this.queueWrite(path, async () => {
+      const existing = this.requireSpot(path);
+      const file = this.requireFile(path);
+      const merged = {
+        name: input.name ?? existing.name,
+        cuisines: input.cuisines ?? existing.cuisines,
+        country: input.country ?? existing.country,
+        city: "city" in input ? input.city : existing.city,
+        district: "district" in input ? input.district : existing.district,
+        address: "address" in input ? input.address : existing.address,
+        coordinates: "coordinates" in input ? input.coordinates : existing.coordinates,
+        status: input.status ?? existing.status,
+        favorite: input.favorite ?? existing.favorite,
+        rating: "rating" in input ? input.rating : existing.rating,
+        ratingLocked: input.ratingLocked ?? existing.ratingLocked,
+        price: "price" in input ? input.price : existing.price,
+        url: "url" in input ? input.url : existing.url,
+        phone: "phone" in input ? input.phone : existing.phone,
+        source: input.source ?? existing.source,
+        sourceUrl: "sourceUrl" in input ? input.sourceUrl : existing.sourceUrl,
+        external: input.external ?? existing.external,
+        photo: "photo" in input ? input.photo : existing.photo,
+        menu: "menu" in input ? input.menu : existing.menu,
+        hours: "hours" in input ? input.hours : existing.hours,
+        tags: input.tags ?? existing.tags,
+        visits: input.visits ?? existing.visits,
+        // Migration idempotency key: owned by the store, never patched.
+        legacyId: existing.legacyId,
+        notes: input.notes ?? existing.notes,
+        ctime: existing.ctime,
+        created: existing.created
+      };
+      const updated = todayISO();
+      const derived = computeDerived(merged.visits, merged.ratingLocked, merged.rating);
+      const before = frontmatterFromInput(
+        existing,
+        {
+          visitCount: existing.visitCount,
+          lastVisit: existing.lastVisit,
+          rating: existing.rating
+        },
+        { created: existing.created, updated: existing.updated }
+      );
+      const next = frontmatterFromInput(merged, derived, {
+        created: existing.created,
+        updated
       });
-    }
-    const spot = {
-      ...merged,
-      path,
-      visitCount: derived.visitCount,
-      lastVisit: derived.lastVisit,
-      rating: derived.rating,
-      created: existing.created,
-      updated
-    };
-    this.setSpot(spot);
-    return spot;
+      const patch = changedFrontmatter(before, next);
+      delete patch.updated;
+      const nextNotes = input.notes !== void 0 && input.notes !== existing.notes ? input.notes : void 0;
+      const nextVisits = input.visits;
+      const changed = Object.keys(patch).length > 0 || nextNotes !== void 0 || nextVisits !== void 0;
+      if (changed) {
+        patch.updated = updated;
+        await writeSpotFrontmatter(this.plugin.app, file, patch);
+      }
+      if (nextNotes !== void 0) {
+        await writeNotesSection(this.plugin.app, file, nextNotes);
+      }
+      if (nextVisits !== void 0) {
+        await mutateVisitLines(this.plugin.app, file, (lines) => {
+          let vi = 0;
+          const out = [];
+          for (const line of lines) {
+            if (line.kind === "raw") {
+              out.push(line);
+              continue;
+            }
+            if (vi < nextVisits.length) {
+              out.push({ kind: "visit", visit: nextVisits[vi] });
+              vi += 1;
+            }
+          }
+          for (; vi < nextVisits.length; vi += 1) {
+            out.push({ kind: "visit", visit: nextVisits[vi] });
+          }
+          return out;
+        });
+      }
+      const spot = {
+        ...merged,
+        path,
+        visitCount: derived.visitCount,
+        lastVisit: derived.lastVisit,
+        rating: derived.rating,
+        created: existing.created,
+        updated: changed ? updated : existing.updated
+      };
+      this.setSpot(spot);
+      return spot;
+    });
   }
   async addVisit(path, visit) {
     return this.mutateVisits(path, (lines) => [
@@ -10291,15 +10372,19 @@ var SpotStore = class {
     });
   }
   async deleteSpot(path) {
-    const file = this.requireFile(path);
-    await this.plugin.app.fileManager.trashFile(file);
-    this.removeFromIndex(path);
+    await this.queueWrite(path, async () => {
+      const file = this.requireFile(path);
+      await this.plugin.app.fileManager.trashFile(file);
+      this.removeFromIndex(path);
+    });
   }
   async setNotes(path, notes) {
-    const file = this.requireFile(path);
-    await writeNotesSection(this.plugin.app, file, notes);
-    const existing = this.byPath.get(path);
-    if (existing) this.setSpot({ ...existing, notes: notes.trim() });
+    await this.queueWrite(path, async () => {
+      const file = this.requireFile(path);
+      await writeNotesSection(this.plugin.app, file, notes);
+      const existing = this.byPath.get(path);
+      if (existing) this.setSpot({ ...existing, notes: notes.trim() });
+    });
   }
   async openNote(path) {
     const file = this.requireFile(path);
@@ -10311,27 +10396,48 @@ var SpotStore = class {
   // -------------------------------------------------------------------------
   /** Shared visit mutation: raw-line-safe body rewrite + derived frontmatter. */
   async mutateVisits(path, mutate) {
-    const existing = this.requireSpot(path);
-    const file = this.requireFile(path);
-    const visits = await mutateVisitLines(this.plugin.app, file, mutate);
-    const derived = computeDerived(visits, existing.ratingLocked, existing.rating);
-    const updated = todayISO();
-    await writeSpotFrontmatter(this.plugin.app, file, {
-      rating: derived.rating,
-      visit_count: derived.visitCount,
-      last_visit: derived.lastVisit,
-      updated
+    return this.queueWrite(path, async () => {
+      const existing = this.requireSpot(path);
+      const file = this.requireFile(path);
+      const visits = await mutateVisitLines(this.plugin.app, file, mutate);
+      const derived = computeDerived(visits, existing.ratingLocked, existing.rating);
+      const updated = todayISO();
+      await writeSpotFrontmatter(this.plugin.app, file, {
+        rating: derived.rating,
+        visit_count: derived.visitCount,
+        last_visit: derived.lastVisit,
+        updated
+      });
+      const spot = {
+        ...existing,
+        visits,
+        visitCount: derived.visitCount,
+        lastVisit: derived.lastVisit,
+        rating: derived.rating,
+        updated
+      };
+      this.setSpot(spot);
+      return spot;
     });
-    const spot = {
-      ...existing,
-      visits,
-      visitCount: derived.visitCount,
-      lastVisit: derived.lastVisit,
-      rating: derived.rating,
-      updated
-    };
-    this.setSpot(spot);
-    return spot;
+  }
+  /**
+   * Run `task` after every write already queued for this note. Two updates to
+   * the same note would otherwise interleave their read-modify-write cycles
+   * and the later one would base its patch on state the earlier one has
+   * already replaced. Failures do not break the chain for the next writer.
+   */
+  queueWrite(path, task) {
+    const previous = this.writeChains.get(path) ?? Promise.resolve();
+    const run = previous.then(task, task);
+    const tail = run.then(
+      () => void 0,
+      () => void 0
+    );
+    this.writeChains.set(path, tail);
+    void tail.then(() => {
+      if (this.writeChains.get(path) === tail) this.writeChains.delete(path);
+    });
+    return run;
   }
   isMarkdown(file) {
     return file instanceof import_obsidian.TFile && file.extension === "md";
@@ -11621,12 +11727,16 @@ var PlacesClient = class {
 var ENRICH_BIAS_RADIUS_METERS = 200;
 var BULK_THROTTLE_MS = 400;
 var PHOTO_MAX_WIDTH = 640;
-function todayIso() {
-  return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-}
 function errMsg(e) {
   return e instanceof Error ? e.message : String(e);
 }
+var EnrichStepError = class extends Error {
+  constructor(message, partial) {
+    super(message);
+    this.partial = partial;
+    this.name = "EnrichStepError";
+  }
+};
 function describeSourceFailure(f) {
   const msg = errMsg(f.e);
   if (f.e instanceof BotCheckError || /\b403\b/.test(msg)) {
@@ -11912,6 +12022,7 @@ var ImportPipeline = class {
     const overwrite = opts.overwrite === true;
     const out = {};
     const ext = {};
+    let photoError = null;
     const wantsGoogle = opts.photo || opts.ratings || opts.coords || opts.address;
     let details = null;
     if (wantsGoogle && this.hasGoogleKey()) {
@@ -11949,7 +12060,8 @@ var ImportPipeline = class {
       if (opts.photo && details.photoReference !== void 0 && (overwrite || isBlank(spot.photo))) {
         try {
           out.photo = await this.downloadPhoto(spot.name, details.photoReference);
-        } catch {
+        } catch (e) {
+          photoError = errMsg(e);
         }
       }
     }
@@ -11980,7 +12092,11 @@ var ImportPipeline = class {
       if (fetchedRating) external.ratingsUpdated = todayIso();
       out.external = external;
     }
-    return Object.keys(out).length > 0 ? out : null;
+    const gathered = Object.keys(out).length > 0 ? out : null;
+    if (photoError !== null) {
+      throw new EnrichStepError(`photo download failed \u2014 ${photoError}`, gathered);
+    }
+    return gathered;
   }
   async bulkEnrich(spots, opts, onProgress, signal) {
     let updated = 0;
@@ -12003,7 +12119,13 @@ var ImportPipeline = class {
             skipped += 1;
           }
         }
-      } catch {
+      } catch (e) {
+        if (e instanceof EnrichStepError && e.partial !== null) {
+          try {
+            await this.plugin.store.updateSpot(spot.path, e.partial);
+          } catch {
+          }
+        }
         failed.push(spot.name);
       }
       done += 1;
@@ -13844,11 +13966,13 @@ var SORT_VALUES = {
   "external-rating": (s) => s.external.googleRating ?? s.external.tripadvisorRating,
   price: (s) => s.price,
   // Always numeric: ctime breaks same-day ties (created is date-only), and a
-  // mixed number/string pair would compare as NaN.
+  // mixed number/string pair would compare as NaN. `created` is parsed at LOCAL
+  // midnight — Date.parse treats a bare YYYY-MM-DD as UTC, which sorts it
+  // against real ctime values as if it were up to a day off.
   "date-added": (s) => {
     if (s.ctime !== void 0) return s.ctime;
-    const t = s.created ? Date.parse(s.created) : NaN;
-    return Number.isNaN(t) ? void 0 : t;
+    const d = s.created ? parseCalendarDate(s.created) : null;
+    return d === null ? void 0 : d.getTime();
   },
   "last-visit": (s) => s.lastVisit,
   "visit-count": (s) => s.visitCount
@@ -13990,12 +14114,19 @@ var DAY_BY_PREFIX = {
 function dayFromWord(word) {
   return DAY_BY_PREFIX[word.slice(0, 3).toLowerCase()];
 }
+function localClockApplies(spotCountry, homeCountry) {
+  const spot = (spotCountry ?? "").trim().toLowerCase();
+  const home = (homeCountry ?? "").trim().toLowerCase();
+  if (spot === "" || home === "") return true;
+  return spot === home;
+}
 function parseTime(text) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(text.trim());
   if (m === null) return void 0;
   const h = Number(m[1]);
   const min = Number(m[2]);
   if (h > 24 || min > 59) return void 0;
+  if (h === 24 && min !== 0) return void 0;
   const total = h * 60 + min;
   return total === 1440 ? 0 : total;
 }
@@ -14029,13 +14160,40 @@ function parseHours(lines) {
   }
   return [...byDay.entries()].map(([day, ranges]) => ({ day, ranges })).sort((a, b) => a.day - b.day);
 }
-function openState(hours, now) {
+function wallClock(now, timeZone) {
+  if (timeZone === void 0 || timeZone.trim() === "") {
+    return { day: now.getDay(), minutes: now.getHours() * 60 + now.getMinutes() };
+  }
+  let parts;
+  try {
+    parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timeZone.trim(),
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23"
+    }).formatToParts(now);
+  } catch {
+    return null;
+  }
+  const partValue = (type) => parts.find((p) => p.type === type)?.value ?? "";
+  const day = dayFromWord(partValue("weekday"));
+  const hourText = partValue("hour");
+  const minuteText = partValue("minute");
+  if (day === void 0 || !/^\d{1,2}$/.test(hourText) || !/^\d{1,2}$/.test(minuteText)) {
+    return null;
+  }
+  return { day, minutes: Number(hourText) % 24 * 60 + Number(minuteText) };
+}
+function openState(hours, now, timeZone) {
   if (hours === void 0 || hours.length === 0) return null;
   const parsed = parseHours(hours);
   if (parsed.length === 0) return null;
+  const clock = wallClock(now, timeZone);
+  if (clock === null) return null;
   const byDay = new Map(parsed.map((d) => [d.day, d.ranges]));
-  const today = now.getDay();
-  const minutes = now.getHours() * 60 + now.getMinutes();
+  const today = clock.day;
+  const minutes = clock.minutes;
   for (const range of byDay.get(today) ?? []) {
     const overnight = range.close <= range.open;
     if (minutes >= range.open && (overnight || minutes < range.close)) {
@@ -14851,7 +15009,7 @@ var AddEditModal = class _AddEditModal extends import_obsidian6.Modal {
         this.state.external.theforkUrl = emptyToUndef(v);
       }
     });
-    this.textField(grid, "Facebook URL", "facebookUrl", {
+    this.facebookUrlInput = this.textField(grid, "Facebook URL", "facebookUrl", {
       value: this.state.external.facebookUrl ?? "",
       placeholder: "https://www.facebook.com/\u2026",
       wide: true,
@@ -14859,7 +15017,7 @@ var AddEditModal = class _AddEditModal extends import_obsidian6.Modal {
         this.state.external.facebookUrl = emptyToUndef(v);
       }
     });
-    this.textField(grid, "OpenTable URL", "opentableUrl", {
+    this.opentableUrlInput = this.textField(grid, "OpenTable URL", "opentableUrl", {
       value: this.state.external.opentableUrl ?? "",
       placeholder: "https://www.opentable.com/r/\u2026",
       wide: true,
@@ -14867,7 +15025,7 @@ var AddEditModal = class _AddEditModal extends import_obsidian6.Modal {
         this.state.external.opentableUrl = emptyToUndef(v);
       }
     });
-    this.textField(grid, "Eet.nu URL", "eetnuUrl", {
+    this.eetnuUrlInput = this.textField(grid, "Eet.nu URL", "eetnuUrl", {
       value: this.state.external.eetnuUrl ?? "",
       placeholder: "https://www.eet.nu/\u2026",
       wide: true,
@@ -14950,6 +15108,9 @@ var AddEditModal = class _AddEditModal extends import_obsidian6.Modal {
     this.taUrlInput.value = this.state.external.tripadvisorUrl ?? "";
     this.yelpUrlInput.value = this.state.external.yelpUrl ?? "";
     this.theforkUrlInput.value = this.state.external.theforkUrl ?? "";
+    this.facebookUrlInput.value = this.state.external.facebookUrl ?? "";
+    this.opentableUrlInput.value = this.state.external.opentableUrl ?? "";
+    this.eetnuUrlInput.value = this.state.external.eetnuUrl ?? "";
     this.notesArea.value = this.state.notes;
     this.starHandle.set(this.state.rating);
     this.paintStatus();
@@ -14981,7 +15142,17 @@ var AddEditModal = class _AddEditModal extends import_obsidian6.Modal {
     wrap.querySelector(".fs-field-msg")?.setText("");
   }
   validate() {
-    for (const key of ["name", "coords", "url", "tripadvisorUrl", "yelpUrl", "theforkUrl"]) {
+    for (const key of [
+      "name",
+      "coords",
+      "url",
+      "tripadvisorUrl",
+      "yelpUrl",
+      "theforkUrl",
+      "facebookUrl",
+      "opentableUrl",
+      "eetnuUrl"
+    ]) {
       this.clearError(key);
     }
     let firstBad = null;
@@ -15009,7 +15180,10 @@ var AddEditModal = class _AddEditModal extends import_obsidian6.Modal {
     const sourceUrls = [
       ["tripadvisorUrl", this.state.external.tripadvisorUrl, this.taUrlInput],
       ["yelpUrl", this.state.external.yelpUrl, this.yelpUrlInput],
-      ["theforkUrl", this.state.external.theforkUrl, this.theforkUrlInput]
+      ["theforkUrl", this.state.external.theforkUrl, this.theforkUrlInput],
+      ["facebookUrl", this.state.external.facebookUrl, this.facebookUrlInput],
+      ["opentableUrl", this.state.external.opentableUrl, this.opentableUrlInput],
+      ["eetnuUrl", this.state.external.eetnuUrl, this.eetnuUrlInput]
     ];
     for (const [key, value, input] of sourceUrls) {
       if (value !== void 0 && !/^https?:\/\//i.test(value)) {
@@ -15247,7 +15421,12 @@ function sameList(a, b) {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 function sameExternal(a, b) {
-  return a.googleRating === b.googleRating && a.googleRatingCount === b.googleRatingCount && a.googlePlaceId === b.googlePlaceId && a.tripadvisorRating === b.tripadvisorRating && a.tripadvisorRatingCount === b.tripadvisorRatingCount && a.tripadvisorUrl === b.tripadvisorUrl && a.yelpRating === b.yelpRating && a.yelpRatingCount === b.yelpRatingCount && a.yelpUrl === b.yelpUrl && a.theforkRating === b.theforkRating && a.theforkRatingCount === b.theforkRatingCount && a.theforkUrl === b.theforkUrl && a.ratingsUpdated === b.ratingsUpdated;
+  const av = a;
+  const bv = b;
+  for (const key of /* @__PURE__ */ new Set([...Object.keys(av), ...Object.keys(bv)])) {
+    if (av[key] !== bv[key]) return false;
+  }
+  return true;
 }
 function stripUndefined(obj) {
   const out = {};
@@ -15315,6 +15494,9 @@ function mapToExternal(url, ld) {
   }
   return out;
 }
+function errorMessage2(e) {
+  return e instanceof Error ? e.message : String(e);
+}
 var BrowserFetchModal = class extends import_obsidian7.Modal {
   constructor(plugin, path, url, onFinished) {
     super(plugin.app);
@@ -15323,7 +15505,12 @@ var BrowserFetchModal = class extends import_obsidian7.Modal {
     this.url = url;
     this.onFinished = onFinished;
     this.timer = null;
+    /** Stops the poll loop: the modal is closed, finished, or waiting on a retry. */
     this.done = false;
+    /** The queue must advance exactly once, whatever order close/save happen in. */
+    this.settled = false;
+    /** Whether a rating was actually written before the modal closed. */
+    this.found = false;
   }
   onOpen() {
     this.modalEl.addClass("fs-modal", "fs-browser-fetch-modal");
@@ -15341,16 +15528,28 @@ var BrowserFetchModal = class extends import_obsidian7.Modal {
       attr: { src: this.url },
       cls: "fs-browser-webview"
     });
-    const started = Date.now();
+    const actions = this.contentEl.createDiv({ cls: "fs-modal-buttons is-hidden" });
+    const retryBtn = actions.createEl("button", { text: "Try again", cls: "mod-cta" });
+    retryBtn.type = "button";
+    const closeBtn = actions.createEl("button", { text: "Close" });
+    closeBtn.type = "button";
+    closeBtn.addEventListener("click", () => this.close());
+    let started = Date.now();
     const EXTRACT = `JSON.stringify(Array.from(document.querySelectorAll('script[type="application/ld+json"]')).map(s => s.textContent || ''))`;
+    const stall = (message) => {
+      this.done = true;
+      status.setText(message);
+      actions.removeClass("is-hidden");
+    };
     const poll = async () => {
       if (this.done) return;
       if (Date.now() - started > TIMEOUT_MS) {
-        status.setText("Timed out \u2014 the page never produced a rating. You can retry or close.");
+        stall("Timed out \u2014 the page never produced a rating. Try again or close.");
         return;
       }
       try {
         const raw = await wv.executeJavaScript?.(EXTRACT);
+        if (this.done) return;
         if (typeof raw === "string") {
           const scripts = JSON.parse(raw);
           const html = scripts.map((t) => `<script type="application/ld+json">${t}<\/script>`).join("\n");
@@ -15358,17 +15557,29 @@ var BrowserFetchModal = class extends import_obsidian7.Modal {
           if (ld !== null && ld.rating !== void 0) {
             const patch = mapToExternal(this.url, ld);
             if (Object.keys(patch).length > 0) {
-              this.done = true;
               const spot = this.plugin.store.getByPath(this.path);
-              if (spot) {
-                patch.ratingsUpdated = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+              if (!spot) {
+                stall(
+                  "That spot is no longer in your library \u2014 the rating was read but not saved."
+                );
+                return;
+              }
+              patch.ratingsUpdated = todayIso();
+              try {
                 await this.plugin.store.updateSpot(this.path, {
                   external: { ...spot.external, ...patch }
                 });
+              } catch (e) {
+                const why = errorMessage2(e);
+                new import_obsidian7.Notice(`Food Spot: couldn't save the ${host} rating \u2014 ${why}`);
+                stall(`The rating was read but saving it failed \u2014 ${why}. Try again or close.`);
+                return;
               }
+              this.found = true;
               new import_obsidian7.Notice(`Rating fetched from ${host} and saved.`);
+              if (this.done) return;
+              this.done = true;
               this.close();
-              this.onFinished(true);
               return;
             }
           }
@@ -15377,14 +15588,28 @@ var BrowserFetchModal = class extends import_obsidian7.Modal {
       }
       this.timer = window.setTimeout(() => void poll(), POLL_MS);
     };
+    retryBtn.addEventListener("click", () => {
+      actions.addClass("is-hidden");
+      status.setText("Trying again \u2014 reading the page\u2026");
+      started = Date.now();
+      this.done = false;
+      if (this.timer !== null) window.clearTimeout(this.timer);
+      this.timer = window.setTimeout(() => void poll(), POLL_MS);
+    });
     this.timer = window.setTimeout(() => void poll(), POLL_MS);
+  }
+  /** Advances the queue at most once. */
+  finish(found) {
+    if (this.settled) return;
+    this.settled = true;
+    this.onFinished(found);
   }
   onClose() {
     if (this.timer !== null) window.clearTimeout(this.timer);
-    const finished = this.done;
+    this.timer = null;
     this.done = true;
     this.contentEl.empty();
-    if (!finished) this.onFinished(false);
+    this.finish(this.found);
   }
 };
 function openBrowserFetchQueue(plugin, path, urls) {
@@ -15406,7 +15631,7 @@ function sanitize(name) {
   return name.replace(/[\\/:*?"<>|#^[\]]/g, " ").replace(/\s+/g, " ").trim();
 }
 function resolveDishFile(plugin, ref, sourcePath) {
-  const raw = ref.trim();
+  const raw = embedRefPath(ref);
   if (!raw || /^https?:\/\//i.test(raw)) return null;
   const direct = plugin.app.metadataCache.getFirstLinkpathDest(raw, sourcePath);
   if (direct) return direct;
@@ -15714,7 +15939,7 @@ var DetailModal = class extends import_obsidian10.Modal {
       input.remove();
       h2.show();
       if (commit && value !== "" && value !== spot.name) {
-        void this.plugin.store.updateSpot(this.path, { name: value }).catch((e) => new import_obsidian10.Notice(`Couldn't rename \u2014 ${errorMessage2(e)}`));
+        void this.plugin.store.updateSpot(this.path, { name: value }).catch((e) => new import_obsidian10.Notice(`Couldn't rename \u2014 ${errorMessage3(e)}`));
       }
     };
     input.addEventListener("keydown", (ev) => {
@@ -15934,7 +16159,7 @@ var DetailModal = class extends import_obsidian10.Modal {
    */
   renderHours(block, spot) {
     if (!spot.hours || spot.hours.length === 0) return;
-    const state2 = openState(spot.hours, /* @__PURE__ */ new Date());
+    const state2 = localClockApplies(spot.country, this.plugin.settings.defaultCountry) ? openState(spot.hours, /* @__PURE__ */ new Date()) : null;
     const row = block.createDiv({ cls: "fs-info-row" });
     const icon = row.createSpan({ cls: "fs-info-icon" });
     (0, import_obsidian10.setIcon)(icon, "clock");
@@ -16099,7 +16324,7 @@ var DetailModal = class extends import_obsidian10.Modal {
             }
             this.render();
           } catch (e) {
-            new import_obsidian10.Notice(`Source discovery failed: ${errorMessage2(e)}`);
+            new import_obsidian10.Notice(`Source discovery failed: ${errorMessage3(e)}`);
             findBtn.disabled = false;
             findBtn.removeClass("fs-loading");
             (0, import_obsidian10.setIcon)(findIcon, "wand-sparkles");
@@ -16168,7 +16393,7 @@ var DetailModal = class extends import_obsidian10.Modal {
         if (pending.length > 0) openBrowserFetchQueue(this.plugin, this.path, pending);
       }
     } catch (e) {
-      new import_obsidian10.Notice(`Couldn't refresh ratings \u2014 ${errorMessage2(e)}`);
+      new import_obsidian10.Notice(`Couldn't refresh ratings \u2014 ${errorMessage3(e)}`);
     } finally {
       this.refreshingRatings = false;
       if (btn.isConnected) {
@@ -16291,7 +16516,7 @@ var DetailModal = class extends import_obsidian10.Modal {
           }
           await this.plugin.store.deleteVisit(this.path, idx);
         } catch (e) {
-          new import_obsidian10.Notice(`Couldn't delete the visit \u2014 ${errorMessage2(e)}`);
+          new import_obsidian10.Notice(`Couldn't delete the visit \u2014 ${errorMessage3(e)}`);
         }
       });
     });
@@ -16299,7 +16524,7 @@ var DetailModal = class extends import_obsidian10.Modal {
   visitForm(parent, initial, onSave, onCancel) {
     const form = parent.createDiv({ cls: "fs-visit-form" });
     const dateInput = form.createEl("input", { type: "date" });
-    dateInput.value = initial?.date ?? todayIso2();
+    dateInput.value = initial?.date ?? todayIso();
     let rating = initial?.rating ?? 0;
     const starsWrap = form.createSpan({ cls: "fs-visit-form-stars" });
     starRating(starsWrap, {
@@ -16335,7 +16560,7 @@ var DetailModal = class extends import_obsidian10.Modal {
           const saved = await importDishPhotos(
             this.plugin,
             spot,
-            dateInput.value || todayIso2(),
+            dateInput.value || todayIso(),
             files
           );
           photos = [...photos, ...saved];
@@ -16364,7 +16589,7 @@ var DetailModal = class extends import_obsidian10.Modal {
         const saved = await importDishPhotos(
           this.plugin,
           spot,
-          dateInput.value || todayIso2(),
+          dateInput.value || todayIso(),
           files
         );
         photos = [...photos, ...saved];
@@ -16377,22 +16602,33 @@ var DetailModal = class extends import_obsidian10.Modal {
     const cancel = actions.createEl("button", { text: "Cancel", cls: "fs-small-btn" });
     cancel.type = "button";
     const doSave = () => {
+      dateInput.removeClass("fs-input-invalid");
+      spentInput.removeClass("fs-input-invalid");
       if (!dateInput.value) {
         dateInput.addClass("fs-input-invalid");
         return;
       }
       const spentRaw = spentInput.value.trim();
-      const spent = spentRaw === "" ? void 0 : Number(spentRaw);
+      let spent;
+      if (spentRaw !== "") {
+        const parsed = Number(spentRaw);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          spentInput.addClass("fs-input-invalid");
+          spentInput.focus();
+          return;
+        }
+        spent = parsed;
+      }
       save.disabled = true;
       void onSave({
         date: dateInput.value,
         rating: rating > 0 ? rating : void 0,
-        spent: spent !== void 0 && !Number.isNaN(spent) ? spent : void 0,
+        spent,
         note: noteInput.value.trim(),
         photos: photos.length > 0 ? photos : void 0
       }).catch((e) => {
         save.disabled = false;
-        new import_obsidian10.Notice(`Couldn't save the visit \u2014 ${errorMessage2(e)}`);
+        new import_obsidian10.Notice(`Couldn't save the visit \u2014 ${errorMessage3(e)}`);
       });
     };
     save.addEventListener("click", doSave);
@@ -16448,7 +16684,7 @@ var DetailModal = class extends import_obsidian10.Modal {
       await this.plugin.store.setNotes(this.path, notes);
     } catch (e) {
       if (this.pendingNotes === null) this.pendingNotes = notes;
-      new import_obsidian10.Notice(`Couldn't save notes \u2014 ${errorMessage2(e)}`);
+      new import_obsidian10.Notice(`Couldn't save notes \u2014 ${errorMessage3(e)}`);
     }
   }
   // -------------------------------------------------------------- footer
@@ -16501,7 +16737,7 @@ var DetailModal = class extends import_obsidian10.Modal {
     try {
       await this.plugin.store.updateSpot(this.path, input);
     } catch (e) {
-      new import_obsidian10.Notice(`Couldn't save the change \u2014 ${errorMessage2(e)}`);
+      new import_obsidian10.Notice(`Couldn't save the change \u2014 ${errorMessage3(e)}`);
     }
   }
   onClose() {
@@ -16527,12 +16763,6 @@ function formatDate2(iso, fmt) {
       return `${y}-${m}-${d}`;
   }
 }
-function todayIso2() {
-  const d = /* @__PURE__ */ new Date();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${m}-${day}`;
-}
 function prettyUrl(url) {
   try {
     const u = new URL(url);
@@ -16549,7 +16779,7 @@ function hashStr(s) {
   for (let i = 0; i < s.length; i++) h = h * 31 + s.charCodeAt(i) | 0;
   return Math.abs(h);
 }
-function errorMessage2(e) {
+function errorMessage3(e) {
   return e instanceof Error ? e.message : String(e);
 }
 var AttachSourceModal = class extends import_obsidian10.Modal {
@@ -16618,7 +16848,7 @@ var AttachSourceModal = class extends import_obsidian10.Modal {
         this.onDone();
       } catch (e) {
         save.disabled = false;
-        new import_obsidian10.Notice(`Attach failed: ${errorMessage2(e)}`);
+        new import_obsidian10.Notice(`Attach failed: ${errorMessage3(e)}`);
       }
     };
     save.addEventListener("click", () => void doSave());
@@ -16684,8 +16914,9 @@ var VisitModal = class extends import_obsidian11.Modal {
     const dateField = form.createDiv({ cls: "fs-field" });
     dateField.createEl("label", { cls: "fs-field-label", text: "Date" });
     this.dateInput = dateField.createEl("input", { type: "date" });
-    this.dateInput.value = todayIso3();
+    this.dateInput.value = todayIso();
     dateField.createDiv({ cls: "fs-field-msg" });
+    this.dateInput.addEventListener("input", () => this.clearFieldError(this.dateInput));
     const ratingField = form.createDiv({ cls: "fs-field" });
     ratingField.createEl("label", { cls: "fs-field-label", text: "Rating" });
     starRating(ratingField, {
@@ -16707,6 +16938,8 @@ var VisitModal = class extends import_obsidian11.Modal {
     });
     this.spentInput.min = "0";
     this.spentInput.step = "0.01";
+    spentField.createDiv({ cls: "fs-field-msg" });
+    this.spentInput.addEventListener("input", () => this.clearFieldError(this.spentInput));
     const noteField = form.createDiv({ cls: "fs-field" });
     noteField.createEl("label", { cls: "fs-field-label", text: "Note" });
     this.noteInput = noteField.createEl("input", {
@@ -16724,21 +16957,41 @@ var VisitModal = class extends import_obsidian11.Modal {
     save.type = "button";
     save.addEventListener("click", () => void this.save());
   }
+  /** Inline, per-field feedback — this form never throws a Notice wall. */
+  setFieldError(input, msg) {
+    const wrap = input.parentElement;
+    wrap?.addClass("fs-field-error");
+    wrap?.querySelector(".fs-field-msg")?.setText(msg);
+    input.focus();
+  }
+  clearFieldError(input) {
+    const wrap = input.parentElement;
+    wrap?.removeClass("fs-field-error");
+    wrap?.querySelector(".fs-field-msg")?.setText("");
+  }
   async save() {
     if (this.saving) return;
+    this.clearFieldError(this.dateInput);
+    this.clearFieldError(this.spentInput);
     const date = this.dateInput.value;
     if (!date) {
-      const wrap = this.dateInput.parentElement;
-      wrap?.addClass("fs-field-error");
-      wrap?.querySelector(".fs-field-msg")?.setText("Pick a date for the visit.");
+      this.setFieldError(this.dateInput, "Pick a date for the visit.");
       return;
     }
     const spentRaw = this.spentInput.value.trim();
-    const spent = spentRaw === "" ? void 0 : Number(spentRaw);
+    let spent;
+    if (spentRaw !== "") {
+      const parsed = Number(spentRaw);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        this.setFieldError(this.spentInput, "Enter an amount of 0 or more, or leave it empty.");
+        return;
+      }
+      spent = parsed;
+    }
     const visit = {
       date,
       rating: this.rating > 0 ? this.rating : void 0,
-      spent: spent !== void 0 && !Number.isNaN(spent) ? spent : void 0,
+      spent,
       note: this.noteInput.value.trim()
     };
     this.saving = true;
@@ -16755,28 +17008,21 @@ var VisitModal = class extends import_obsidian11.Modal {
       this.close();
     } catch (e) {
       this.saving = false;
-      new import_obsidian11.Notice(`Food Spot: couldn't log the visit \u2014 ${errorMessage3(e)}`);
+      new import_obsidian11.Notice(`Food Spot: couldn't log the visit \u2014 ${errorMessage4(e)}`);
     }
   }
   onClose() {
     this.contentEl.empty();
   }
 };
-function todayIso3() {
-  const d = /* @__PURE__ */ new Date();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${m}-${day}`;
-}
-function errorMessage3(e) {
+function errorMessage4(e) {
   return e instanceof Error ? e.message : String(e);
 }
 
 // src/ui/components/card.ts
 function relTime(iso) {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "";
-  const days = Math.floor((Date.now() - then) / 864e5);
+  const days = daysSinceCalendar(iso);
+  if (Number.isNaN(days)) return "";
   if (days <= 0) return "today";
   if (days === 1) return "yesterday";
   if (days < 7) return `${days} d ago`;
@@ -16804,9 +17050,9 @@ function cuisineTint(spot) {
 }
 function isStaleRatings(plugin, ext) {
   if (!ext.ratingsUpdated) return true;
-  const t = new Date(ext.ratingsUpdated).getTime();
-  if (Number.isNaN(t)) return true;
-  return (Date.now() - t) / 864e5 > plugin.settings.staleRatingThresholdDays;
+  const days = daysSinceCalendar(ext.ratingsUpdated);
+  if (Number.isNaN(days)) return true;
+  return days > plugin.settings.staleRatingThresholdDays;
 }
 function bestOtherSource(ext) {
   const candidates = [
@@ -16954,6 +17200,19 @@ async function pullSpotInfo(plugin, spot) {
       new import_obsidian12.Notice(`Nothing new found for "${spot.name}".`);
     }
   } catch (e) {
+    if (e instanceof EnrichStepError && e.partial && Object.keys(e.partial).length > 0) {
+      try {
+        await plugin.store.updateSpot(spot.path, e.partial);
+        new import_obsidian12.Notice(`Pull partly failed for "${spot.name}": ${e.message} The rest was saved.`, 1e4);
+        return;
+      } catch (writeError) {
+        new import_obsidian12.Notice(
+          `Pull failed for "${spot.name}": ${e.message} Saving what was found also failed \u2014 ${writeError instanceof Error ? writeError.message : String(writeError)}`,
+          1e4
+        );
+        return;
+      }
+    }
     new import_obsidian12.Notice(`Pull failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
@@ -17206,7 +17465,7 @@ function buildFullCard(parent, spot, plugin) {
     o.createSpan({ cls: "fs-meta-g", text: other.label });
     o.createSpan({ text: ` ${fmtRating(other.rating)}${other.scale10 ? "/10" : ""}` });
   }
-  const hours = openState(spot.hours, /* @__PURE__ */ new Date());
+  const hours = localClockApplies(spot.country, plugin.settings.defaultCountry) ? openState(spot.hours, /* @__PURE__ */ new Date()) : null;
   if (hours) {
     const chip = meta.createSpan({
       cls: `fs-open-chip ${hours.open ? "is-open" : "is-closed"}`,
@@ -18339,7 +18598,7 @@ var ImportModal = class extends import_obsidian18.Modal {
       this.urlInput.disabled = false;
       this.setStatus("", false);
       this.urlInput.parentElement?.addClass("fs-field-error");
-      this.msgEl.setText(`Import failed \u2014 ${errorMessage4(e)}`);
+      this.msgEl.setText(`Import failed \u2014 ${errorMessage5(e)}`);
       return;
     }
     const attach = this.findRatingAttachTarget(url, draft);
@@ -18375,7 +18634,7 @@ var ImportModal = class extends import_obsidian18.Modal {
       this.urlInput.disabled = false;
       this.setStatus("", false);
       this.urlInput.parentElement?.addClass("fs-field-error");
-      this.msgEl.setText(`Couldn't save the spot \u2014 ${errorMessage4(e)}`);
+      this.msgEl.setText(`Couldn't save the spot \u2014 ${errorMessage5(e)}`);
     }
   }
   // -------------------------------------------------- attach rating source
@@ -18414,7 +18673,7 @@ var ImportModal = class extends import_obsidian18.Modal {
       attach.disabled = true;
       void this.attachRatingSource(target, source, draft.sourceUrl).catch((e) => {
         attach.disabled = false;
-        new import_obsidian18.Notice(`Couldn't attach the rating source \u2014 ${errorMessage4(e)}`);
+        new import_obsidian18.Notice(`Couldn't attach the rating source \u2014 ${errorMessage5(e)}`);
       });
     });
     const merge = actions.createEl("button", { text: "Merge into existing" });
@@ -18498,9 +18757,18 @@ function draftToInput(plugin, draft) {
     // v0.1 defect #3: external ratings survive the save.
     external: { ...f.external ?? {} },
     photo: f.photo,
+    menu: f.menu,
+    // Google returns opening hours and the pipeline puts them on the draft;
+    // omitting them here meant an imported note never carried the hours the
+    // import dialog had just shown.
+    hours: f.hours,
     tags: f.tags ?? [],
     visits: f.visits ?? [],
-    notes: f.notes ?? ""
+    notes: f.notes ?? "",
+    // Store-owned: a brand new note gets its own identity and timestamps.
+    legacyId: void 0,
+    ctime: void 0,
+    created: void 0
   };
 }
 function kindToSource2(kind) {
@@ -18523,11 +18791,11 @@ function showUndoNotice(plugin, spot) {
     notice.hide();
     plugin.store.deleteSpot(spot.path).then(
       () => new import_obsidian18.Notice("Import undone \u2014 the note went to the trash."),
-      (e) => new import_obsidian18.Notice(`Couldn't undo the import \u2014 ${errorMessage4(e)}`)
+      (e) => new import_obsidian18.Notice(`Couldn't undo the import \u2014 ${errorMessage5(e)}`)
     );
   });
 }
-function errorMessage4(e) {
+function errorMessage5(e) {
   return e instanceof Error ? e.message : String(e);
 }
 
@@ -18620,7 +18888,7 @@ var PLACEHOLDER = [
 function openListImportModal(plugin) {
   new ListImportModal(plugin).open();
 }
-function errorMessage5(e) {
+function errorMessage6(e) {
   return e instanceof Error ? e.message : String(e);
 }
 function sleep3(ms) {
@@ -18831,7 +19099,7 @@ var ListImportModal = class extends import_obsidian19.Modal {
         const found = await this.plugin.importer.searchPlaces(lookupQuery(name, near));
         result.candidates = found.slice(0, MAX_CANDIDATES);
       } catch (e) {
-        result.error = errorMessage5(e);
+        result.error = errorMessage6(e);
       }
       if (myGen !== this.gen) return;
       results.push(result);
@@ -19620,9 +19888,6 @@ var import_obsidian23 = require("obsidian");
 
 // src/ui/modals/quickAdd.ts
 var import_obsidian22 = require("obsidian");
-function todayIso4() {
-  return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-}
 var QuickAddModal = class extends import_obsidian22.Modal {
   constructor(plugin, spotName, suggestedPrice, resolve) {
     super(plugin.app);
@@ -19708,7 +19973,7 @@ var QuickAddModal = class extends import_obsidian22.Modal {
     });
     const visitRow = visitFields.createDiv({ cls: "fs-quickadd-row" });
     const dateInput = visitRow.createEl("input", { type: "date" });
-    dateInput.value = todayIso4();
+    dateInput.value = todayIso();
     const spentInput = visitRow.createEl("input", {
       type: "number",
       cls: "fs-visit-spent-input",
@@ -19784,7 +20049,7 @@ async function createWithQuickAdd(plugin, input, choice) {
 // src/ui/tabs/discover.ts
 var NO_KEY_HINT2 = "Add a Google Places API key in Settings \u2192 Food Spot \u2192 API";
 var MAX_KEYWORD_HINT = "thai, vegetarian, sushi\u2026";
-function errorMessage6(e) {
+function errorMessage7(e) {
   return e instanceof Error ? e.message : String(e);
 }
 function fmtCount3(n) {
@@ -19809,6 +20074,7 @@ var photoCache2 = /* @__PURE__ */ new Map();
 var inFlight = /* @__PURE__ */ new Set();
 var pendingLoaders2 = /* @__PURE__ */ new WeakMap();
 var sharedObserver2 = null;
+var thumbGen = 0;
 function observer2() {
   if (!sharedObserver2) {
     sharedObserver2 = new IntersectionObserver(
@@ -19834,6 +20100,7 @@ function releaseThumbs(root) {
   }
 }
 function disposeThumbs() {
+  thumbGen++;
   sharedObserver2?.disconnect();
   sharedObserver2 = null;
   for (const url of photoCache2.values()) {
@@ -19855,6 +20122,7 @@ function attachLazyThumb(thumbEl, places, photoRef) {
   thumbEl.dataset.needsPhoto = "true";
   pendingLoaders2.set(thumbEl, () => {
     void (async () => {
+      const gen = thumbGen;
       const known = photoCache2.get(photoRef);
       if (known !== void 0) {
         delete thumbEl.dataset.needsPhoto;
@@ -19869,10 +20137,14 @@ function attachLazyThumb(thumbEl, places, photoRef) {
       try {
         const { data, ext } = await places.fetchPlacePhoto(photoRef, 320);
         const url = URL.createObjectURL(new Blob([data], { type: mimeFor(ext) }));
+        if (gen !== thumbGen) {
+          URL.revokeObjectURL(url);
+          return;
+        }
         photoCache2.set(photoRef, url);
         renderThumb(thumbEl, url);
       } catch {
-        photoCache2.set(photoRef, NONE2);
+        if (gen === thumbGen) photoCache2.set(photoRef, NONE2);
       } finally {
         inFlight.delete(photoRef);
         delete thumbEl.dataset.needsPhoto;
@@ -19896,7 +20168,7 @@ function mountDiscoverTab(container, plugin) {
   const root = container.createDiv({ cls: "fs-discover" });
   const places = new PlacesClient(plugin);
   let searchGen = 0;
-  let loading = false;
+  let busyGen = null;
   let tileSync = [];
   let loadMoreTimer = null;
   const controls = root.createDiv({ cls: "fs-toolbar fs-discover-controls" });
@@ -19942,7 +20214,13 @@ function mountDiscoverTab(container, plugin) {
     });
     return btn;
   };
+  const invalidate = () => {
+    searchGen++;
+    setStatus("");
+  };
+  const busy = () => busyGen !== null && busyGen === searchGen;
   const dropResults = () => {
+    invalidate();
     state.location = "";
     state.keyword = keywordInput.value.trim();
     state.query = "";
@@ -19954,11 +20232,14 @@ function mountDiscoverTab(container, plugin) {
   };
   clearButton(locWrap, locationInput, dropResults);
   locationInput.addEventListener("input", () => {
-    if (locationInput.value.trim() === "" && state.results.length > 0) dropResults();
+    if (locationInput.value.trim() === "") dropResults();
+    else invalidate();
   });
   clearButton(kwWrap, keywordInput, () => {
+    invalidate();
     state.keyword = "";
   });
+  keywordInput.addEventListener("input", invalidate);
   const searchBtn = controls.createEl("button", {
     cls: "fs-btn fs-btn-accent",
     attr: { "aria-label": "Search restaurants", title: "Search restaurants" }
@@ -20010,7 +20291,7 @@ function mountDiscoverTab(container, plugin) {
     if (text !== "") statusEl.setText(text);
   }
   async function runSearch() {
-    if (loading) return;
+    if (busy()) return;
     if (!places.hasKey()) {
       new import_obsidian23.Notice(NO_KEY_HINT2);
       render();
@@ -20028,7 +20309,7 @@ function mountDiscoverTab(container, plugin) {
     state.location = location;
     state.keyword = keyword;
     state.query = query;
-    loading = true;
+    busyGen = gen;
     setStatus(`Searching Google for \u201C${query}\u201D\u2026`);
     try {
       const page = await places.textSearchPaged(query);
@@ -20041,18 +20322,18 @@ function mountDiscoverTab(container, plugin) {
       if (gen !== searchGen) return;
       state.results = [];
       delete state.nextPageToken;
-      state.error = errorMessage6(e);
+      state.error = errorMessage7(e);
       state.searched = true;
     } finally {
-      loading = false;
+      if (busyGen === gen) busyGen = null;
       if (gen === searchGen) setStatus("");
     }
     render();
   }
   async function loadMore(token, btn) {
-    if (loading) return;
+    if (busy()) return;
     const gen = searchGen;
-    loading = true;
+    busyGen = gen;
     btn.disabled = true;
     btn.setText("Loading\u2026");
     try {
@@ -20067,10 +20348,10 @@ function mountDiscoverTab(container, plugin) {
       delete state.error;
     } catch (e) {
       if (gen !== searchGen) return;
-      state.error = errorMessage6(e);
+      state.error = errorMessage7(e);
       delete state.nextPageToken;
     } finally {
-      loading = false;
+      if (busyGen === gen) busyGen = null;
     }
     render();
   }
@@ -20120,7 +20401,7 @@ function mountDiscoverTab(container, plugin) {
     } catch (e) {
       btn.disabled = false;
       btn.setText(label);
-      new import_obsidian23.Notice(`Couldn't add ${c.name} \u2014 ${errorMessage6(e)}`);
+      new import_obsidian23.Notice(`Couldn't add ${c.name} \u2014 ${errorMessage7(e)}`);
     }
   }
   function emptyState(icon, title, text, action) {
@@ -20259,6 +20540,7 @@ function mountDiscoverTab(container, plugin) {
     },
     destroy: () => {
       searchGen++;
+      busyGen = null;
       if (loadMoreTimer !== null) window.clearTimeout(loadMoreTimer);
       loadMoreTimer = null;
       releaseThumbs(bodyEl);
@@ -20347,7 +20629,7 @@ function buildCityGuide(spots, city, opts) {
   const selected = spots.filter(
     (s) => sameCity(s, city) && (opts.includeWantToTry || s.status === "visited")
   );
-  const footer = `Generated by Food Spot on ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}`;
+  const footer = `Generated by Food Spot on ${todayIso()}`;
   if (selected.length === 0) {
     const what = opts.includeWantToTry ? "spots" : "visited spots";
     return [`# ${title}`, "", `No ${what} here yet.`, "", footer, ""].join("\n");
@@ -20391,6 +20673,11 @@ function stars(rating) {
   const empty = "\u2606".repeat(Math.max(0, 5 - full - extra - (half ? 1 : 0)));
   return `${filled}${halfChar}${empty}`;
 }
+var SAFE_SCHEME = /^(?:https?|mailto|tel):/i;
+function safeHref(url) {
+  const trimmed2 = url.trim();
+  return SAFE_SCHEME.test(trimmed2) ? trimmed2 : null;
+}
 function hostOf2(url) {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -20414,8 +20701,9 @@ function card(spot, o) {
   if (place) rows.push(`<div class="line place">${esc(place)}</div>`);
   if (spot.phone) rows.push(`<div class="line phone">${esc(spot.phone)}</div>`);
   if (spot.url) {
+    const href = safeHref(spot.url);
     rows.push(
-      `<div class="line web"><a href="${esc(spot.url)}">${esc(hostOf2(spot.url))}</a></div>`
+      href !== null ? `<div class="line web"><a href="${esc(href)}">${esc(hostOf2(href))}</a></div>` : `<div class="line web">${esc(spot.url.trim())}</div>`
     );
   }
   const visited = spot.status === "visited" ? ' <span class="badge">visited</span>' : "";
@@ -20503,7 +20791,7 @@ function guidePhotoPaths(spots, city, includeWantToTry) {
 
 // src/store/backup.ts
 var import_obsidian24 = require("obsidian");
-var BACKUP_VERSION = 1;
+var BACKUP_VERSION = 2;
 function base64FromBuffer(buf) {
   const bytes = new Uint8Array(buf);
   let bin = "";
@@ -20519,32 +20807,83 @@ function bufferFromBase64(b64) {
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes.buffer;
 }
+function errMsg2(e) {
+  return e instanceof Error ? e.message : String(e);
+}
 function isVaultPath(ref) {
   return ref !== void 0 && ref !== "" && !/^https?:\/\//i.test(ref);
+}
+function mediaRefsOf(spot) {
+  const refs = [
+    spot.photo,
+    spot.menu,
+    // Strip the `|alias` suffix an embed may carry: an unstripped ref resolves
+    // to nothing and the dish photo would be left out of a "full" backup.
+    ...(spot.visits ?? []).flatMap((v) => (v.photos ?? []).map(embedRefPath))
+  ];
+  return refs.filter(isVaultPath).map((r) => r.trim()).filter((r) => r !== "");
+}
+function resolveRef(app, ref, sourcePath) {
+  const linked = app.metadataCache.getFirstLinkpathDest(ref, sourcePath);
+  if (linked) return linked;
+  const direct = app.vault.getAbstractFileByPath((0, import_obsidian24.normalizePath)(ref));
+  return direct instanceof import_obsidian24.TFile ? direct : null;
 }
 async function buildBackupJson(plugin) {
   const spots = plugin.store.getSpots();
   const media = {};
-  for (const s of spots) {
-    for (const ref of [s.photo, s.menu]) {
-      if (!isVaultPath(ref) || media[ref] !== void 0) continue;
-      const file = plugin.app.vault.getFileByPath((0, import_obsidian24.normalizePath)(ref));
-      if (!file) continue;
+  const notes = [];
+  const warnings = [];
+  for (const spot of spots) {
+    const refs = {};
+    for (const ref of mediaRefsOf(spot)) {
+      if (refs[ref] !== void 0) continue;
+      const file2 = resolveRef(plugin.app, ref, spot.path);
+      if (!file2) {
+        warnings.push(`${spot.name}: "${ref}" is not in the vault \u2014 not embedded.`);
+        continue;
+      }
+      refs[ref] = file2.path;
+      if (media[file2.path] !== void 0) continue;
       try {
-        media[ref] = base64FromBuffer(await plugin.app.vault.readBinary(file));
-      } catch {
+        media[file2.path] = base64FromBuffer(await plugin.app.vault.readBinary(file2));
+      } catch (e) {
+        warnings.push(`${spot.name}: "${file2.path}" could not be read (${errMsg2(e)}).`);
       }
     }
+    let markdown = "";
+    const file = plugin.store.fileFor(spot.path);
+    if (!file) {
+      warnings.push(`${spot.name}: note "${spot.path}" is gone \u2014 only its indexed record was saved.`);
+    } else {
+      try {
+        markdown = await plugin.app.vault.read(file);
+      } catch (e) {
+        warnings.push(
+          `${spot.name}: note text could not be read (${errMsg2(e)}) \u2014 only its indexed record was saved.`
+        );
+      }
+    }
+    notes.push({ path: spot.path, markdown, refs });
   }
   const payload = {
     format: "foodspot-backup",
     version: BACKUP_VERSION,
     exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
     spots,
-    media
+    notes,
+    media,
+    warnings
   };
-  const name = `Food Spot backup ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json`;
-  return { json: JSON.stringify(payload), suggestedName: name };
+  const name = `Food Spot backup ${todayIso()}.json`;
+  if (warnings.length > 0) {
+    const head = warnings.slice(0, 3).join(" ");
+    new import_obsidian24.Notice(
+      `Backup is INCOMPLETE \u2014 ${warnings.length} item${warnings.length === 1 ? "" : "s"} could not be included. ${head}${warnings.length > 3 ? " \u2026" : ""}`,
+      15e3
+    );
+  }
+  return { json: JSON.stringify(payload), suggestedName: name, warnings };
 }
 async function saveToDisk(defaultName, content) {
   const dialog = window.electron?.remote?.dialog;
@@ -20559,6 +20898,88 @@ async function saveToDisk(defaultName, content) {
   new import_obsidian24.Notice(`Saved to ${res.filePath}`);
   return true;
 }
+function vaultSegments(raw) {
+  const segments = raw.replace(/\\/g, "/").split("/").map((s) => s.trim()).filter((s) => s !== "" && s !== ".");
+  if (segments.some((s) => s === "..")) return null;
+  return segments.length > 0 ? segments : null;
+}
+function mediaTarget(mediaFolder, key) {
+  const segments = vaultSegments(key);
+  if (segments === null) return null;
+  const folder = vaultSegments(mediaFolder) ?? [];
+  const inside = folder.length > 0 && segments.length > folder.length && folder.every((seg, i) => segments[i] === seg);
+  const relative = inside ? segments.slice(folder.length) : [segments[segments.length - 1]];
+  return (0, import_obsidian24.normalizePath)([...folder, ...relative].join("/"));
+}
+function sameBytes(a, b) {
+  if (a.byteLength !== b.byteLength) return false;
+  const x = new Uint8Array(a);
+  const y = new Uint8Array(b);
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+  return true;
+}
+function availableBinaryPath(app, target) {
+  const slash = target.lastIndexOf("/");
+  const dot = target.lastIndexOf(".");
+  const hasExt = dot > slash + 1;
+  const base = hasExt ? target.slice(0, dot) : target;
+  const ext = hasExt ? target.slice(dot) : "";
+  let n = 2;
+  let candidate = `${base} ${n}${ext}`;
+  while (app.vault.getAbstractFileByPath(candidate)) {
+    n += 1;
+    candidate = `${base} ${n}${ext}`;
+  }
+  return candidate;
+}
+async function ensureParentFolder(app, target) {
+  const dir = target.split("/").slice(0, -1).join("/");
+  if (dir && app.vault.getFolderByPath(dir) === null) await ensureFolder(app, dir);
+}
+async function writeMedia(app, target, data) {
+  const existing = app.vault.getFileByPath(target);
+  if (existing) {
+    if (sameBytes(await app.vault.readBinary(existing), data)) {
+      return { path: existing.path, created: false };
+    }
+    const alt = availableBinaryPath(app, target);
+    await ensureParentFolder(app, alt);
+    await app.vault.createBinary(alt, data);
+    return { path: alt, created: true };
+  }
+  await ensureParentFolder(app, target);
+  await app.vault.createBinary(target, data);
+  return { path: target, created: true };
+}
+var FM_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/;
+function remapReferences(markdown, remap) {
+  if (remap.size === 0) return markdown;
+  const linked = markdown.replace(
+    /(!?\[\[)([^\]\n|#^]+)/g,
+    (whole, open, target) => {
+      const next = remap.get(target.trim());
+      return next === void 0 ? whole : `${open}${next}`;
+    }
+  );
+  const fm = FM_BLOCK.exec(linked);
+  if (!fm) return linked;
+  const rewritten = fm[0].replace(
+    /^(photo|menu):[ \t]*(.+)$/gm,
+    (whole, key, value) => {
+      const raw = value.trim().replace(/^["']|["']$/g, "").trim();
+      const next = remap.get(raw);
+      return next === void 0 ? whole : `${key}: ${next}`;
+    }
+  );
+  return rewritten + linked.slice(fm[0].length);
+}
+function remapVisits(visits, remap) {
+  if (remap.size === 0) return visits;
+  return visits.map((v) => {
+    if (!v.photos || v.photos.length === 0) return v;
+    return { ...v, photos: v.photos.map((p) => remap.get(p.trim()) ?? p) };
+  });
+}
 async function importBackup(plugin, json, onProgress, signal) {
   let parsed;
   try {
@@ -20570,23 +20991,46 @@ async function importBackup(plugin, json, onProgress, signal) {
     throw new Error("Not a Food Spot backup file.");
   }
   const summary = { created: 0, skipped: 0, mediaWritten: 0, errors: [] };
+  for (const w of Array.isArray(parsed.warnings) ? parsed.warnings : []) {
+    summary.errors.push(`backup was already incomplete \u2014 ${w}`);
+  }
+  const noteEntries = Array.isArray(parsed.notes) ? parsed.notes : [];
+  const notesByPath = /* @__PURE__ */ new Map();
+  for (const entry of noteEntries) {
+    if (entry && typeof entry.path === "string") notesByPath.set(entry.path, entry);
+  }
+  const referenced = /* @__PURE__ */ new Set();
+  for (const spot of parsed.spots) {
+    for (const ref of mediaRefsOf(spot)) referenced.add((0, import_obsidian24.normalizePath)(ref));
+  }
+  for (const entry of noteEntries) {
+    for (const [ref, path] of Object.entries(entry?.refs ?? {})) {
+      referenced.add((0, import_obsidian24.normalizePath)(ref));
+      if (typeof path === "string") referenced.add((0, import_obsidian24.normalizePath)(path));
+    }
+  }
   const mediaEntries = Object.entries(parsed.media ?? {});
   const total = mediaEntries.length + parsed.spots.length;
   let done = 0;
-  for (const [path, b64] of mediaEntries) {
+  const written = /* @__PURE__ */ new Map();
+  for (const [key, b64] of mediaEntries) {
     if (signal?.cancelled) return summary;
-    onProgress?.(done++, total, path.split("/").pop() ?? path);
-    const target = (0, import_obsidian24.normalizePath)(path);
-    if (plugin.app.vault.getFileByPath(target)) continue;
+    onProgress?.(done++, total, key.split("/").pop() ?? key);
+    if (!referenced.has((0, import_obsidian24.normalizePath)(key))) {
+      summary.errors.push(`media ${key}: no spot in this backup references it \u2014 not restored.`);
+      continue;
+    }
+    const target = mediaTarget(plugin.settings.mediaFolder, key);
+    if (target === null) {
+      summary.errors.push(`media ${key}: not a usable vault path \u2014 not restored.`);
+      continue;
+    }
     try {
-      const dir = target.split("/").slice(0, -1).join("/");
-      if (dir && plugin.app.vault.getFolderByPath(dir) === null) {
-        await plugin.app.vault.createFolder(dir).catch(() => void 0);
-      }
-      await plugin.app.vault.createBinary(target, bufferFromBase64(b64));
-      summary.mediaWritten++;
+      const result = await writeMedia(plugin.app, target, bufferFromBase64(b64));
+      written.set(key, result.path);
+      if (result.created) summary.mediaWritten++;
     } catch (e) {
-      summary.errors.push(`media ${path}: ${e instanceof Error ? e.message : String(e)}`);
+      summary.errors.push(`media ${key}: ${errMsg2(e)}`);
     }
   }
   const existingKeys = new Set(
@@ -20601,47 +21045,77 @@ async function importBackup(plugin, json, onProgress, signal) {
       continue;
     }
     try {
-      const input = {
-        name: spot.name,
-        cuisines: spot.cuisines ?? [],
-        country: spot.country ?? "",
-        city: spot.city,
-        district: spot.district,
-        address: spot.address,
-        coordinates: spot.coordinates,
-        status: spot.status === "visited" ? "visited" : "want-to-try",
-        favorite: spot.favorite === true,
-        rating: spot.rating,
-        ratingLocked: spot.ratingLocked === true,
-        price: spot.price,
-        url: spot.url,
-        phone: spot.phone,
-        source: spot.source ?? "manual",
-        sourceUrl: spot.sourceUrl,
-        external: spot.external ?? {},
-        photo: spot.photo,
-        menu: spot.menu,
-        tags: spot.tags ?? [],
-        visits: spot.visits ?? [],
-        legacyId: spot.legacyId,
-        notes: spot.notes ?? "",
-        created: spot.created
-      };
-      await plugin.store.createSpot(input);
+      const entry = notesByPath.get(spot.path);
+      const remap = /* @__PURE__ */ new Map();
+      if (entry) {
+        for (const [ref, original] of Object.entries(entry.refs ?? {})) {
+          const actual = written.get(original);
+          if (actual !== void 0 && actual !== (0, import_obsidian24.normalizePath)(original)) remap.set(ref, actual);
+        }
+      } else {
+        for (const ref of mediaRefsOf(spot)) {
+          const actual = written.get(ref);
+          if (actual !== void 0 && actual !== (0, import_obsidian24.normalizePath)(ref)) remap.set(ref, actual);
+        }
+      }
+      if (entry && entry.markdown.trim() !== "") {
+        const folder = spotFolder(plugin.settings, spot.country ?? "");
+        await ensureFolder(plugin.app, folder);
+        const path = availablePath(plugin.app, folder, spotFileName(spot.name, spot.city));
+        await plugin.app.vault.create(path, remapReferences(entry.markdown, remap));
+      } else {
+        const input = {
+          name: spot.name,
+          cuisines: spot.cuisines ?? [],
+          country: spot.country ?? "",
+          city: spot.city,
+          district: spot.district,
+          address: spot.address,
+          coordinates: spot.coordinates,
+          status: spot.status === "visited" ? "visited" : "want-to-try",
+          favorite: spot.favorite === true,
+          rating: spot.rating,
+          ratingLocked: spot.ratingLocked === true,
+          price: spot.price,
+          url: spot.url,
+          phone: spot.phone,
+          source: spot.source ?? "manual",
+          sourceUrl: spot.sourceUrl,
+          external: spot.external ?? {},
+          photo: spot.photo === void 0 ? void 0 : remap.get(spot.photo.trim()) ?? spot.photo,
+          menu: spot.menu === void 0 ? void 0 : remap.get(spot.menu.trim()) ?? spot.menu,
+          hours: spot.hours,
+          tags: spot.tags ?? [],
+          visits: remapVisits(spot.visits ?? [], remap),
+          legacyId: spot.legacyId,
+          notes: spot.notes ?? "",
+          created: spot.created
+        };
+        await plugin.store.createSpot(input);
+      }
       existingKeys.add(key);
       summary.created++;
     } catch (e) {
-      summary.errors.push(`${spot.name}: ${e instanceof Error ? e.message : String(e)}`);
+      summary.errors.push(`${spot.name}: ${errMsg2(e)}`);
     }
   }
   new import_obsidian24.Notice(
-    `Restore: ${summary.created} spots created, ${summary.skipped} already existed, ${summary.mediaWritten} media files written${summary.errors.length ? `, ${summary.errors.length} errors` : ""}.`
+    `Restore: ${summary.created} spots created, ${summary.skipped} already existed, ${summary.mediaWritten} media files written${summary.errors.length ? `, ${summary.errors.length} problems (see below)` : ""}.`
   );
+  if (summary.errors.length > 0) {
+    new import_obsidian24.Notice(
+      `Restore problems: ${summary.errors.slice(0, 3).join(" ")}${summary.errors.length > 3 ? " \u2026" : ""}`,
+      15e3
+    );
+  }
   return summary;
 }
 
 // src/tools/pdfExport.ts
 var import_obsidian25 = require("obsidian");
+function errorText(e) {
+  return e instanceof Error ? e.message : String(e);
+}
 function electron() {
   const req = globalThis.require;
   if (typeof req !== "function") return null;
@@ -20660,27 +21134,38 @@ function electron() {
         fs.writeFileSync(p, content);
         return p;
       },
+      removeFile: (p) => fs.unlinkSync(p),
       openPath: el.remote?.shell ? (p) => el.remote?.shell?.openPath(p) : void 0
     };
   } catch {
     return null;
   }
 }
-function canExportPdf() {
-  return electron() !== null;
-}
 async function exportHtmlToPdf(html, suggestedName) {
   const bits = electron();
   if (!bits) {
-    new import_obsidian25.Notice("Direct PDF export is only available on desktop.");
-    return false;
+    new import_obsidian25.Notice("Direct PDF export needs the desktop app \u2014 opening the print dialog instead.");
+    return "failed";
   }
-  const res = await bits.showSaveDialog({
-    defaultPath: suggestedName,
-    filters: [{ name: "PDF", extensions: ["pdf"] }]
-  });
-  if (res.canceled || !res.filePath) return false;
-  const tmpPath = bits.tmpFile(`foodspot-guide-${Date.now()}.html`, html);
+  let res;
+  try {
+    res = await bits.showSaveDialog({
+      defaultPath: suggestedName,
+      filters: [{ name: "PDF", extensions: ["pdf"] }]
+    });
+  } catch (e) {
+    new import_obsidian25.Notice(`Couldn't open the save dialog \u2014 ${errorText(e)}`);
+    return "failed";
+  }
+  if (res.canceled || !res.filePath) return "cancelled";
+  const target = res.filePath;
+  let tmpPath;
+  try {
+    tmpPath = bits.tmpFile(`foodspot-guide-${Date.now()}.html`, html);
+  } catch (e) {
+    new import_obsidian25.Notice(`Couldn't prepare the guide for printing \u2014 ${errorText(e)}`);
+    return "failed";
+  }
   const view = document.createElement("webview");
   view.setAttribute("nodeintegration", "false");
   view.style.cssText = // 794x1123 = A4 at 96dpi, so CSS layout == printed page.
@@ -20688,15 +21173,25 @@ async function exportHtmlToPdf(html, suggestedName) {
   view.src = `file://${tmpPath}`;
   return new Promise((resolve) => {
     let settled = false;
+    let timeoutId = 0;
     const cleanup = () => {
+      window.clearTimeout(timeoutId);
       view.remove();
+      try {
+        bits.removeFile(tmpPath);
+      } catch (e) {
+        new import_obsidian25.Notice(
+          `Couldn't remove the temporary guide file \u2014 delete ${tmpPath} yourself (${errorText(e)}).`,
+          1e4
+        );
+      }
     };
     const fail = (msg) => {
       if (settled) return;
       settled = true;
       cleanup();
       new import_obsidian25.Notice(msg);
-      resolve(false);
+      resolve("failed");
     };
     const onReady = () => {
       window.setTimeout(() => {
@@ -20708,14 +21203,14 @@ async function exportHtmlToPdf(html, suggestedName) {
               // Margins live in the document's own page padding.
               margins: { marginType: "none" }
             });
-            bits.writeFile(res.filePath, data);
+            bits.writeFile(target, data);
             settled = true;
             cleanup();
-            new import_obsidian25.Notice(`PDF saved to ${res.filePath}`);
-            bits.openPath?.(res.filePath);
-            resolve(true);
+            new import_obsidian25.Notice(`PDF saved to ${target}`);
+            bits.openPath?.(target);
+            resolve("saved");
           } catch (e) {
-            fail(`Couldn't write the PDF \u2014 ${e instanceof Error ? e.message : String(e)}`);
+            fail(`Couldn't write the PDF \u2014 ${errorText(e)}`);
           }
         })();
       }, 350);
@@ -20726,7 +21221,7 @@ async function exportHtmlToPdf(html, suggestedName) {
       () => fail("The guide couldn't be rendered for PDF export."),
       { once: true }
     );
-    window.setTimeout(() => fail("PDF export timed out."), 2e4);
+    timeoutId = window.setTimeout(() => fail("PDF export timed out."), 2e4);
     document.body.appendChild(view);
   });
 }
@@ -20735,7 +21230,7 @@ async function exportHtmlToPdf(html, suggestedName) {
 function openCityGuideModal(plugin, city) {
   new CityGuideModal(plugin, city).open();
 }
-function errorMessage7(e) {
+function errorMessage8(e) {
   return e instanceof Error ? e.message : String(e);
 }
 function cityOptions(spots) {
@@ -20816,8 +21311,10 @@ var CityGuideModal = class extends import_obsidian26.Modal {
     pdf.addEventListener("click", () => {
       pdf.disabled = true;
       pdf.setText("Saving\u2026");
-      void exportHtmlToPdf(this.html, `${sanitizeFileName3(this.noteTitle())}.pdf`).then((saved) => {
-        if (!saved && !canExportPdf()) this.print();
+      void exportHtmlToPdf(this.html, `${sanitizeFileName3(this.noteTitle())}.pdf`).then((outcome) => {
+        if (outcome === "failed") this.print();
+      }).catch((e) => {
+        new import_obsidian26.Notice(`PDF export failed \u2014 ${errorMessage8(e)}. Use "Save HTML\u2026" instead.`);
       }).finally(() => {
         pdf.disabled = false;
         pdf.setText("Save as PDF\u2026");
@@ -20831,7 +21328,7 @@ var CityGuideModal = class extends import_obsidian26.Modal {
     const copy = buttons.createEl("button", { text: "Copy markdown" });
     copy.type = "button";
     copy.addEventListener("click", () => {
-      void navigator.clipboard.writeText(this.markdown()).then(() => new import_obsidian26.Notice(`Guide for ${this.city} copied.`)).catch((e) => new import_obsidian26.Notice(`Couldn't copy \u2014 ${errorMessage7(e)}`));
+      void navigator.clipboard.writeText(this.markdown()).then(() => new import_obsidian26.Notice(`Guide for ${this.city} copied.`)).catch((e) => new import_obsidian26.Notice(`Couldn't copy \u2014 ${errorMessage8(e)}`));
     });
     const save = buttons.createEl("button", { text: "Save as note" });
     save.type = "button";
@@ -20890,7 +21387,7 @@ var CityGuideModal = class extends import_obsidian26.Modal {
       win.focus();
       win.print();
     } catch (e) {
-      new import_obsidian26.Notice(`Couldn't open the print dialog \u2014 ${errorMessage7(e)}. Use "Save HTML\u2026" instead.`);
+      new import_obsidian26.Notice(`Couldn't open the print dialog \u2014 ${errorMessage8(e)}. Use "Save HTML\u2026" instead.`);
     }
   }
   async saveAsNote() {
@@ -20910,7 +21407,7 @@ var CityGuideModal = class extends import_obsidian26.Modal {
         await this.plugin.app.workspace.getLeaf("tab").openFile(file);
       }
     } catch (e) {
-      new import_obsidian26.Notice(`Couldn't save the guide \u2014 ${errorMessage7(e)}`);
+      new import_obsidian26.Notice(`Couldn't save the guide \u2014 ${errorMessage8(e)}`);
     }
   }
   onClose() {
@@ -21534,7 +22031,6 @@ function mountVisitsTab(container, plugin) {
 
 // src/ui/tabs/dashboard.ts
 var import_obsidian30 = require("obsidian");
-var DAY_MS = 864e5;
 var RING_R = 45;
 var RING_C = 2 * Math.PI * RING_R;
 function clamp01(n) {
@@ -21542,15 +22038,15 @@ function clamp01(n) {
 }
 function daysSince(iso) {
   if (!iso) return Infinity;
-  const t = Date.parse(iso);
-  return Number.isNaN(t) ? Infinity : (Date.now() - t) / DAY_MS;
+  const d = daysSinceCalendar(iso);
+  return Number.isNaN(d) ? Infinity : d;
 }
 function agoText(iso) {
   const d = daysSince(iso);
   if (!Number.isFinite(d)) return "never";
-  if (d < 1) return "today";
-  if (d < 2) return "yesterday";
-  if (d < 30) return `${Math.floor(d)} days ago`;
+  if (d <= 0) return "today";
+  if (d === 1) return "yesterday";
+  if (d < 30) return `${d} days ago`;
   if (d < 365) return `${Math.floor(d / 30)} mo ago`;
   const y = Math.floor(d / 365);
   return `${y} ${y === 1 ? "year" : "years"} ago`;
@@ -22159,7 +22655,7 @@ function mountDashboardTab(container, plugin) {
       buildSpotCard(cell, s, { plugin, mini: true });
     }
   };
-  const addedAt = (s) => s.ctime ?? (s.created ? Date.parse(s.created) || 0 : 0);
+  const addedAt = (s) => s.ctime ?? (s.created ? parseCalendarDate(s.created)?.getTime() ?? 0 : 0);
   const section = (label, fn) => {
     try {
       fn();
@@ -22439,7 +22935,12 @@ function unionList(keep, drop) {
   return out;
 }
 function visitKey(v) {
-  return `${v.date}\0${v.note.trim().toLowerCase()}`;
+  return [
+    v.date,
+    v.rating === void 0 ? "" : String(v.rating),
+    v.spent === void 0 ? "" : String(v.spent),
+    v.note.trim().toLowerCase()
+  ].join("|");
 }
 function mergeVisit(keep, drop) {
   const photos = unionList(keep.photos ?? [], drop.photos ?? []);
@@ -22548,12 +23049,91 @@ ${drop.notes.trimStart()}`;
   }
   return patch;
 }
+var MANAGED_SECTIONS = ["## Notes", "## Visits"];
+var CACHE_ONLY_KEYS = /* @__PURE__ */ new Set(["position"]);
+var FENCE_RE2 = /^ {0,3}(`{3,}|~{3,})/;
+var H1_H2_RE = /^#{1,2}[ \t]/;
+function bodyOf(content) {
+  const m = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(content);
+  return m ? content.slice(m[0].length) : content;
+}
+function unmergedContent(content) {
+  const out = [];
+  const consumed = /* @__PURE__ */ new Set();
+  let inFence = false;
+  let fenceChar = "";
+  let fenceLen = 0;
+  let skipping = null;
+  for (const raw of bodyOf(content).split(/\r?\n/)) {
+    const line = raw.replace(/\r$/, "");
+    const fence2 = FENCE_RE2.exec(line);
+    if (inFence) {
+      if (fence2 !== null && fence2[1][0] === fenceChar && fence2[1].length >= fenceLen && line.slice(fence2[0].length).trim() === "") {
+        inFence = false;
+      }
+      if (skipping !== "## Notes") out.push(line);
+      continue;
+    }
+    if (fence2 !== null) {
+      inFence = true;
+      fenceChar = fence2[1][0];
+      fenceLen = fence2[1].length;
+      if (skipping !== "## Notes") out.push(line);
+      continue;
+    }
+    if (skipping !== null) {
+      if (!H1_H2_RE.test(line)) {
+        if (skipping === "## Visits" && line.trim() !== "" && parseVisitLine(line) === null) {
+          out.push(line);
+        }
+        continue;
+      }
+      skipping = null;
+    }
+    const heading = line.replace(/[ \t]+$/, "");
+    if (MANAGED_SECTIONS.includes(heading) && !consumed.has(heading)) {
+      consumed.add(heading);
+      skipping = heading;
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function hasUnmanagedFrontmatter(dropFm, managedKeys) {
+  return Object.keys(dropFm).some((k) => !managedKeys.has(k) && !CACHE_ONLY_KEYS.has(k));
+}
+function planFrontmatterCarry(dropFm, keepFm, managedKeys) {
+  const carry = { add: {}, conflicts: [] };
+  for (const [key, value] of Object.entries(dropFm)) {
+    if (managedKeys.has(key) || CACHE_ONLY_KEYS.has(key)) continue;
+    if (!(key in keepFm)) {
+      carry.add[key] = value;
+    } else if (JSON.stringify(keepFm[key]) !== JSON.stringify(value)) {
+      carry.conflicts.push(`${key}: ${JSON.stringify(value)}`);
+    }
+  }
+  return carry;
+}
+function carryOverBlock(dropName, leftover, conflicts) {
+  if (leftover === "" && conflicts.length === 0) return "";
+  const parts = [`## Merged from "${dropName}"`];
+  if (conflicts.length > 0) {
+    parts.push(
+      "Properties from the merged note that this note already defines differently:",
+      conflicts.map((c) => `- ${c}`).join("\n")
+    );
+  }
+  if (leftover !== "") parts.push(leftover);
+  return `${parts.join("\n\n")}
+`;
+}
 
 // src/ui/modals/duplicates.ts
 function openDuplicatesModal(plugin) {
   new DuplicatesModal(plugin).open();
 }
-function errMsg2(e) {
+function errMsg3(e) {
   return e instanceof Error ? e.message : String(e);
 }
 var REASON_ICON = {
@@ -22584,6 +23164,17 @@ function summaryOf(spot) {
 }
 function locationOf(spot) {
   return [spot.city, spot.country].filter((v) => (v ?? "").trim() !== "").join(", ");
+}
+function managedFrontmatterKeys(spot) {
+  return new Set(
+    Object.keys(
+      frontmatterFromInput(
+        spot,
+        { visitCount: spot.visitCount, lastVisit: spot.lastVisit, rating: spot.rating },
+        { created: spot.created, updated: spot.updated }
+      )
+    )
+  );
 }
 var DuplicatesModal = class extends import_obsidian32.Modal {
   constructor(plugin) {
@@ -22617,7 +23208,7 @@ var DuplicatesModal = class extends import_obsidian32.Modal {
       all = findDuplicates(this.plugin.store.getSpots());
     } catch (e) {
       all = [];
-      new import_obsidian32.Notice(`Duplicate scan failed: ${errMsg2(e)}`);
+      new import_obsidian32.Notice(`Duplicate scan failed: ${errMsg3(e)}`);
     }
     this.pairs = all.filter(
       (p) => !this.dismissed.has(pairKey(p.a, p.b)) && !this.gone.has(p.a.path) && !this.gone.has(p.b.path)
@@ -22680,7 +23271,7 @@ var DuplicatesModal = class extends import_obsidian32.Modal {
     if (this.busy) return;
     const ok = await confirmModal(this.app, {
       title: `Merge "${drop.name}" into "${keep.name}"?`,
-      body: `"${drop.name}" is merged into "${keep.name}" and its note moves to the trash. Visits, ratings and photos are combined.`,
+      body: `"${drop.name}" is merged into "${keep.name}" and its note moves to the trash. Visits, ratings and photos are combined; anything else on the note \u2014 custom properties, extra sections, your own lines under Visits \u2014 is appended to "${keep.name}" first.`,
       cta: `Merge into ${keep.name}`,
       danger: true
     });
@@ -22688,21 +23279,52 @@ var DuplicatesModal = class extends import_obsidian32.Modal {
     this.busy = true;
     for (const b of buttons) b.disabled = true;
     try {
+      const keepFile = this.plugin.store.fileFor(keep.path);
+      const dropFile = this.plugin.store.fileFor(drop.path);
+      if (!keepFile || !dropFile) {
+        new import_obsidian32.Notice(
+          `Merge cancelled \u2014 the note for "${keepFile ? drop.name : keep.name}" is no longer in the vault. Nothing was changed.`,
+          1e4
+        );
+        for (const b of buttons) b.disabled = false;
+        return;
+      }
+      let dropContent;
       try {
-        await this.plugin.store.updateSpot(keep.path, planMerge(keep, drop));
+        dropContent = await this.app.vault.read(dropFile);
       } catch (e) {
         new import_obsidian32.Notice(
-          `Merge failed \u2014 "${keep.name}" was not changed and "${drop.name}" is still there: ${errMsg2(e)}`,
+          `Merge cancelled \u2014 "${drop.name}" could not be read (${errMsg3(e)}). Nothing was changed.`,
           1e4
         );
         for (const b of buttons) b.disabled = false;
         return;
       }
       try {
+        await this.plugin.store.updateSpot(keep.path, planMerge(keep, drop));
+      } catch (e) {
+        new import_obsidian32.Notice(
+          `Merge failed \u2014 "${keep.name}" was not changed and "${drop.name}" is still there: ${errMsg3(e)}`,
+          1e4
+        );
+        for (const b of buttons) b.disabled = false;
+        return;
+      }
+      try {
+        await this.carryOver(keepFile, dropFile, drop, dropContent);
+      } catch (e) {
+        new import_obsidian32.Notice(
+          `"${keep.name}" now holds the combined data, but the extra sections and properties of "${drop.name}" could not be copied across (${errMsg3(e)}) \u2014 that note was left in place, so nothing is lost. Move the rest by hand, then delete it.`,
+          15e3
+        );
+        this.rescan();
+        return;
+      }
+      try {
         await this.plugin.store.deleteSpot(drop.path);
       } catch (e) {
         new import_obsidian32.Notice(
-          `"${keep.name}" now holds the combined data, but "${drop.name}" could not be trashed (${errMsg2(e)}) \u2014 delete that note by hand.`,
+          `"${keep.name}" now holds the combined data, but "${drop.name}" could not be trashed (${errMsg3(e)}) \u2014 delete that note by hand.`,
           1e4
         );
         this.rescan();
@@ -22718,6 +23340,32 @@ var DuplicatesModal = class extends import_obsidian32.Modal {
     } finally {
       this.busy = false;
     }
+  }
+  /**
+   * Copy everything `planMerge` cannot express onto the kept note: unknown
+   * frontmatter keys it does not have yet, and the dropped note's body outside
+   * the managed sections. Throws if either write fails — the caller then leaves
+   * the dropped note alone.
+   */
+  async carryOver(keepFile, dropFile, drop, dropContent) {
+    const dropFm = this.app.metadataCache.getFileCache(dropFile)?.frontmatter ?? {};
+    const managed = managedFrontmatterKeys(drop);
+    let conflicts = [];
+    if (hasUnmanagedFrontmatter(dropFm, managed)) {
+      await this.app.fileManager.processFrontMatter(keepFile, (fm) => {
+        const carry = planFrontmatterCarry(dropFm, fm, managed);
+        conflicts = carry.conflicts;
+        for (const [key, value] of Object.entries(carry.add)) fm[key] = value;
+      });
+    }
+    const block = carryOverBlock(drop.name, unmergedContent(dropContent), conflicts);
+    if (block === "") return;
+    await this.app.vault.process(keepFile, (content) => {
+      const base = content.replace(/\s+$/, "");
+      return base === "" ? block : `${base}
+
+${block}`;
+    });
   }
 };
 
@@ -22777,7 +23425,7 @@ var NAV_SECTIONS = [
 ];
 var CARD_WIDTHS = [100, 120, 140, 160, 185, 215, 250];
 var GOOGLE_KEY_URL = "https://developers.google.com/maps/documentation/places/web-service/get-api-key";
-function errMsg3(e) {
+function errMsg4(e) {
   return e instanceof Error ? e.message : String(e);
 }
 function csvCell(v) {
@@ -22838,6 +23486,72 @@ function spotsToCsv(spots) {
     );
   }
   return lines.join("\n") + "\n";
+}
+var DISH_FILE_SUFFIX = /\s\d{4}-\d{2}-\d{2}(\s\d+)?$/;
+function classifyMediaFolder(app, settings, spots) {
+  const folderPath = (0, import_obsidian34.normalizePath)(settings.mediaFolder);
+  const folder = app.vault.getFolderByPath(folderPath);
+  if (!folder) return null;
+  const spotsRoot = (0, import_obsidian34.normalizePath)(settings.spotsFolder);
+  const dedicated = folderPath !== spotsRoot && folderPath.startsWith(`${spotsRoot}/`);
+  const spotPaths = new Set(spots.map((s) => s.path));
+  const referenced = /* @__PURE__ */ new Set();
+  for (const spot of spots) {
+    const refs = [
+      spot.photo,
+      spot.menu,
+      // Dish photos are embed targets and may carry a `|300` display alias —
+      // an unstripped ref resolves to nothing, and the file behind it would
+      // then be classed as unreferenced and trashed by the sweep below.
+      ...spot.visits.flatMap((v) => (v.photos ?? []).map(embedRefPath))
+    ];
+    for (const ref of refs) {
+      if (!ref || /^https?:\/\//i.test(ref)) continue;
+      const f = app.metadataCache.getFirstLinkpathDest(ref, spot.path) ?? app.vault.getAbstractFileByPath((0, import_obsidian34.normalizePath)(ref));
+      referenced.add(f instanceof import_obsidian34.TFile ? f.path : (0, import_obsidian34.normalizePath)(ref));
+    }
+  }
+  const linkedElsewhere = /* @__PURE__ */ new Set();
+  for (const [source, targets] of Object.entries(app.metadataCache.resolvedLinks)) {
+    if (spotPaths.has(source)) continue;
+    for (const target of Object.keys(targets)) linkedElsewhere.add(target);
+  }
+  const dishDir = `${folderPath}/dishes`;
+  const spotBases = /* @__PURE__ */ new Set();
+  for (const spot of spots) {
+    const name = spot.name.trim().toLowerCase();
+    if (name) spotBases.add(name);
+    const sanitized = sanitizeFileName2(spot.name).trim().toLowerCase();
+    if (sanitized) spotBases.add(sanitized);
+  }
+  const pluginNamed = (file) => {
+    if (file.parent?.path === dishDir) return DISH_FILE_SUFFIX.test(file.basename);
+    const base = file.basename.trim().toLowerCase();
+    return spotBases.has(base) || spotBases.has(base.replace(/\s+\d+$/, "").trim());
+  };
+  const owned = [];
+  const leftAlone = [];
+  const walk = (dir) => {
+    for (const child of dir.children) {
+      if (child instanceof import_obsidian34.TFolder) {
+        walk(child);
+        continue;
+      }
+      if (!(child instanceof import_obsidian34.TFile)) continue;
+      if (linkedElsewhere.has(child.path)) {
+        leftAlone.push({ file: child, reason: "linked from another note" });
+      } else if (referenced.has(child.path) || dedicated || pluginNamed(child)) {
+        owned.push(child);
+      } else {
+        leftAlone.push({ file: child, reason: "not created by Food Spot" });
+      }
+    }
+  };
+  walk(folder);
+  return { owned, leftAlone, referenced, dedicated, folderPath };
+}
+function plural(n, noun) {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
   constructor(app, plugin) {
@@ -22990,7 +23704,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     );
     this.addHelp(org, "Only affects newly created notes. Moving a note never breaks it.");
     const relocate = new import_obsidian34.Setting(c).setName("Apply folder layout to existing notes").setDesc(
-      "Moves every spot note into the folder configured above (with per-country subfolders when enabled). Wiki-links keep working; emptied old folders are cleaned up."
+      "Moves every spot note into the folder configured above (with per-country subfolders when enabled). Wiki-links keep working; subfolders of the spots folder that end up empty are cleaned up."
     );
     relocate.addButton(
       (b) => b.setButtonText("Relocate notes").onClick(async () => {
@@ -23002,7 +23716,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
             8e3
           );
         } catch (e) {
-          new import_obsidian34.Notice(`Relocation failed: ${errMsg3(e)}`);
+          new import_obsidian34.Notice(`Relocation failed: ${errMsg4(e)}`);
         } finally {
           b.setDisabled(false);
         }
@@ -23010,7 +23724,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     );
     this.addHelp(
       relocate,
-      "Use this after changing the spots folder or the per-country toggle. Notes are moved with Obsidian's rename (links and backlinks update automatically); nothing is copied or deleted."
+      "Use this after changing the spots folder or the per-country toggle. Notes are moved with Obsidian's rename (links and backlinks update automatically); nothing is copied or deleted. Folders outside the spots folder are never trashed, even when they end up empty."
     );
     const media = new import_obsidian34.Setting(c).setName("Media folder").setDesc("Vault folder where photos fetched by Google enrichment are saved. Type to search existing folders.").addText((t) => {
       t.setPlaceholder("Food Spot/_media").setValue(s.mediaFolder).onChange(async (v) => {
@@ -23105,13 +23819,13 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     exp.settingEl.addClass("fs-setting-stack");
     exp.addButton(
       (b) => b.setButtonText("Export CSV\u2026").onClick(async () => {
-        const date = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+        const date = todayIso();
         await saveToDisk(`Food Spot export ${date}.csv`, spotsToCsv(this.spots()));
       })
     );
     exp.addButton(
       (b) => b.setButtonText("Export JSON\u2026").onClick(async () => {
-        const date = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+        const date = todayIso();
         await saveToDisk(
           `Food Spot export ${date}.json`,
           JSON.stringify(this.spots(), null, 2)
@@ -23133,7 +23847,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
           const { json, suggestedName } = await buildBackupJson(this.plugin);
           await saveToDisk(suggestedName, json);
         } catch (e) {
-          new import_obsidian34.Notice(`Backup failed: ${errMsg3(e)}`);
+          new import_obsidian34.Notice(`Backup failed: ${errMsg4(e)}`);
         } finally {
           b.setDisabled(false);
         }
@@ -23161,7 +23875,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
             signal
           );
         } catch (e) {
-          new import_obsidian34.Notice(`Restore failed: ${errMsg3(e)}`);
+          new import_obsidian34.Notice(`Restore failed: ${errMsg4(e)}`);
         } finally {
           progress.finish();
           b.setDisabled(false);
@@ -23181,7 +23895,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         try {
           openDuplicatesModal(this.plugin);
         } catch (e) {
-          new import_obsidian34.Notice(`Duplicate scan failed: ${errMsg3(e)}`);
+          new import_obsidian34.Notice(`Duplicate scan failed: ${errMsg4(e)}`);
         }
       })
     );
@@ -23196,58 +23910,46 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       (b) => b.setButtonText("Find unused files").onClick(async () => {
         b.setDisabled(true);
         try {
-          const folder = this.app.vault.getFolderByPath(
-            (0, import_obsidian34.normalizePath)(this.plugin.settings.mediaFolder)
-          );
-          if (!folder) {
+          const plan = classifyMediaFolder(this.app, this.plugin.settings, this.spots());
+          if (!plan) {
             new import_obsidian34.Notice("No media folder yet \u2014 nothing to clean up.");
             return;
           }
-          const referenced = /* @__PURE__ */ new Set();
-          for (const spot of this.spots()) {
-            const refs = [
-              spot.photo,
-              spot.menu,
-              ...spot.visits.flatMap((v) => v.photos ?? [])
-            ];
-            for (const ref of refs) {
-              if (!ref || /^https?:\/\//i.test(ref)) continue;
-              const f = this.app.metadataCache.getFirstLinkpathDest(ref, spot.path) ?? this.app.vault.getAbstractFileByPath((0, import_obsidian34.normalizePath)(ref));
-              referenced.add(f instanceof import_obsidian34.TFile ? f.path : (0, import_obsidian34.normalizePath)(ref));
-            }
-          }
-          const allMedia = [];
-          const walk = (dir) => {
-            for (const child of dir.children) {
-              if (child instanceof import_obsidian34.TFile) allMedia.push(child);
-              else if (child instanceof import_obsidian34.TFolder) walk(child);
-            }
-          };
-          walk(folder);
-          const orphans = allMedia.filter((f) => !referenced.has(f.path));
+          const spared = plan.leftAlone.length;
+          const sparedNote = spared > 0 ? ` ${plural(spared, "other file")} in ${plan.folderPath} ${spared === 1 ? "is" : "are"} linked from other notes or not created by Food Spot \u2014 left alone.` : "";
+          const orphans = plan.owned.filter((f) => !plan.referenced.has(f.path));
           if (orphans.length === 0) {
-            new import_obsidian34.Notice("No unused media files \u2014 the folder is tidy.");
+            new import_obsidian34.Notice(
+              spared > 0 ? `No unused Food Spot media.${sparedNote}` : "No unused media files \u2014 the folder is tidy.",
+              spared > 0 ? 8e3 : void 0
+            );
             return;
           }
           const names = orphans.slice(0, 8).map((f) => f.name).join(", ");
           const ok = await confirmModal(this.app, {
-            title: `Trash ${orphans.length} unused file${orphans.length === 1 ? "" : "s"}?`,
-            body: `${names}${orphans.length > 8 ? `, and ${orphans.length - 8} more` : ""}. No spot references ${orphans.length === 1 ? "it" : "them"} any more. Files go to the trash and can be restored.`,
+            title: `Trash ${plural(orphans.length, "unused file")}?`,
+            body: `${names}${orphans.length > 8 ? `, and ${orphans.length - 8} more` : ""}. No spot references ${orphans.length === 1 ? "it" : "them"} any more. Files go to the trash and can be restored.${sparedNote}`,
             cta: "Trash them",
             danger: true
           });
           if (!ok) return;
           let n = 0;
+          const failed = [];
           for (const f of orphans) {
             try {
               await this.app.fileManager.trashFile(f);
               n++;
             } catch {
+              failed.push(f.name);
             }
           }
-          new import_obsidian34.Notice(`Trashed ${n} unused media file${n === 1 ? "" : "s"}.`);
+          const problem = failed.length > 0 ? ` ${plural(failed.length, "file")} couldn't be trashed (${failed.slice(0, 5).join(", ")}) \u2014 they may be open elsewhere or read-only.` : "";
+          new import_obsidian34.Notice(
+            `Trashed ${plural(n, "unused media file")}.${problem}${sparedNote}`,
+            failed.length > 0 || spared > 0 ? 1e4 : void 0
+          );
         } catch (e) {
-          new import_obsidian34.Notice(`Cleanup failed: ${errMsg3(e)}`);
+          new import_obsidian34.Notice(`Cleanup failed: ${errMsg4(e)}`);
         } finally {
           b.setDisabled(false);
         }
@@ -23255,7 +23957,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     );
     this.addHelp(
       sweep,
-      "Cover photos, menu files and every dish photo embedded on a visit count as referenced \u2014 only genuinely orphaned files are listed. Deleting a restaurant leaves its photo in place on purpose, so a mis-click never costs you an image; this sweeps the leftovers when you want the space back."
+      "Cover photos, menu files and every dish photo embedded on a visit count as referenced \u2014 only genuinely orphaned files are listed. A file any other note in your vault links to, or that Food Spot cannot show it created, is never trashed \u2014 so pointing the media folder at a shared attachments folder is safe. Deleting a restaurant leaves its photo in place on purpose, so a mis-click never costs you an image; this sweeps the leftovers when you want the space back."
     );
     const danger = new import_obsidian34.Setting(c).setName("Delete all restaurant data").setDesc(
       "Trashes every spot note (recoverable from the trash). Consider exporting a full backup first."
@@ -23271,6 +23973,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     const s = this.plugin.settings;
     const res = { moved: 0, kept: 0, failed: 0 };
     const sourceParents = /* @__PURE__ */ new Set();
+    await this.relocateMedia();
     for (const spot of this.spots()) {
       const file = this.plugin.store.fileFor(spot.path);
       if (!file) {
@@ -23299,49 +24002,108 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         res.failed++;
       }
     }
+    await this.sweepEmptyFolders(sourceParents);
+    return res;
+  }
+  /**
+   * If the media folder lives OUTSIDE the spots folder (typical after the
+   * spots folder was changed), bring it along: move every file (including
+   * `dishes/` and any other subfolder), rewrite the photo/menu references of
+   * the files that actually moved, and update the setting — one folder, not
+   * two. A file whose destination is taken stays put AND keeps its reference:
+   * repointing a note at a same-named stranger is worse than not moving.
+   */
+  async relocateMedia() {
+    const s = this.plugin.settings;
     const media = (0, import_obsidian34.normalizePath)(s.mediaFolder);
     const spotsRoot = (0, import_obsidian34.normalizePath)(s.spotsFolder);
-    if (media !== spotsRoot && !media.startsWith(`${spotsRoot}/`)) {
-      const oldFolder = this.app.vault.getFolderByPath(media);
-      const newMedia = `${spotsRoot}/_media`;
-      if (oldFolder) {
-        if (this.app.vault.getFolderByPath(newMedia) === null) {
-          await this.app.vault.createFolder(newMedia).catch(() => void 0);
+    if (media === spotsRoot || media.startsWith(`${spotsRoot}/`)) return;
+    const oldFolder = this.app.vault.getFolderByPath(media);
+    const newMedia = (0, import_obsidian34.normalizePath)(`${spotsRoot}/_media`);
+    if (oldFolder) {
+      const before = this.spots().map((spot) => ({
+        path: spot.path,
+        photo: spot.photo,
+        menu: spot.menu
+      }));
+      const moved = /* @__PURE__ */ new Map();
+      const blocked = [];
+      const moveInto = async (dir, relative) => {
+        const targetDir = (0, import_obsidian34.normalizePath)(relative ? `${newMedia}/${relative}` : newMedia);
+        if (this.app.vault.getFolderByPath(targetDir) === null) {
+          await this.app.vault.createFolder(targetDir).catch(() => void 0);
         }
-        for (const child of [...oldFolder.children]) {
+        for (const child of [...dir.children]) {
+          if (child instanceof import_obsidian34.TFolder) {
+            await moveInto(child, relative ? `${relative}/${child.name}` : child.name);
+            continue;
+          }
           if (!(child instanceof import_obsidian34.TFile)) continue;
-          const target = (0, import_obsidian34.normalizePath)(`${newMedia}/${child.name}`);
-          if (this.app.vault.getAbstractFileByPath(target) !== null) continue;
-          await this.app.fileManager.renameFile(child, target).catch(() => void 0);
-        }
-        for (const spot of this.spots()) {
-          const patch = {};
-          if (spot.photo?.startsWith(`${media}/`))
-            patch.photo = spot.photo.replace(`${media}/`, `${newMedia}/`);
-          if (spot.menu?.startsWith(`${media}/`))
-            patch.menu = spot.menu.replace(`${media}/`, `${newMedia}/`);
-          if (Object.keys(patch).length > 0) {
-            await this.plugin.store.updateSpot(spot.path, patch).catch(() => void 0);
+          const from = child.path;
+          const target = (0, import_obsidian34.normalizePath)(`${targetDir}/${child.name}`);
+          if (this.app.vault.getAbstractFileByPath(target) !== null) {
+            blocked.push(child.name);
+            continue;
+          }
+          try {
+            await this.app.fileManager.renameFile(child, target);
+            moved.set(from, target);
+          } catch {
+            blocked.push(child.name);
           }
         }
-        if (oldFolder.children.length === 0) {
-          await this.app.fileManager.trashFile(oldFolder).catch(() => void 0);
+      };
+      await moveInto(oldFolder, "");
+      const rewriteFailures = [];
+      for (const rec of before) {
+        const patch = {};
+        const photoTarget = rec.photo ? moved.get((0, import_obsidian34.normalizePath)(rec.photo)) : void 0;
+        const menuTarget = rec.menu ? moved.get((0, import_obsidian34.normalizePath)(rec.menu)) : void 0;
+        if (photoTarget) patch.photo = photoTarget;
+        if (menuTarget) patch.menu = menuTarget;
+        if (Object.keys(patch).length === 0) continue;
+        try {
+          await this.plugin.store.updateSpot(rec.path, patch);
+        } catch {
+          rewriteFailures.push(rec.path);
         }
-        if (oldFolder.parent) sourceParents.add(oldFolder.parent.path);
       }
-      s.mediaFolder = newMedia;
-      await this.save();
-      new import_obsidian34.Notice(`Media folder moved to ${newMedia}.`);
+      if (blocked.length > 0) {
+        new import_obsidian34.Notice(
+          `${plural(blocked.length, "media file")} stayed in ${media} \u2014 a file with the same name already exists in ${newMedia} (${blocked.slice(0, 5).join(", ")}). Their notes still point at the old folder.`,
+          1e4
+        );
+      }
+      if (rewriteFailures.length > 0) {
+        new import_obsidian34.Notice(
+          `${plural(rewriteFailures.length, "note")} kept a photo/menu path in ${media}: ${rewriteFailures.slice(0, 5).join(", ")}. Fix the path in the note or run the relocation again.`,
+          1e4
+        );
+      }
     }
-    for (const parentPath of sourceParents) {
+    s.mediaFolder = newMedia;
+    await this.save();
+    new import_obsidian34.Notice(`Media folder moved to ${newMedia}.`);
+  }
+  /**
+   * Trash folders that relocation emptied — bounded to the configured spots
+   * and media subtrees. Walking up unconditionally could reach folders Food
+   * Spot never created (an indexed note may live anywhere in the vault), and
+   * the configured roots themselves are never candidates.
+   */
+  async sweepEmptyFolders(candidates) {
+    const s = this.plugin.settings;
+    const roots = [(0, import_obsidian34.normalizePath)(s.spotsFolder), (0, import_obsidian34.normalizePath)(s.mediaFolder)];
+    const inside = (path) => roots.some((root) => path !== root && path.startsWith(`${root}/`));
+    for (const parentPath of candidates) {
+      if (!inside(parentPath)) continue;
       let folder = this.app.vault.getFolderByPath(parentPath);
-      while (folder && folder.path !== "/" && folder.children.length === 0) {
+      while (folder && inside(folder.path) && folder.children.length === 0) {
         const above = folder.parent;
         await this.app.fileManager.trashFile(folder).catch(() => void 0);
-        folder = above && above.path !== "/" ? this.app.vault.getFolderByPath(above.path) : null;
+        folder = above ? this.app.vault.getFolderByPath(above.path) : null;
       }
     }
-    return res;
   }
   // -------------------------------------------------------------------------
   // API
@@ -23427,7 +24189,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         if (first) g.setChip(`Test passed \u2014 "${first.name}"`, "ok");
         else g.setChip("Test failed \u2014 no results returned", "warn");
       } catch (e) {
-        g.setChip(`Test failed \u2014 ${errMsg3(e)}`, "warn");
+        g.setChip(`Test failed \u2014 ${errMsg4(e)}`, "warn");
       } finally {
         testBtn.disabled = false;
       }
@@ -24003,8 +24765,28 @@ var DeleteAllModal = class extends import_obsidian34.Modal {
     mediaLabel.createSpan({
       text: ` Also trash downloaded photos/menus in ${this.plugin.settings.mediaFolder}`
     });
+    const mediaNote = contentEl.createDiv({ cls: "fs-provider-warning" });
+    mediaNote.hide();
     mediaCb.addEventListener("change", () => {
       this.alsoMedia = mediaCb.checked;
+      if (!this.alsoMedia) {
+        mediaNote.hide();
+        return;
+      }
+      const plan = classifyMediaFolder(this.app, this.plugin.settings, spots);
+      mediaNote.empty();
+      const icon = mediaNote.createSpan();
+      (0, import_obsidian34.setIcon)(icon, "alert-triangle");
+      let text;
+      if (!plan) {
+        text = `No ${this.plugin.settings.mediaFolder} folder yet \u2014 there is nothing to trash.`;
+      } else {
+        const spared = plan.leftAlone.length > 0 ? ` ${plural(plan.leftAlone.length, "other file")} there ${plan.leftAlone.length === 1 ? "is" : "are"} linked from another note or not created by Food Spot \u2014 left alone.` : "";
+        const shared = plan.dedicated ? "" : ` ${plan.folderPath} is not a Food Spot-only folder, so only files this plugin can prove it owns are touched.`;
+        text = `${plural(plan.owned.length, "file")} in ${plan.folderPath} (including subfolders) will be trashed.${spared}${shared}`;
+      }
+      mediaNote.createSpan({ text });
+      mediaNote.show();
     });
     contentEl.createEl("p", {
       cls: "fs-preset-hint",
@@ -24030,37 +24812,59 @@ var DeleteAllModal = class extends import_obsidian34.Modal {
       cancel.disabled = true;
       const signal = { cancelled: false };
       const progress = new ProgressModal(this.app, "Deleting all spots\u2026", signal);
+      const all = this.plugin.store.getSpots();
+      const plan = this.alsoMedia ? classifyMediaFolder(this.app, this.plugin.settings, all) : null;
       this.close();
       progress.open();
       void (async () => {
+        const media = plan?.owned ?? [];
+        const totalWork = all.length + media.length;
         let trashed = 0;
-        const all = this.plugin.store.getSpots();
-        const totalWork = all.length;
+        let mediaTrashed = 0;
+        const failedNotes = [];
+        const failedMedia = [];
+        let cancelled = false;
         for (const spot of all) {
-          if (signal.cancelled) break;
+          if (signal.cancelled) {
+            cancelled = true;
+            break;
+          }
           progress.update(trashed, totalWork, spot.name);
           try {
             await this.plugin.store.deleteSpot(spot.path);
             trashed++;
           } catch {
+            failedNotes.push(spot.name);
           }
         }
-        let mediaTrashed = 0;
-        if (this.alsoMedia) {
-          const folder = this.app.vault.getFolderByPath(
-            (0, import_obsidian34.normalizePath)(this.plugin.settings.mediaFolder)
+        if (cancelled) {
+          progress.finish();
+          new import_obsidian34.Notice(
+            `Cancelled after ${trashed} of ${all.length} spot notes \u2014 nothing else was touched.`,
+            1e4
           );
-          if (folder) {
-            for (const child of [...folder.children]) {
-              if (child instanceof import_obsidian34.TFile) {
-                try {
-                  await this.app.fileManager.trashFile(child);
-                  mediaTrashed++;
-                } catch {
-                }
-              }
-            }
+          return;
+        }
+        for (const file of media) {
+          if (signal.cancelled) {
+            cancelled = true;
+            break;
           }
+          progress.update(trashed + mediaTrashed, totalWork, file.name);
+          try {
+            await this.app.fileManager.trashFile(file);
+            mediaTrashed++;
+          } catch {
+            failedMedia.push(file.name);
+          }
+        }
+        if (cancelled) {
+          progress.finish();
+          new import_obsidian34.Notice(
+            `Cancelled after ${trashed} spot notes and ${mediaTrashed} of ${media.length} media files \u2014 the folder cleanup was skipped.`,
+            1e4
+          );
+          return;
         }
         const root = this.app.vault.getFolderByPath(
           (0, import_obsidian34.normalizePath)(this.plugin.settings.spotsFolder)
@@ -24076,11 +24880,18 @@ var DeleteAllModal = class extends import_obsidian34.Modal {
           };
           await sweep(root);
         }
-        new import_obsidian34.Notice(
-          `Deleted ${trashed} spot notes${this.alsoMedia ? ` and ${mediaTrashed} media files` : ""} \u2014 all recoverable from the trash.`,
-          1e4
-        );
         progress.finish();
+        let message = `Deleted ${plural(trashed, "spot note")}${this.alsoMedia ? ` and ${plural(mediaTrashed, "media file")}` : ""} \u2014 all recoverable from the trash.`;
+        if (failedNotes.length > 0) {
+          message += ` ${plural(failedNotes.length, "note")} couldn't be trashed: ${failedNotes.slice(0, 5).join(", ")}.`;
+        }
+        if (failedMedia.length > 0) {
+          message += ` ${plural(failedMedia.length, "media file")} couldn't be trashed: ${failedMedia.slice(0, 5).join(", ")}.`;
+        }
+        if (plan && plan.leftAlone.length > 0) {
+          message += ` ${plural(plan.leftAlone.length, "file")} in ${plan.folderPath} ${plan.leftAlone.length === 1 ? "was" : "were"} left alone \u2014 linked from another note or not created by Food Spot.`;
+        }
+        new import_obsidian34.Notice(message, 1e4);
       })();
     });
     window.setTimeout(() => input.focus(), 0);
@@ -24782,7 +25593,7 @@ async function runBulkEnrich(plugin, spots, opts) {
   } catch (e) {
     inline?.finish();
     modal?.close();
-    new import_obsidian37.Notice(`Enrichment failed \u2014 ${errorMessage8(e)}`);
+    new import_obsidian37.Notice(`Enrichment failed \u2014 ${errorMessage9(e)}`);
     return;
   }
   const cancelled = signal.cancelled;
@@ -24798,7 +25609,7 @@ async function runBulkEnrich(plugin, spots, opts) {
     1e4
   );
 }
-function errorMessage8(e) {
+function errorMessage9(e) {
   return e instanceof Error ? e.message : String(e);
 }
 

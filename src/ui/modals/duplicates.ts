@@ -8,13 +8,27 @@
  * Safety: every merge is confirmed with its consequence spelled out, the store
  * writes are wrapped individually, and a failed write always says which spot
  * was (or was not) changed — the library is never left half-merged in silence.
- * "Not a duplicate" only hides the row for this session; nothing is persisted.
+ * Everything the merge patch cannot model (custom properties, extra sections,
+ * raw lines inside `## Visits`) is copied onto the kept note first; if any of
+ * that fails the dropped note is NOT trashed. "Not a duplicate" only hides the
+ * row for this session; nothing is persisted.
  */
 import { Modal, Notice, setIcon } from "obsidian";
+import type { TFile } from "obsidian";
 import type { FoodSpot, FoodSpotPluginApi } from "../../types";
 import { confirmModal } from "./confirm";
+import { frontmatterFromInput } from "../../store/noteWriter";
 import type { DupPair, DupReason } from "../../tools/duplicates";
-import { findDuplicates, pairDistance, pairKey, planMerge } from "../../tools/duplicates";
+import {
+  carryOverBlock,
+  findDuplicates,
+  hasUnmanagedFrontmatter,
+  pairDistance,
+  pairKey,
+  planFrontmatterCarry,
+  planMerge,
+  unmergedContent,
+} from "../../tools/duplicates";
 
 export function openDuplicatesModal(plugin: FoodSpotPluginApi): void {
   new DuplicatesModal(plugin).open();
@@ -57,6 +71,23 @@ function summaryOf(spot: FoodSpot): string {
 
 function locationOf(spot: FoodSpot): string {
   return [spot.city, spot.country].filter((v) => (v ?? "").trim() !== "").join(", ");
+}
+
+/**
+ * The frontmatter keys the plugin owns, derived from the writer itself so the
+ * two can never drift: anything outside this set was put on the note by the
+ * user (or another plugin) and has to survive a merge.
+ */
+function managedFrontmatterKeys(spot: FoodSpot): Set<string> {
+  return new Set(
+    Object.keys(
+      frontmatterFromInput(
+        spot,
+        { visitCount: spot.visitCount, lastVisit: spot.lastVisit, rating: spot.rating },
+        { created: spot.created, updated: spot.updated },
+      ),
+    ),
+  );
 }
 
 class DuplicatesModal extends Modal {
@@ -176,7 +207,7 @@ class DuplicatesModal extends Modal {
     if (this.busy) return;
     const ok = await confirmModal(this.app, {
       title: `Merge "${drop.name}" into "${keep.name}"?`,
-      body: `"${drop.name}" is merged into "${keep.name}" and its note moves to the trash. Visits, ratings and photos are combined.`,
+      body: `"${drop.name}" is merged into "${keep.name}" and its note moves to the trash. Visits, ratings and photos are combined; anything else on the note — custom properties, extra sections, your own lines under Visits — is appended to "${keep.name}" first.`,
       cta: `Merge into ${keep.name}`,
       danger: true,
     });
@@ -185,6 +216,31 @@ class DuplicatesModal extends Modal {
     this.busy = true;
     for (const b of buttons) b.disabled = true;
     try {
+      const keepFile = this.plugin.store.fileFor(keep.path);
+      const dropFile = this.plugin.store.fileFor(drop.path);
+      if (!keepFile || !dropFile) {
+        new Notice(
+          `Merge cancelled — the note for "${keepFile ? drop.name : keep.name}" is no longer in the vault. Nothing was changed.`,
+          10000,
+        );
+        for (const b of buttons) b.disabled = false;
+        return;
+      }
+      // Read the dropped note before anything is written: its unmodelled
+      // content has to be carried over, and a note we cannot read is a note we
+      // must never trash — so the merge does not start at all.
+      let dropContent: string;
+      try {
+        dropContent = await this.app.vault.read(dropFile);
+      } catch (e) {
+        new Notice(
+          `Merge cancelled — "${drop.name}" could not be read (${errMsg(e)}). Nothing was changed.`,
+          10000,
+        );
+        for (const b of buttons) b.disabled = false;
+        return;
+      }
+
       try {
         await this.plugin.store.updateSpot(keep.path, planMerge(keep, drop));
       } catch (e) {
@@ -195,6 +251,18 @@ class DuplicatesModal extends Modal {
         for (const b of buttons) b.disabled = false;
         return;
       }
+
+      try {
+        await this.carryOver(keepFile, dropFile, drop, dropContent);
+      } catch (e) {
+        new Notice(
+          `"${keep.name}" now holds the combined data, but the extra sections and properties of "${drop.name}" could not be copied across (${errMsg(e)}) — that note was left in place, so nothing is lost. Move the rest by hand, then delete it.`,
+          15000,
+        );
+        this.rescan();
+        return;
+      }
+
       try {
         await this.plugin.store.deleteSpot(drop.path);
       } catch (e) {
@@ -215,5 +283,40 @@ class DuplicatesModal extends Modal {
     } finally {
       this.busy = false;
     }
+  }
+
+  /**
+   * Copy everything `planMerge` cannot express onto the kept note: unknown
+   * frontmatter keys it does not have yet, and the dropped note's body outside
+   * the managed sections. Throws if either write fails — the caller then leaves
+   * the dropped note alone.
+   */
+  private async carryOver(
+    keepFile: TFile,
+    dropFile: TFile,
+    drop: FoodSpot,
+    dropContent: string,
+  ): Promise<void> {
+    const dropFm = (this.app.metadataCache.getFileCache(dropFile)?.frontmatter ??
+      {}) as Record<string, unknown>;
+    const managed = managedFrontmatterKeys(drop);
+
+    let conflicts: string[] = [];
+    if (hasUnmanagedFrontmatter(dropFm, managed)) {
+      // Planned against the LIVE frontmatter rather than the cache, so a stale
+      // cache can never make us think a key is missing and drop its value.
+      await this.app.fileManager.processFrontMatter(keepFile, (fm) => {
+        const carry = planFrontmatterCarry(dropFm, fm as Record<string, unknown>, managed);
+        conflicts = carry.conflicts;
+        for (const [key, value] of Object.entries(carry.add)) fm[key] = value;
+      });
+    }
+
+    const block = carryOverBlock(drop.name, unmergedContent(dropContent), conflicts);
+    if (block === "") return;
+    await this.app.vault.process(keepFile, (content) => {
+      const base = content.replace(/\s+$/, "");
+      return base === "" ? block : `${base}\n\n${block}`;
+    });
   }
 }

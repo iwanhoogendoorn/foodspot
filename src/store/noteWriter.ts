@@ -97,16 +97,23 @@ interface SectionRange {
   end: number;
 }
 
-const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/;
+/** Captures the fence marker and whatever follows it on the same line. */
+const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 
 /**
  * Locate a managed `## Heading` section. Fence-aware: heading lines inside
  * ``` / ~~~ code blocks are ignored, both when finding the section start and
  * when finding the next h1/h2 that ends it — otherwise a code sample showing
  * the visit format would get spliced as if it were the real section.
+ *
+ * Fence matching follows CommonMark exactly. Treating any backtick/tilde run
+ * as a closing fence would end the block early on a line like ```` ```not-a-close ````
+ * inside a code sample, and the managed-section rewrite would then eat the
+ * user's content that follows it.
  */
 function findSection(body: string, heading: string): SectionRange | null {
   const nextHeading = /^#{1,2}[ \t]/;
+  const blank = /^[ \t]*$/;
   let inFence = false;
   let fenceChar = "";
   let fenceLen = 0;
@@ -120,12 +127,23 @@ function findSection(body: string, heading: string): SectionRange | null {
     const fence = FENCE_RE.exec(line);
     if (fence) {
       const marker = fence[1];
-      if (!inFence) {
+      const rest = fence[2];
+      if (inFence) {
+        // Closing fence: same character, at least as long as the opener, and
+        // nothing but trailing whitespace after it.
+        if (
+          marker[0] === fenceChar &&
+          marker.length >= fenceLen &&
+          blank.test(rest)
+        ) {
+          inFence = false;
+        }
+      } else if (marker[0] === "~" || !rest.includes("`")) {
+        // The info string of a backtick fence may not contain a backtick, so
+        // `` ```js`x `` opens nothing.
         inFence = true;
         fenceChar = marker[0];
         fenceLen = marker.length;
-      } else if (marker[0] === fenceChar && marker.length >= fenceLen) {
-        inFence = false;
       }
     } else if (!inFence) {
       if (start === -1) {

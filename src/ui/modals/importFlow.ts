@@ -310,6 +310,13 @@ function fallbackDetectSource(url: string): RatingSource | null {
   return null;
 }
 
+/**
+ * Every SpotInput key, required (the value may still be undefined). Same gate
+ * as `spotStore.updateSpot`: a field added to the contract must break the
+ * build here rather than be silently dropped from every import.
+ */
+type CompleteSpotInput = SpotInput & Record<keyof SpotInput, unknown>;
+
 /** Best-effort SpotInput from a draft; null when there's no usable name. */
 function draftToInput(plugin: FoodSpotPluginApi, draft: ImportedSpotDraft): SpotInput | null {
   const f = draft.fields;
@@ -335,10 +342,19 @@ function draftToInput(plugin: FoodSpotPluginApi, draft: ImportedSpotDraft): Spot
     // v0.1 defect #3: external ratings survive the save.
     external: { ...(f.external ?? {}) },
     photo: f.photo,
+    menu: f.menu,
+    // Google returns opening hours and the pipeline puts them on the draft;
+    // omitting them here meant an imported note never carried the hours the
+    // import dialog had just shown.
+    hours: f.hours,
     tags: f.tags ?? [],
     visits: f.visits ?? [],
     notes: f.notes ?? "",
-  };
+    // Store-owned: a brand new note gets its own identity and timestamps.
+    legacyId: undefined,
+    ctime: undefined,
+    created: undefined,
+  } satisfies CompleteSpotInput;
 }
 
 function kindToSource(kind: ImportedSpotDraft["importerKind"]): SpotSource {

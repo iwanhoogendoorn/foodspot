@@ -36,6 +36,39 @@ import {
 const FILE_DEBOUNCE_MS = 150;
 const NOTIFY_DEBOUNCE_MS = 100;
 
+/**
+ * Every SpotInput key, required (the value may still be undefined).
+ * `updateSpot` merges through this type, so a field added to the contract
+ * fails compilation here instead of silently vanishing from every partial
+ * update — omitted keys are written as `undefined`, and `applyFrontmatter`
+ * DELETES undefined keys from the note.
+ */
+type CompleteSpotInput = SpotInput & Record<keyof SpotInput, unknown>;
+
+function sameFrontmatterValue(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((v, i) => v === b[i]);
+  }
+  return a === b;
+}
+
+/**
+ * The subset of `next` that actually differs from `before`. A partial update
+ * must write ONLY the keys it changed: writing the full schema rebuilt from
+ * the index snapshot would resurrect stale values over a concurrent update or
+ * an external edit made since the note was last indexed.
+ */
+function changedFrontmatter(
+  before: Record<string, unknown>,
+  next: Record<string, unknown>,
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(next)) {
+    if (!sameFrontmatterValue(before[key], value)) patch[key] = value;
+  }
+  return patch;
+}
+
 export class SpotStore implements SpotStoreApi {
   private plugin: FoodSpotPlugin;
   private byPath = new Map<string, FoodSpot>();
@@ -43,6 +76,8 @@ export class SpotStore implements SpotStoreApi {
   private list: FoodSpot[] = [];
   private listeners = new Set<() => void>();
   private fileTimers = new Map<string, number>();
+  /** Tail of the in-flight write chain per note path (never rejects). */
+  private writeChains = new Map<string, Promise<void>>();
   private notifyTimer: number | null = null;
   private disposed = false;
 
@@ -158,79 +193,111 @@ export class SpotStore implements SpotStoreApi {
   }
 
   async updateSpot(path: string, input: Partial<SpotInput>): Promise<FoodSpot> {
-    const existing = this.requireSpot(path);
-    const file = this.requireFile(path);
-    const merged: SpotInput = {
-      name: input.name ?? existing.name,
-      cuisines: input.cuisines ?? existing.cuisines,
-      country: input.country ?? existing.country,
-      city: "city" in input ? input.city : existing.city,
-      district: "district" in input ? input.district : existing.district,
-      address: "address" in input ? input.address : existing.address,
-      coordinates: "coordinates" in input ? input.coordinates : existing.coordinates,
-      status: input.status ?? existing.status,
-      favorite: input.favorite ?? existing.favorite,
-      rating: "rating" in input ? input.rating : existing.rating,
-      ratingLocked: input.ratingLocked ?? existing.ratingLocked,
-      price: "price" in input ? input.price : existing.price,
-      url: "url" in input ? input.url : existing.url,
-      phone: "phone" in input ? input.phone : existing.phone,
-      source: input.source ?? existing.source,
-      sourceUrl: "sourceUrl" in input ? input.sourceUrl : existing.sourceUrl,
-      external: input.external ?? existing.external,
-      photo: "photo" in input ? input.photo : existing.photo,
-      menu: "menu" in input ? input.menu : existing.menu,
-      tags: input.tags ?? existing.tags,
-      visits: input.visits ?? existing.visits,
-      legacyId: existing.legacyId,
-      notes: input.notes ?? existing.notes,
-    };
-    const updated = todayISO();
-    const derived = computeDerived(merged.visits, merged.ratingLocked, merged.rating);
+    // The snapshot is read INSIDE the queued task so a second update sees the
+    // result of the first one instead of the state both started from.
+    return this.queueWrite(path, async () => {
+      const existing = this.requireSpot(path);
+      const file = this.requireFile(path);
+      const merged: SpotInput = {
+        name: input.name ?? existing.name,
+        cuisines: input.cuisines ?? existing.cuisines,
+        country: input.country ?? existing.country,
+        city: "city" in input ? input.city : existing.city,
+        district: "district" in input ? input.district : existing.district,
+        address: "address" in input ? input.address : existing.address,
+        coordinates: "coordinates" in input ? input.coordinates : existing.coordinates,
+        status: input.status ?? existing.status,
+        favorite: input.favorite ?? existing.favorite,
+        rating: "rating" in input ? input.rating : existing.rating,
+        ratingLocked: input.ratingLocked ?? existing.ratingLocked,
+        price: "price" in input ? input.price : existing.price,
+        url: "url" in input ? input.url : existing.url,
+        phone: "phone" in input ? input.phone : existing.phone,
+        source: input.source ?? existing.source,
+        sourceUrl: "sourceUrl" in input ? input.sourceUrl : existing.sourceUrl,
+        external: input.external ?? existing.external,
+        photo: "photo" in input ? input.photo : existing.photo,
+        menu: "menu" in input ? input.menu : existing.menu,
+        hours: "hours" in input ? input.hours : existing.hours,
+        tags: input.tags ?? existing.tags,
+        visits: input.visits ?? existing.visits,
+        // Migration idempotency key: owned by the store, never patched.
+        legacyId: existing.legacyId,
+        notes: input.notes ?? existing.notes,
+        ctime: existing.ctime,
+        created: existing.created,
+      } satisfies CompleteSpotInput;
+      const updated = todayISO();
+      const derived = computeDerived(merged.visits, merged.ratingLocked, merged.rating);
 
-    await writeSpotFrontmatter(
-      this.plugin.app,
-      file,
-      frontmatterFromInput(merged, derived, { created: existing.created, updated }),
-    );
-    if (input.notes !== undefined && input.notes !== existing.notes) {
-      await writeNotesSection(this.plugin.app, file, input.notes);
-    }
-    if (input.visits !== undefined) {
-      // Replace the visit bullets through the raw line model so non-visit
-      // lines the user wrote inside `## Visits` survive verbatim.
-      const nextVisits = input.visits;
-      await mutateVisitLines(this.plugin.app, file, (lines) => {
-        let vi = 0;
-        const out: typeof lines = [];
-        for (const line of lines) {
-          if (line.kind === "raw") {
-            out.push(line);
-            continue;
-          }
-          if (vi < nextVisits.length) {
-            out.push({ kind: "visit", visit: nextVisits[vi] });
-            vi += 1;
-          }
-        }
-        for (; vi < nextVisits.length; vi += 1) {
-          out.push({ kind: "visit", visit: nextVisits[vi] });
-        }
-        return out;
+      const before = frontmatterFromInput(
+        existing,
+        {
+          visitCount: existing.visitCount,
+          lastVisit: existing.lastVisit,
+          rating: existing.rating,
+        },
+        { created: existing.created, updated: existing.updated },
+      );
+      const next = frontmatterFromInput(merged, derived, {
+        created: existing.created,
+        updated,
       });
-    }
+      const patch = changedFrontmatter(before, next);
+      // `updated` is decided by whether anything else moved, so a no-op call
+      // does not touch the note at all.
+      delete patch.updated;
+      const nextNotes =
+        input.notes !== undefined && input.notes !== existing.notes
+          ? input.notes
+          : undefined;
+      const nextVisits = input.visits;
+      const changed =
+        Object.keys(patch).length > 0 ||
+        nextNotes !== undefined ||
+        nextVisits !== undefined;
+      if (changed) {
+        patch.updated = updated;
+        await writeSpotFrontmatter(this.plugin.app, file, patch);
+      }
+      if (nextNotes !== undefined) {
+        await writeNotesSection(this.plugin.app, file, nextNotes);
+      }
+      if (nextVisits !== undefined) {
+        // Replace the visit bullets through the raw line model so non-visit
+        // lines the user wrote inside `## Visits` survive verbatim.
+        await mutateVisitLines(this.plugin.app, file, (lines) => {
+          let vi = 0;
+          const out: typeof lines = [];
+          for (const line of lines) {
+            if (line.kind === "raw") {
+              out.push(line);
+              continue;
+            }
+            if (vi < nextVisits.length) {
+              out.push({ kind: "visit", visit: nextVisits[vi] });
+              vi += 1;
+            }
+          }
+          for (; vi < nextVisits.length; vi += 1) {
+            out.push({ kind: "visit", visit: nextVisits[vi] });
+          }
+          return out;
+        });
+      }
 
-    const spot: FoodSpot = {
-      ...merged,
-      path,
-      visitCount: derived.visitCount,
-      lastVisit: derived.lastVisit,
-      rating: derived.rating,
-      created: existing.created,
-      updated,
-    };
-    this.setSpot(spot);
-    return spot;
+      const spot: FoodSpot = {
+        ...merged,
+        path,
+        visitCount: derived.visitCount,
+        lastVisit: derived.lastVisit,
+        rating: derived.rating,
+        created: existing.created,
+        updated: changed ? updated : existing.updated,
+      };
+      this.setSpot(spot);
+      return spot;
+    });
   }
 
   async addVisit(path: string, visit: Visit): Promise<FoodSpot> {
@@ -263,16 +330,22 @@ export class SpotStore implements SpotStoreApi {
   }
 
   async deleteSpot(path: string): Promise<void> {
-    const file = this.requireFile(path);
-    await this.plugin.app.fileManager.trashFile(file);
-    this.removeFromIndex(path);
+    // Queued with the writes so a pending update can't recreate frontmatter
+    // on a note that is already on its way to the trash.
+    await this.queueWrite(path, async () => {
+      const file = this.requireFile(path);
+      await this.plugin.app.fileManager.trashFile(file);
+      this.removeFromIndex(path);
+    });
   }
 
   async setNotes(path: string, notes: string): Promise<void> {
-    const file = this.requireFile(path);
-    await writeNotesSection(this.plugin.app, file, notes);
-    const existing = this.byPath.get(path);
-    if (existing) this.setSpot({ ...existing, notes: notes.trim() });
+    await this.queueWrite(path, async () => {
+      const file = this.requireFile(path);
+      await writeNotesSection(this.plugin.app, file, notes);
+      const existing = this.byPath.get(path);
+      if (existing) this.setSpot({ ...existing, notes: notes.trim() });
+    });
   }
 
   async openNote(path: string): Promise<void> {
@@ -290,27 +363,49 @@ export class SpotStore implements SpotStoreApi {
     path: string,
     mutate: Parameters<typeof mutateVisitLines>[2],
   ): Promise<FoodSpot> {
-    const existing = this.requireSpot(path);
-    const file = this.requireFile(path);
-    const visits = await mutateVisitLines(this.plugin.app, file, mutate);
-    const derived = computeDerived(visits, existing.ratingLocked, existing.rating);
-    const updated = todayISO();
-    await writeSpotFrontmatter(this.plugin.app, file, {
-      rating: derived.rating,
-      visit_count: derived.visitCount,
-      last_visit: derived.lastVisit,
-      updated,
+    return this.queueWrite(path, async () => {
+      const existing = this.requireSpot(path);
+      const file = this.requireFile(path);
+      const visits = await mutateVisitLines(this.plugin.app, file, mutate);
+      const derived = computeDerived(visits, existing.ratingLocked, existing.rating);
+      const updated = todayISO();
+      await writeSpotFrontmatter(this.plugin.app, file, {
+        rating: derived.rating,
+        visit_count: derived.visitCount,
+        last_visit: derived.lastVisit,
+        updated,
+      });
+      const spot: FoodSpot = {
+        ...existing,
+        visits,
+        visitCount: derived.visitCount,
+        lastVisit: derived.lastVisit,
+        rating: derived.rating,
+        updated,
+      };
+      this.setSpot(spot);
+      return spot;
     });
-    const spot: FoodSpot = {
-      ...existing,
-      visits,
-      visitCount: derived.visitCount,
-      lastVisit: derived.lastVisit,
-      rating: derived.rating,
-      updated,
-    };
-    this.setSpot(spot);
-    return spot;
+  }
+
+  /**
+   * Run `task` after every write already queued for this note. Two updates to
+   * the same note would otherwise interleave their read-modify-write cycles
+   * and the later one would base its patch on state the earlier one has
+   * already replaced. Failures do not break the chain for the next writer.
+   */
+  private queueWrite<T>(path: string, task: () => Promise<T>): Promise<T> {
+    const previous = this.writeChains.get(path) ?? Promise.resolve();
+    const run = previous.then(task, task);
+    const tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.writeChains.set(path, tail);
+    void tail.then(() => {
+      if (this.writeChains.get(path) === tail) this.writeChains.delete(path);
+    });
+    return run;
   }
 
   private isMarkdown(file: TAbstractFile): file is TFile {

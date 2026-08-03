@@ -5,7 +5,8 @@
  *   `- [date:: 2026-07-12] [rating:: 4.5] [spent:: 45] free text ![[dish.jpg]]`
  * - Inline fields may appear in any order; only `date` is required.
  * - Dish photos are real Obsidian embeds at the end of the line, so they
- *   render inside the note as well as in the plugin.
+ *   render inside the note as well as in the plugin. A photo ref is the full
+ *   embed target and may carry a `|alias` / `|300` suffix (see embedRefPath).
  * - Lines without a valid `[date:: …]` field are NOT visits; they are kept
  *   verbatim on rewrite (round-trip safety for user content we don't model).
  */
@@ -19,8 +20,24 @@ export type VisitLine =
 /** Matches recognized inline fields only — unknown fields stay in the note. */
 const KNOWN_FIELD_RE = /\[\s*(date|rating|spent)\s*::\s*([^\]]*)\]/gi;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
-/** Dish photos: `![[path/to/img.jpg]]` embeds anywhere in the line. */
-const EMBED_RE = /!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g;
+/**
+ * Dish photos: `![[path/to/img.jpg]]` embeds anywhere in the line. The capture
+ * keeps the WHOLE embed target, `|alias` and `|300` size hints included —
+ * dropping the suffix here would silently rewrite the user's `![[dish.jpg|300]]`
+ * as `![[dish.jpg]]` on the next visit edit. Use `embedRefPath()` when the
+ * value is needed as a vault path.
+ */
+const EMBED_RE = /!\[\[([^\]]+?)\]\]/g;
+
+/**
+ * Vault path of an embed ref, without the `|alias` display suffix. Every
+ * consumer that resolves a `Visit.photos` entry to a file must go through
+ * this — a raw ref may carry an alias that no link resolver accepts.
+ */
+export function embedRefPath(ref: string): string {
+  const bar = ref.indexOf("|");
+  return (bar === -1 ? ref : ref.slice(0, bar)).trim();
+}
 
 function parseNumber(raw: string): number | undefined {
   const cleaned = raw.trim().replace(",", ".");

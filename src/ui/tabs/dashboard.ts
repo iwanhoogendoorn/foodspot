@@ -9,11 +9,11 @@
 import { setIcon } from "obsidian";
 import type { FoodSpot, FoodSpotPluginApi, TabHandle, Visit } from "../../types";
 import { buildSpotCard, releaseLazyPhotos } from "../components/card";
+import { daysSinceCalendar, parseCalendarDate } from "../../util/dates";
 import { openDetailModal } from "../modals/detail";
 import { openAddChooser } from "../modals/addChooser";
 import { openImportModal } from "../modals/importFlow";
 
-const DAY_MS = 86_400_000;
 const RING_R = 45;
 const RING_C = 2 * Math.PI * RING_R;
 
@@ -28,18 +28,23 @@ function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
 }
 
+/**
+ * Whole calendar days since a date-only value, in the user's own timezone —
+ * an evening visit west of Greenwich must not age a day the moment it is
+ * logged. Missing/unparseable dates sort as "infinitely long ago".
+ */
 function daysSince(iso: string | undefined): number {
   if (!iso) return Infinity;
-  const t = Date.parse(iso);
-  return Number.isNaN(t) ? Infinity : (Date.now() - t) / DAY_MS;
+  const d = daysSinceCalendar(iso);
+  return Number.isNaN(d) ? Infinity : d;
 }
 
 function agoText(iso: string | undefined): string {
   const d = daysSince(iso);
   if (!Number.isFinite(d)) return "never";
-  if (d < 1) return "today";
-  if (d < 2) return "yesterday";
-  if (d < 30) return `${Math.floor(d)} days ago`;
+  if (d <= 0) return "today";
+  if (d === 1) return "yesterday";
+  if (d < 30) return `${d} days ago`;
   if (d < 365) return `${Math.floor(d / 30)} mo ago`;
   const y = Math.floor(d / 365);
   return `${y} ${y === 1 ? "year" : "years"} ago`;
@@ -820,9 +825,13 @@ export function mountDashboardTab(
   // render
   // -------------------------------------------------------------------------
 
-  /** Newest-first ordering key: real file time, else the date-only string. */
+  /**
+   * Newest-first ordering key: real file time, else the date-only string read
+   * as LOCAL midnight — a UTC parse would sort it against ctime values from a
+   * different day.
+   */
   const addedAt = (s: FoodSpot): number =>
-    s.ctime ?? (s.created ? Date.parse(s.created) || 0 : 0);
+    s.ctime ?? (s.created ? (parseCalendarDate(s.created)?.getTime() ?? 0) : 0);
 
   /** A failed section renders an error panel instead of blanking the tab. */
   const section = (label: string, fn: () => void): void => {

@@ -4,6 +4,7 @@
  * isolation.
  */
 import type { FoodSpotSettings, SpotSource, Visit } from "../types";
+import { formatCalendarDate, todayIso } from "../util/dates";
 import { serializeVisits } from "./visitsParser";
 
 export interface LegacyNotePlan {
@@ -43,19 +44,32 @@ export function spotFolder(settings: FoodSpotSettings, country: string): string 
   return root;
 }
 
-/** ISO YYYY-MM-DD for today. */
+/**
+ * ISO YYYY-MM-DD for today in the user's own timezone. UTC-based formatting
+ * writes tomorrow's date into notes for anyone east of Greenwich in the
+ * evening (and yesterday's, west of it, in the morning).
+ */
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayIso();
 }
+
+/** A timestamp that pins an instant: trailing `Z` or `±hh:mm` offset. */
+const ZONED_TIMESTAMP_RE = /T.*(?:Z|[+-]\d{2}:?\d{2})$/i;
 
 /** Extract YYYY-MM-DD from an ISO-ish string; undefined when unparseable. */
 export function dateOnly(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined;
-  const m = /^(\d{4}-\d{2}-\d{2})/.exec(value.trim());
+  const raw = value.trim();
+  const parsed = new Date(raw);
+  const valid = !Number.isNaN(parsed.getTime());
+  // A zoned timestamp belongs to the calendar day it fell on HERE; its
+  // literal date prefix is the UTC (or foreign-offset) day, which is a
+  // different day for anyone far enough east or west.
+  if (valid && ZONED_TIMESTAMP_RE.test(raw)) return formatCalendarDate(parsed);
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(raw);
   if (m) return m[1];
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return undefined;
-  return parsed.toISOString().slice(0, 10);
+  if (!valid) return undefined;
+  return formatCalendarDate(parsed);
 }
 
 /** Round to the nearest half step (visit-rating average -> spot rating). */

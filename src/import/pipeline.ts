@@ -25,15 +25,14 @@ import { findMenuUrl } from "./menuDiscovery";
 import { discoverSources as discoverRatingSources } from "./sourceDiscovery";
 import { PlacesClient, type PlaceDetails } from "./places";
 import { ensureFolder } from "../store/noteWriter";
+// `ratings_updated` is a calendar day, not an instant: a local copy built from
+// toISOString() wrote tomorrow's date for anyone east of Greenwich.
+import { todayIso } from "../util/dates";
 
 const ENRICH_BIAS_RADIUS_METERS = 200;
 /** Min pause between spots in a bulk enrichment run. */
 const BULK_THROTTLE_MS = 400;
 const PHOTO_MAX_WIDTH = 640;
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
@@ -42,6 +41,21 @@ function errMsg(e: unknown): string {
 interface SourceFailure {
   label: string;
   e: unknown;
+}
+
+/**
+ * A step the user explicitly asked for failed outright. It carries whatever
+ * the run did manage to gather so a caller can still persist that instead of
+ * throwing the work away — the failure itself is never swallowed.
+ */
+export class EnrichStepError extends Error {
+  constructor(
+    message: string,
+    readonly partial: Partial<SpotInput> | null,
+  ) {
+    super(message);
+    this.name = "EnrichStepError";
+  }
 }
 
 /** Human explanation per failed source — bot walls get the honest version. */
@@ -404,6 +418,8 @@ export class ImportPipeline implements ImportPipelineApi {
     const overwrite = opts.overwrite === true;
     const out: Partial<SpotInput> = {};
     const ext: Partial<ExternalRatings> = {};
+    /** Reported at the end so the other requested fields still get gathered. */
+    let photoError: string | null = null;
 
     const wantsGoogle = opts.photo || opts.ratings || opts.coords || opts.address;
     let details: PlaceDetails | null = null;
@@ -450,8 +466,8 @@ export class ImportPipeline implements ImportPipelineApi {
       if (opts.photo && details.photoReference !== undefined && (overwrite || isBlank(spot.photo))) {
         try {
           out.photo = await this.downloadPhoto(spot.name, details.photoReference);
-        } catch {
-          // Photo failure never aborts the rest of the enrichment.
+        } catch (e) {
+          photoError = errMsg(e);
         }
       }
     }
@@ -503,7 +519,13 @@ export class ImportPipeline implements ImportPipelineApi {
       if (fetchedRating) external.ratingsUpdated = todayIso();
       out.external = external;
     }
-    return Object.keys(out).length > 0 ? out : null;
+    const gathered = Object.keys(out).length > 0 ? out : null;
+    if (photoError !== null) {
+      // A download the user asked for and did not get is a failure, not a
+      // "nothing to do" — reporting it as skipped hid it entirely.
+      throw new EnrichStepError(`photo download failed — ${photoError}`, gathered);
+    }
+    return gathered;
   }
 
   async bulkEnrich(
@@ -535,8 +557,17 @@ export class ImportPipeline implements ImportPipelineApi {
             skipped += 1;
           }
         }
-      } catch {
-        // One failing spot never aborts the run.
+      } catch (e) {
+        // One failing spot never aborts the run — and whatever it did gather
+        // is still written, so a dead photo URL can't discard fetched ratings.
+        if (e instanceof EnrichStepError && e.partial !== null) {
+          try {
+            await this.plugin.store.updateSpot(spot.path, e.partial);
+          } catch {
+            // The spot is already being reported as failed below; a second
+            // reason adds nothing the caller can act on differently.
+          }
+        }
         failed.push(spot.name);
       }
       done += 1;
