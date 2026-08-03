@@ -19447,7 +19447,6 @@ function mountSpotsTab(container, plugin) {
 // src/ui/tabs/list.ts
 var import_obsidian21 = require("obsidian");
 var CUSTOM = "__custom__";
-var NONE2 = "__none__";
 function mapsUrl2(spot) {
   const q = spot.coordinates ? `${spot.coordinates.lat},${spot.coordinates.lng}` : [spot.name, spot.city, spot.country].filter(Boolean).join(" ");
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
@@ -19602,29 +19601,39 @@ function mountListTab(container, plugin) {
       dot.style.setProperty("--fs-status", plugin.settings.statusColors.visited);
       dot.title = "Visited";
     }
-    const cuisineTd = tr.createEl("td");
-    const cSel = cuisineTd.createEl("select", { cls: "dropdown fs-list-cell-select" });
-    const known = plugin.store.distinct("cuisines");
-    cSel.createEl("option", { text: "\u2014", value: NONE2 });
-    const primary = spot.cuisines[0] ?? "";
-    for (const c of known) cSel.createEl("option", { text: c, value: c });
-    if (primary && !known.includes(primary)) cSel.createEl("option", { text: primary, value: primary });
-    cSel.createEl("option", { text: "Something else\u2026", value: CUSTOM });
-    cSel.value = primary || NONE2;
-    if (spot.cuisines.length > 1) cSel.title = spot.cuisines.join(", ");
-    cSel.addEventListener("change", () => {
-      const rest = spot.cuisines.slice(1);
-      if (cSel.value === CUSTOM) {
-        const input = window.prompt("New cuisine", "");
-        if (input === null || input.trim() === "") {
-          cSel.value = primary || NONE2;
-          return;
-        }
-        void save(spot, { cuisines: [input.trim(), ...rest] });
-        return;
+    const cuisineTd = tr.createEl("td", { cls: "fs-list-cuisines" });
+    const chips = cuisineTd.createDiv({ cls: "fs-list-chiprow" });
+    for (const c of spot.cuisines) {
+      const chip = chips.createSpan({ cls: "fs-list-chip" });
+      chip.createSpan({ cls: "fs-chip-text", text: c });
+      const rm = chip.createEl("button", {
+        cls: "fs-chip-x",
+        attr: { "aria-label": `Remove ${c}` }
+      });
+      rm.type = "button";
+      rm.setText("\xD7");
+      rm.addEventListener("click", () => {
+        void save(spot, { cuisines: spot.cuisines.filter((x) => x !== c) });
+      });
+    }
+    const addSel = chips.createEl("select", { cls: "dropdown fs-list-cuisine-add" });
+    addSel.setAttribute("aria-label", `Add a cuisine to ${spot.name}`);
+    addSel.createEl("option", { text: spot.cuisines.length > 0 ? "+" : "+ cuisine", value: "" });
+    for (const c of plugin.store.distinct("cuisines").filter((c2) => !spot.cuisines.some((x) => x.toLowerCase() === c2.toLowerCase()))) {
+      addSel.createEl("option", { text: c, value: c });
+    }
+    addSel.createEl("option", { text: "Something else\u2026", value: CUSTOM });
+    addSel.addEventListener("change", () => {
+      let value = addSel.value;
+      if (value === "") return;
+      if (value === CUSTOM) {
+        const typed = window.prompt(`New cuisine for ${spot.name}`, "");
+        addSel.value = "";
+        if (typed === null || typed.trim() === "") return;
+        value = typed.trim();
       }
-      const next = cSel.value === NONE2 ? rest : [cSel.value, ...rest];
-      void save(spot, { cuisines: next });
+      if (spot.cuisines.some((x) => x.toLowerCase() === value.toLowerCase())) return;
+      void save(spot, { cuisines: [...spot.cuisines, value] });
     });
     tr.createEl("td", { cls: "fs-list-city", text: spot.city ?? "" });
     const priceTd = tr.createEl("td");
@@ -19919,7 +19928,7 @@ var state = {
 function resetState() {
   state = { location: "", keyword: "", query: "", results: [], searched: false };
 }
-var NONE3 = "none";
+var NONE2 = "none";
 var photoCache2 = /* @__PURE__ */ new Map();
 var inFlight = /* @__PURE__ */ new Set();
 var pendingLoaders2 = /* @__PURE__ */ new WeakMap();
@@ -19952,7 +19961,7 @@ function disposeThumbs() {
   sharedObserver2?.disconnect();
   sharedObserver2 = null;
   for (const url of photoCache2.values()) {
-    if (url !== NONE3) URL.revokeObjectURL(url);
+    if (url !== NONE2) URL.revokeObjectURL(url);
   }
   photoCache2.clear();
   inFlight.clear();
@@ -19962,7 +19971,7 @@ function mimeFor(ext) {
 }
 function attachLazyThumb(thumbEl, places, photoRef) {
   const cached = photoCache2.get(photoRef);
-  if (cached === NONE3) return;
+  if (cached === NONE2) return;
   if (cached !== void 0) {
     renderThumb(thumbEl, cached);
     return;
@@ -19973,7 +19982,7 @@ function attachLazyThumb(thumbEl, places, photoRef) {
       const known = photoCache2.get(photoRef);
       if (known !== void 0) {
         delete thumbEl.dataset.needsPhoto;
-        if (known !== NONE3) renderThumb(thumbEl, known);
+        if (known !== NONE2) renderThumb(thumbEl, known);
         return;
       }
       if (inFlight.has(photoRef)) {
@@ -19987,7 +19996,7 @@ function attachLazyThumb(thumbEl, places, photoRef) {
         photoCache2.set(photoRef, url);
         renderThumb(thumbEl, url);
       } catch {
-        photoCache2.set(photoRef, NONE3);
+        photoCache2.set(photoRef, NONE2);
       } finally {
         inFlight.delete(photoRef);
         delete thumbEl.dataset.needsPhoto;

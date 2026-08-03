@@ -18,7 +18,6 @@ import { fmtRating } from "../components/card";
 type SortKey = "name" | "city" | "cuisine" | "price" | "rating" | "google";
 
 const CUSTOM = "__custom__";
-const NONE = "__none__";
 
 function mapsUrl(spot: FoodSpot): string {
   const q = spot.coordinates
@@ -206,30 +205,42 @@ export function mountListTab(container: HTMLElement, plugin: FoodSpotPluginApi):
       dot.title = "Visited";
     }
 
-    // Cuisine (primary) dropdown
-    const cuisineTd = tr.createEl("td");
-    const cSel = cuisineTd.createEl("select", { cls: "dropdown fs-list-cell-select" });
-    const known = plugin.store.distinct("cuisines");
-    cSel.createEl("option", { text: "—", value: NONE });
-    const primary = spot.cuisines[0] ?? "";
-    for (const c of known) cSel.createEl("option", { text: c, value: c });
-    if (primary && !known.includes(primary)) cSel.createEl("option", { text: primary, value: primary });
-    cSel.createEl("option", { text: "Something else…", value: CUSTOM });
-    cSel.value = primary || NONE;
-    if (spot.cuisines.length > 1) cSel.title = spot.cuisines.join(", ");
-    cSel.addEventListener("change", () => {
-      const rest = spot.cuisines.slice(1);
-      if (cSel.value === CUSTOM) {
-        const input = window.prompt("New cuisine", "");
-        if (input === null || input.trim() === "") {
-          cSel.value = primary || NONE;
-          return;
-        }
-        void save(spot, { cuisines: [input.trim(), ...rest] });
-        return;
+    // Cuisines: all of them, each removable, plus an adder.
+    const cuisineTd = tr.createEl("td", { cls: "fs-list-cuisines" });
+    const chips = cuisineTd.createDiv({ cls: "fs-list-chiprow" });
+    for (const c of spot.cuisines) {
+      const chip = chips.createSpan({ cls: "fs-list-chip" });
+      chip.createSpan({ cls: "fs-chip-text", text: c });
+      const rm = chip.createEl("button", {
+        cls: "fs-chip-x",
+        attr: { "aria-label": `Remove ${c}` },
+      });
+      rm.type = "button";
+      rm.setText("×");
+      rm.addEventListener("click", () => {
+        void save(spot, { cuisines: spot.cuisines.filter((x) => x !== c) });
+      });
+    }
+    const addSel = chips.createEl("select", { cls: "dropdown fs-list-cuisine-add" });
+    addSel.setAttribute("aria-label", `Add a cuisine to ${spot.name}`);
+    addSel.createEl("option", { text: spot.cuisines.length > 0 ? "+" : "+ cuisine", value: "" });
+    for (const c of plugin.store
+      .distinct("cuisines")
+      .filter((c) => !spot.cuisines.some((x) => x.toLowerCase() === c.toLowerCase()))) {
+      addSel.createEl("option", { text: c, value: c });
+    }
+    addSel.createEl("option", { text: "Something else…", value: CUSTOM });
+    addSel.addEventListener("change", () => {
+      let value = addSel.value;
+      if (value === "") return;
+      if (value === CUSTOM) {
+        const typed = window.prompt(`New cuisine for ${spot.name}`, "");
+        addSel.value = "";
+        if (typed === null || typed.trim() === "") return;
+        value = typed.trim();
       }
-      const next = cSel.value === NONE ? rest : [cSel.value, ...rest];
-      void save(spot, { cuisines: next });
+      if (spot.cuisines.some((x) => x.toLowerCase() === value.toLowerCase())) return;
+      void save(spot, { cuisines: [...spot.cuisines, value] });
     });
 
     tr.createEl("td", { cls: "fs-list-city", text: spot.city ?? "" });

@@ -189,3 +189,51 @@
     min-width: 720px;
   }
 }
+
+/* --- multi-cuisine cell ---------------------------------------------------- */
+.fs-list-cuisines {
+  max-width: 240px;
+}
+
+.fs-list-chiprow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+}
+
+.fs-list-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.fs-list-chip .fs-chip-x {
+  display: none;
+}
+
+.fs-list-chip:hover .fs-chip-x {
+  display: inline;
+}
+
+.fs-list-cuisine-add {
+  height: 22px;
+  min-width: 44px;
+  max-width: 44px;
+  padding: 0 4px 0 6px;
+  font-size: 11px;
+  background-image: none;
+  color: var(--text-faint);
+  border-style: dashed;
+}
+
+.fs-list-cuisine-add:hover {
+  color: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
