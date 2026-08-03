@@ -2876,17 +2876,20 @@ body.theme-dark .fs-map .leaflet-tile {
 }
 
 .fs-discover-input {
-  flex: 1 1 160px;
-  min-width: 120px;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
   font-size: var(--font-ui-small);
 }
 
-.fs-discover-location {
-  flex-grow: 1.4;
-  max-width: 320px;
+/* Width lives on the field wrapper so the × stays glued to the input. */
+.fs-discover-location-field {
+  flex: 1 1 260px;
+  max-width: 340px;
 }
 
-.fs-discover-keyword {
+.fs-discover-keyword-field {
+  flex: 1 1 180px;
   max-width: 240px;
 }
 
@@ -3072,12 +3075,7 @@ body.theme-dark .fs-map .leaflet-tile {
   min-width: 140px;
 }
 
-.fs-discover-location-field {
-  flex: 1 1 260px;
-}
-
 .fs-discover-field .fs-discover-input {
-  width: 100%;
   padding-right: 28px !important;
 }
 

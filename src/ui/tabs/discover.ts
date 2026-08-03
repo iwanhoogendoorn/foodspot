@@ -219,7 +219,7 @@ export function mountDiscoverTab(
   });
   locationInput.value = state.location;
 
-  const kwWrap = controls.createDiv({ cls: "fs-discover-field" });
+  const kwWrap = controls.createDiv({ cls: "fs-discover-field fs-discover-keyword-field" });
   const keywordInput = kwWrap.createEl("input", {
     cls: "fs-discover-input fs-discover-keyword",
     attr: {
