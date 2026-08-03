@@ -11263,6 +11263,53 @@ async function discoverSources(spot, onProgress) {
 
 // src/import/places.ts
 var BASE = "https://maps.googleapis.com/maps/api/place";
+var CUISINE_BY_TYPE = {
+  seafood_restaurant: "Seafood",
+  chinese_restaurant: "Chinese",
+  thai_restaurant: "Thai",
+  indian_restaurant: "Indian",
+  italian_restaurant: "Italian",
+  japanese_restaurant: "Japanese",
+  sushi_restaurant: "Sushi",
+  french_restaurant: "French",
+  mexican_restaurant: "Mexican",
+  korean_restaurant: "Korean",
+  vietnamese_restaurant: "Vietnamese",
+  turkish_restaurant: "Turkish",
+  greek_restaurant: "Greek",
+  spanish_restaurant: "Spanish",
+  american_restaurant: "American",
+  brazilian_restaurant: "Brazilian",
+  lebanese_restaurant: "Lebanese",
+  middle_eastern_restaurant: "Middle Eastern",
+  mediterranean_restaurant: "Mediterranean",
+  asian_restaurant: "Asian",
+  ramen_restaurant: "Ramen",
+  pizza_restaurant: "Pizza",
+  hamburger_restaurant: "Burgers",
+  steak_house: "Steakhouse",
+  barbecue_restaurant: "BBQ",
+  vegetarian_restaurant: "Vegetarian",
+  vegan_restaurant: "Vegan",
+  breakfast_restaurant: "Breakfast",
+  brunch_restaurant: "Brunch",
+  cafe: "Caf\xE9",
+  coffee_shop: "Coffee",
+  bakery: "Bakery",
+  bar: "Bar",
+  wine_bar: "Wine bar",
+  pub: "Pub",
+  fine_dining_restaurant: "Fine dining",
+  buffet_restaurant: "Buffet",
+  fast_food_restaurant: "Fast food",
+  dessert_shop: "Desserts",
+  ice_cream_shop: "Ice cream",
+  sandwich_shop: "Sandwiches",
+  african_restaurant: "African",
+  indonesian_restaurant: "Indonesian",
+  afghani_restaurant: "Afghan",
+  tapas_restaurant: "Tapas"
+};
 var DETAILS_FIELDS = [
   "name",
   "formatted_address",
@@ -11449,6 +11496,35 @@ var PlacesClient = class {
     return (data.candidates ?? []).map(toCandidate).filter((c) => c !== null);
   }
   /** Place Details with the fixed field mask; maps address components. */
+  /**
+   * Cuisines from the Places API (New): the legacy details endpoint only
+   * reports generic types ("restaurant", "food"), while v1 exposes real ones
+   * ("seafood_restaurant"). Best-effort — never throws, empty on failure.
+   */
+  async cuisinesFor(placeId) {
+    if (!this.hasKey()) return [];
+    const key = this.key();
+    try {
+      const res = await fetchWithTimeout(
+        `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?fields=types,primaryTypeDisplayName`,
+        { headers: { "X-Goog-Api-Key": key }, throw: false }
+      );
+      if (res.status >= 400) return [];
+      const body = JSON.parse(res.text);
+      const out = [];
+      for (const t of body.types ?? []) {
+        const name = CUISINE_BY_TYPE[t];
+        if (name !== void 0 && !out.includes(name)) out.push(name);
+      }
+      if (out.length === 0) {
+        const primary = (body.primaryTypeDisplayName?.text ?? "").replace(/\s*Restaurant$/i, "").trim();
+        if (primary !== "" && primary.toLowerCase() !== "restaurant") out.push(primary);
+      }
+      return out.slice(0, 3);
+    } catch {
+      return [];
+    }
+  }
   async details(placeId) {
     const data = await this.call("details", {
       place_id: placeId,
@@ -11652,6 +11728,7 @@ var ImportPipeline = class {
     setDraftField(draft, "district", details.district, "high");
     setDraftField(draft, "coordinates", details.location, "high");
     setDraftField(draft, "price", details.priceLevel, "high");
+    setDraftField(draft, "cuisines", details.cuisines, "high");
     setDraftField(draft, "url", details.website, "high");
     setDraftField(draft, "phone", details.phone, "high");
     setDraftField(draft, "hours", details.hours, "high");
@@ -11670,6 +11747,10 @@ var ImportPipeline = class {
   }
   async placeDetails(placeId) {
     const details = await this.places.details(placeId);
+    if (details.cuisines === void 0 || details.cuisines.length === 0) {
+      const cuisines = await this.places.cuisinesFor(placeId);
+      if (cuisines.length > 0) details.cuisines = cuisines;
+    }
     const sourceUrl = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
     const draft = {
       fields: { source: "google-maps", sourceUrl },
@@ -11863,6 +11944,10 @@ var ImportPipeline = class {
     }
     if (opts.ratings) {
       Object.assign(ext, await this.fetchSourceRatings(spot, []));
+    }
+    if (spot.cuisines.length === 0 && details?.placeId !== void 0) {
+      const cuisines = await this.places.cuisinesFor(details.placeId);
+      if (cuisines.length > 0) out.cuisines = cuisines;
     }
     if (opts.menu && (overwrite || isBlank(spot.menu))) {
       const website = out.url ?? spot.url;

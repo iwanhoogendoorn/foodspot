@@ -195,6 +195,7 @@ export class ImportPipeline implements ImportPipelineApi {
     setDraftField(draft, "district", details.district, "high");
     setDraftField(draft, "coordinates", details.location, "high");
     setDraftField(draft, "price", details.priceLevel, "high");
+    setDraftField(draft, "cuisines", details.cuisines, "high");
     setDraftField(draft, "url", details.website, "high");
     setDraftField(draft, "phone", details.phone, "high");
     setDraftField(draft, "hours", details.hours, "high");
@@ -217,6 +218,11 @@ export class ImportPipeline implements ImportPipelineApi {
 
   async placeDetails(placeId: string): Promise<ImportedSpotDraft> {
     const details = await this.places.details(placeId);
+    // Legacy details carry no cuisine; the v1 types endpoint does.
+    if (details.cuisines === undefined || details.cuisines.length === 0) {
+      const cuisines = await this.places.cuisinesFor(placeId);
+      if (cuisines.length > 0) details.cuisines = cuisines;
+    }
     const sourceUrl = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
     const draft: ImportedSpotDraft = {
       fields: { source: "google-maps", sourceUrl },
@@ -455,6 +461,13 @@ export class ImportPipeline implements ImportPipelineApi {
     // Per-source failures (bot-check, timeout) skip that source only.
     if (opts.ratings) {
       Object.assign(ext, await this.fetchSourceRatings(spot, []));
+    }
+
+    // Cuisines: only ever filled when the spot has none — never overwritten,
+    // since a hand-picked cuisine beats Google's category every time.
+    if (spot.cuisines.length === 0 && details?.placeId !== undefined) {
+      const cuisines = await this.places.cuisinesFor(details.placeId);
+      if (cuisines.length > 0) out.cuisines = cuisines;
     }
 
     if (opts.menu && (overwrite || isBlank(spot.menu))) {

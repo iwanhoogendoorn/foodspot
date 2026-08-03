@@ -11,6 +11,26 @@ import { fetchWithTimeout } from "./net";
 
 const BASE = "https://maps.googleapis.com/maps/api/place";
 
+/** Google (v1) place types -> the cuisine words this plugin writes. */
+const CUISINE_BY_TYPE: Record<string, string> = {
+  seafood_restaurant: "Seafood", chinese_restaurant: "Chinese", thai_restaurant: "Thai",
+  indian_restaurant: "Indian", italian_restaurant: "Italian", japanese_restaurant: "Japanese",
+  sushi_restaurant: "Sushi", french_restaurant: "French", mexican_restaurant: "Mexican",
+  korean_restaurant: "Korean", vietnamese_restaurant: "Vietnamese", turkish_restaurant: "Turkish",
+  greek_restaurant: "Greek", spanish_restaurant: "Spanish", american_restaurant: "American",
+  brazilian_restaurant: "Brazilian", lebanese_restaurant: "Lebanese",
+  middle_eastern_restaurant: "Middle Eastern", mediterranean_restaurant: "Mediterranean",
+  asian_restaurant: "Asian", ramen_restaurant: "Ramen", pizza_restaurant: "Pizza",
+  hamburger_restaurant: "Burgers", steak_house: "Steakhouse", barbecue_restaurant: "BBQ",
+  vegetarian_restaurant: "Vegetarian", vegan_restaurant: "Vegan",
+  breakfast_restaurant: "Breakfast", brunch_restaurant: "Brunch", cafe: "Café",
+  coffee_shop: "Coffee", bakery: "Bakery", bar: "Bar", wine_bar: "Wine bar", pub: "Pub",
+  fine_dining_restaurant: "Fine dining", buffet_restaurant: "Buffet",
+  fast_food_restaurant: "Fast food", dessert_shop: "Desserts", ice_cream_shop: "Ice cream",
+  sandwich_shop: "Sandwiches", african_restaurant: "African",
+  indonesian_restaurant: "Indonesian", afghani_restaurant: "Afghan", tapas_restaurant: "Tapas",
+};
+
 const DETAILS_FIELDS = [
   "name",
   "formatted_address",
@@ -62,6 +82,8 @@ export interface PlaceDetails {
   phone?: string;
   /** photo_reference of the first place photo, for `fetchPlacePhoto`. */
   photoReference?: string;
+  /** Cuisine words derived from the place's Google types (v1 API). */
+  cuisines?: string[];
   /** Opening hours as readable per-day lines (see ui/components/hours.ts). */
   hours?: string[];
 }
@@ -321,6 +343,41 @@ export class PlacesClient {
   }
 
   /** Place Details with the fixed field mask; maps address components. */
+  /**
+   * Cuisines from the Places API (New): the legacy details endpoint only
+   * reports generic types ("restaurant", "food"), while v1 exposes real ones
+   * ("seafood_restaurant"). Best-effort — never throws, empty on failure.
+   */
+  async cuisinesFor(placeId: string): Promise<string[]> {
+    if (!this.hasKey()) return [];
+    const key = this.key();
+    try {
+      const res = await fetchWithTimeout(
+        `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?fields=types,primaryTypeDisplayName`,
+        { headers: { "X-Goog-Api-Key": key }, throw: false },
+      );
+      if (res.status >= 400) return [];
+      const body = JSON.parse(res.text) as {
+        types?: string[];
+        primaryTypeDisplayName?: { text?: string };
+      };
+      const out: string[] = [];
+      for (const t of body.types ?? []) {
+        const name = CUISINE_BY_TYPE[t];
+        if (name !== undefined && !out.includes(name)) out.push(name);
+      }
+      if (out.length === 0) {
+        const primary = (body.primaryTypeDisplayName?.text ?? "")
+          .replace(/\s*Restaurant$/i, "")
+          .trim();
+        if (primary !== "" && primary.toLowerCase() !== "restaurant") out.push(primary);
+      }
+      return out.slice(0, 3);
+    } catch {
+      return [];
+    }
+  }
+
   async details(placeId: string): Promise<PlaceDetails> {
     const data = await this.call("details", {
       place_id: placeId,
