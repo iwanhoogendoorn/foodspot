@@ -202,3 +202,55 @@
 .fs-quickadd-visit-fields {
   margin-top: 6px;
 }
+
+/* --- clearable search fields ------------------------------------------------ */
+.fs-discover-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 200px;
+  min-width: 140px;
+}
+
+.fs-discover-location-field {
+  flex: 1 1 260px;
+}
+
+.fs-discover-field .fs-discover-input {
+  width: 100%;
+  padding-right: 28px !important;
+}
+
+.fs-discover-clear {
+  position: absolute;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+.fs-discover-clear.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.fs-discover-clear:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.fs-discover-clear svg {
+  width: 13px;
+  height: 13px;
+}

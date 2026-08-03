@@ -19900,7 +19900,8 @@ function mountDiscoverTab(container, plugin) {
   let tileSync = [];
   let loadMoreTimer = null;
   const controls = root.createDiv({ cls: "fs-toolbar fs-discover-controls" });
-  const locationInput = controls.createEl("input", {
+  const locWrap = controls.createDiv({ cls: "fs-discover-field fs-discover-location-field" });
+  const locationInput = locWrap.createEl("input", {
     cls: "fs-discover-input fs-discover-location",
     attr: {
       type: "text",
@@ -19911,7 +19912,8 @@ function mountDiscoverTab(container, plugin) {
     }
   });
   locationInput.value = state.location;
-  const keywordInput = controls.createEl("input", {
+  const kwWrap = controls.createDiv({ cls: "fs-discover-field" });
+  const keywordInput = kwWrap.createEl("input", {
     cls: "fs-discover-input fs-discover-keyword",
     attr: {
       type: "text",
@@ -19922,6 +19924,37 @@ function mountDiscoverTab(container, plugin) {
     }
   });
   keywordInput.value = state.keyword;
+  const clearButton = (wrap, input, onCleared) => {
+    const btn = wrap.createEl("button", {
+      cls: "fs-discover-clear",
+      attr: { "aria-label": "Clear", tabindex: "-1", title: "Clear" }
+    });
+    btn.type = "button";
+    (0, import_obsidian23.setIcon)(btn, "x");
+    const sync = () => btn.toggleClass("is-visible", input.value.length > 0);
+    sync();
+    input.addEventListener("input", sync);
+    btn.addEventListener("click", () => {
+      input.value = "";
+      sync();
+      input.focus();
+      onCleared();
+    });
+    return btn;
+  };
+  clearButton(locWrap, locationInput, () => {
+    state.location = "";
+    state.keyword = keywordInput.value.trim();
+    state.query = "";
+    state.results = [];
+    delete state.nextPageToken;
+    delete state.error;
+    state.searched = false;
+    render();
+  });
+  clearButton(kwWrap, keywordInput, () => {
+    state.keyword = "";
+  });
   const searchBtn = controls.createEl("button", {
     cls: "fs-btn fs-btn-accent",
     attr: { "aria-label": "Search restaurants", title: "Search restaurants" }
