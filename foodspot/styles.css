@@ -1539,15 +1539,49 @@ svg.leaflet-image-layer.leaflet-interactive path {
   color: var(--text-faint);
 }
 
-/* --- selection (::after border — outlines get painted over) --------------- */
+/* --- selection: a thin ring disappears over photos, so a selected card gets
+   an accent wash, a thick ring AND a check badge (::after/::before need no
+   DOM changes; an outline would be painted over by the absolute photo). --- */
 .fs-vcell.is-selected::after,
 .fs-card-row.is-selected::after {
   content: "";
   position: absolute;
   inset: 0;
-  border: 2px solid var(--interactive-accent);
-  border-radius: 8px;
+  border: 3px solid var(--interactive-accent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 35%, transparent);
   pointer-events: none;
+  z-index: 4;
+}
+
+.fs-vcell.is-selected::before,
+.fs-card-row.is-selected::before {
+  content: "✓";
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+/* Unselected cards recede while picking, so the chosen ones pop. */
+.fs-select-mode .fs-vcell:not(.is-selected) .fs-card,
+.fs-select-mode .fs-card-row:not(.is-selected) {
+  opacity: 0.62;
+  transition: opacity 0.12s ease;
 }
 
 .fs-vcell.is-selected .fs-card {
