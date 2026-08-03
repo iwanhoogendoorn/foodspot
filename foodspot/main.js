@@ -11308,7 +11308,18 @@ var CUISINE_BY_TYPE = {
   african_restaurant: "African",
   indonesian_restaurant: "Indonesian",
   afghani_restaurant: "Afghan",
-  tapas_restaurant: "Tapas"
+  tapas_restaurant: "Tapas",
+  persian_restaurant: "Persian",
+  sushi_bar: "Sushi",
+  bar_and_grill: "Grill",
+  bagel_shop: "Bagels",
+  donut_shop: "Donuts",
+  juice_shop: "Juice",
+  tea_house: "Tea",
+  chocolate_shop: "Chocolate",
+  candy_store: "Sweets",
+  deli: "Deli",
+  diner: "Diner"
 };
 var DETAILS_FIELDS = [
   "name",

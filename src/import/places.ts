@@ -29,6 +29,9 @@ const CUISINE_BY_TYPE: Record<string, string> = {
   fast_food_restaurant: "Fast food", dessert_shop: "Desserts", ice_cream_shop: "Ice cream",
   sandwich_shop: "Sandwiches", african_restaurant: "African",
   indonesian_restaurant: "Indonesian", afghani_restaurant: "Afghan", tapas_restaurant: "Tapas",
+  persian_restaurant: "Persian", sushi_bar: "Sushi", bar_and_grill: "Grill",
+  bagel_shop: "Bagels", donut_shop: "Donuts", juice_shop: "Juice", tea_house: "Tea",
+  chocolate_shop: "Chocolate", candy_store: "Sweets", deli: "Deli", diner: "Diner",
 };
 
 const DETAILS_FIELDS = [
