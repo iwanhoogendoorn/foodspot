@@ -1,5 +1,6 @@
 import { Notice, normalizePath } from "obsidian";
 import type FoodSpotPlugin from "./main";
+import { ensureFolder } from "./store/noteWriter";
 
 /**
  * Writes a live-DOM diagnostic snapshot of the dashboard into the vault so
@@ -77,7 +78,10 @@ export async function dumpDashboardDiagnostics(plugin: FoodSpotPlugin): Promise<
   push(dash ? dash.outerHTML.slice(0, 30000) : "(no .fs-view in DOM)");
   push("```");
 
-  const path = normalizePath("foodspot-diagnostics.md");
+  // Plugin-generated files live with the spots, never in the vault root.
+  const folder = normalizePath(plugin.settings.spotsFolder || "Food Spot");
+  await ensureFolder(plugin.app, folder);
+  const path = normalizePath(`${folder}/foodspot-diagnostics.md`);
   const existing = plugin.app.vault.getFileByPath(path);
   if (existing) await plugin.app.vault.modify(existing, lines.join("\n"));
   else await plugin.app.vault.create(path, lines.join("\n"));

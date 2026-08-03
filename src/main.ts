@@ -20,6 +20,7 @@ import { registerEnrichEntry } from "./ui/modals/enrich";
 import { openCityGuideModal } from "./ui/modals/cityGuide";
 import { openGalleryModal } from "./ui/modals/gallery";
 import { disposePhotoObserver } from "./ui/components/card";
+import { ensureFolder } from "./store/noteWriter";
 import { dumpDashboardDiagnostics } from "./diagnostics";
 
 export default class FoodSpotPlugin extends Plugin implements FoodSpotPluginApi {
@@ -209,7 +210,9 @@ export default class FoodSpotPlugin extends Plugin implements FoodSpotPluginApi 
       );
     } finally {
       this.discoveringAll = false;
-      const path = "foodspot-discovery-log.md";
+      const folder = this.settings.spotsFolder || "Food Spot";
+      await ensureFolder(this.app, folder);
+      const path = `${folder}/foodspot-discovery-log.md`;
       const existing = this.app.vault.getFileByPath(path);
       const content = log.join("\n");
       if (existing) await this.app.vault.modify(existing, content);

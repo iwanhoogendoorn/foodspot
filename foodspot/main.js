@@ -24824,7 +24824,9 @@ async function dumpDashboardDiagnostics(plugin) {
   push("```html");
   push(dash ? dash.outerHTML.slice(0, 3e4) : "(no .fs-view in DOM)");
   push("```");
-  const path = (0, import_obsidian38.normalizePath)("foodspot-diagnostics.md");
+  const folder = (0, import_obsidian38.normalizePath)(plugin.settings.spotsFolder || "Food Spot");
+  await ensureFolder(plugin.app, folder);
+  const path = (0, import_obsidian38.normalizePath)(`${folder}/foodspot-diagnostics.md`);
   const existing = plugin.app.vault.getFileByPath(path);
   if (existing) await plugin.app.vault.modify(existing, lines.join("\n"));
   else await plugin.app.vault.create(path, lines.join("\n"));
@@ -24996,7 +24998,9 @@ var FoodSpotPlugin = class extends import_obsidian39.Plugin {
       );
     } finally {
       this.discoveringAll = false;
-      const path = "foodspot-discovery-log.md";
+      const folder = this.settings.spotsFolder || "Food Spot";
+      await ensureFolder(this.app, folder);
+      const path = `${folder}/foodspot-discovery-log.md`;
       const existing = this.app.vault.getFileByPath(path);
       const content = log.join("\n");
       if (existing) await this.app.vault.modify(existing, content);
