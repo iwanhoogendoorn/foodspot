@@ -1,7 +1,7 @@
 {
 	"id": "foodspot",
 	"name": "Food Spot",
-	"version": "1.19.0",
+	"version": "1.20.0",
 	"minAppVersion": "1.11.0",
 	"description": "Track restaurants across countries as markdown notes: wishlist, visits, your ratings next to Google/TripAdvisor ratings, dashboards and embeddable widgets.",
 	"author": "Iwan Hoogendoorn & Gaurav Mahadew",

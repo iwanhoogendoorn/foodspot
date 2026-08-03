@@ -1,0 +1,191 @@
+/* ===========================================================================
+   Food Spot — 35-list: the List tab, a Base-style editable table. Every
+   frequently-changed field is inline (cuisine, price, rating, favorite);
+   colors come from Obsidian vars only.
+   ======================================================================== */
+
+.fs-list-tab {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.fs-list-toolbar {
+  gap: 6px;
+}
+
+.fs-list-filter {
+  max-width: 150px;
+}
+
+.fs-list-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.fs-list-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.fs-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-ui-small);
+}
+
+.fs-list-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--background-primary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  text-align: left;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.fs-list-sort {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.fs-list-sort:hover {
+  color: var(--text-normal);
+}
+
+.fs-list-arrow {
+  color: var(--interactive-accent);
+}
+
+.fs-list-table td {
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  vertical-align: middle;
+}
+
+.fs-list-row:hover td {
+  background: var(--background-modifier-hover);
+}
+
+.fs-list-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+}
+
+.fs-list-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-normal);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-list-link:hover {
+  color: var(--interactive-accent);
+}
+
+.fs-list-city {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.fs-list-google {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fs-list-cell-select {
+  max-width: 150px;
+  height: 26px;
+  padding: 0 22px 0 6px;
+  font-size: 12px;
+}
+
+.fs-list-price {
+  max-width: 84px;
+}
+
+.fs-list-rating .fs-star-rating {
+  --fs-star-size: 15px;
+}
+
+.fs-col-fav,
+.fs-col-actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.fs-list-fav,
+.fs-list-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.fs-list-fav svg,
+.fs-list-action svg {
+  width: 15px;
+  height: 15px;
+}
+
+.fs-list-fav:hover,
+.fs-list-action:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.fs-list-fav.is-active {
+  color: var(--fs-fav, var(--color-red));
+}
+
+.fs-list-fav.is-active svg {
+  fill: currentColor;
+}
+
+.fs-list-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+@media (max-width: 700px) {
+  .fs-list-scroll {
+    overflow-x: auto;
+  }
+  .fs-list-table {
+    min-width: 720px;
+  }
+}
