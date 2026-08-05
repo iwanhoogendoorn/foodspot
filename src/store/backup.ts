@@ -170,16 +170,69 @@ export async function buildBackupJson(
 }
 
 
+/** Where a save lands when there is no system save dialog (mobile). */
+export interface VaultSaveTarget {
+  app: App;
+  /** Vault folder to write into; created when it does not exist yet. */
+  folder: string;
+}
+
+/** First free `<folder>/<name>`, suffixing " 2", " 3", … before the extension. */
+function freeVaultPath(app: App, folder: string, fileName: string): string {
+  const dot = fileName.lastIndexOf(".");
+  const base = dot > 0 ? fileName.slice(0, dot) : fileName;
+  const ext = dot > 0 ? fileName.slice(dot) : "";
+  const prefix = folder ? `${normalizePath(folder)}/` : "";
+  let candidate = `${prefix}${base}${ext}`;
+  let n = 2;
+  while (app.vault.getAbstractFileByPath(candidate)) {
+    candidate = `${prefix}${base} ${n}${ext}`;
+    n += 1;
+  }
+  return candidate;
+}
+
 /**
- * Desktop-only: save a string anywhere on disk via the system save dialog.
- * Returns true when the user saved, false on cancel/mobile.
+ * Mobile has no system save dialog and no filesystem outside the vault, so the
+ * file goes into the vault itself — from there the OS share sheet, or any sync,
+ * can take it anywhere. Never overwrites: a taken name gets a numeric suffix.
  */
-export async function saveToDisk(defaultName: string, content: string): Promise<boolean> {
+async function saveIntoVault(
+  target: VaultSaveTarget,
+  defaultName: string,
+  content: string,
+): Promise<boolean> {
+  try {
+    const folder = normalizePath(target.folder);
+    await ensureFolder(target.app, folder);
+    const path = freeVaultPath(target.app, folder, defaultName);
+    await target.app.vault.create(path, content);
+    new Notice(`Saved to ${path} — open it from Files to share or move it.`, 10000);
+    return true;
+  } catch (e) {
+    new Notice(`Couldn't save inside the vault: ${errMsg(e)}`);
+    return false;
+  }
+}
+
+/**
+ * Save a string outside the vault via the system save dialog (desktop).
+ *
+ * Without that dialog — i.e. on mobile — the file is written into the vault at
+ * `target.folder` when a target is given, so exports and backups are not a
+ * desktop-only feature. Returns true when something was written.
+ */
+export async function saveToDisk(
+  defaultName: string,
+  content: string,
+  target?: VaultSaveTarget,
+): Promise<boolean> {
   const dialog = (window as unknown as {
     electron?: { remote?: { dialog?: { showSaveDialog(o: object): Promise<{ canceled: boolean; filePath?: string }> } } };
   }).electron?.remote?.dialog;
   const nodeRequire = (globalThis as unknown as { require?: (m: string) => { writeFileSync(p: string, c: string, e: string): void } }).require;
   if (!dialog || !nodeRequire) {
+    if (target) return saveIntoVault(target, defaultName, content);
     new Notice("Saving outside the vault is only available on desktop.");
     return false;
   }

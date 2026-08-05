@@ -20885,10 +20885,37 @@ async function buildBackupJson(plugin) {
   }
   return { json: JSON.stringify(payload), suggestedName: name, warnings };
 }
-async function saveToDisk(defaultName, content) {
+function freeVaultPath(app, folder, fileName) {
+  const dot = fileName.lastIndexOf(".");
+  const base = dot > 0 ? fileName.slice(0, dot) : fileName;
+  const ext = dot > 0 ? fileName.slice(dot) : "";
+  const prefix = folder ? `${(0, import_obsidian24.normalizePath)(folder)}/` : "";
+  let candidate = `${prefix}${base}${ext}`;
+  let n = 2;
+  while (app.vault.getAbstractFileByPath(candidate)) {
+    candidate = `${prefix}${base} ${n}${ext}`;
+    n += 1;
+  }
+  return candidate;
+}
+async function saveIntoVault(target, defaultName, content) {
+  try {
+    const folder = (0, import_obsidian24.normalizePath)(target.folder);
+    await ensureFolder(target.app, folder);
+    const path = freeVaultPath(target.app, folder, defaultName);
+    await target.app.vault.create(path, content);
+    new import_obsidian24.Notice(`Saved to ${path} \u2014 open it from Files to share or move it.`, 1e4);
+    return true;
+  } catch (e) {
+    new import_obsidian24.Notice(`Couldn't save inside the vault: ${errMsg2(e)}`);
+    return false;
+  }
+}
+async function saveToDisk(defaultName, content, target) {
   const dialog = window.electron?.remote?.dialog;
   const nodeRequire = globalThis.require;
   if (!dialog || !nodeRequire) {
+    if (target) return saveIntoVault(target, defaultName, content);
     new import_obsidian24.Notice("Saving outside the vault is only available on desktop.");
     return false;
   }
@@ -23609,6 +23636,17 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       })
     );
   }
+  /**
+   * Fallback location for exports and backups on mobile, where there is no
+   * system save dialog: a folder next to the spot notes. Ignored on desktop —
+   * saveToDisk only reaches for it when the dialog is missing.
+   */
+  exportTarget() {
+    return {
+      app: this.app,
+      folder: `${this.plugin.settings.spotsFolder}/_exports`
+    };
+  }
   spots() {
     try {
       return this.plugin.store.getSpots();
@@ -23623,6 +23661,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("fs-settings");
+    containerEl.toggleClass("fs-settings-mobile", import_obsidian34.Platform.isMobile);
     this.navEl = containerEl.createDiv({ cls: "fs-settings-nav" });
     this.bodyEl = containerEl.createDiv({ cls: "fs-settings-body" });
     for (const sec of NAV_SECTIONS) {
@@ -23636,12 +23675,15 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         this.navEl.findAll(".fs-settings-nav-item").forEach((el) => el.removeClass("is-active"));
         btn.addClass("is-active");
         this.renderBody();
+        if (import_obsidian34.Platform.isMobile) {
+          this.bodyEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
       };
     }
     this.renderBody();
   }
   hide() {
-    this.containerEl.removeClass("fs-settings");
+    this.containerEl.removeClass("fs-settings", "fs-settings-mobile");
     super.hide();
   }
   renderBody() {
@@ -23815,12 +23857,18 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       enrich,
       "Uses the Google Places key from the API section at roughly 3 API calls per spot (lookup, details, photo download). Large libraries can eat into your Google quota \u2014 scope the run to missing-data-only in the options dialog to keep it cheap. By default only empty fields are filled; nothing you typed is overwritten."
     );
-    const exp = new import_obsidian34.Setting(c).setName("Export spots").setDesc("Opens the system save dialog and writes all spots wherever you choose.");
+    const exp = new import_obsidian34.Setting(c).setName("Export spots").setDesc(
+      import_obsidian34.Platform.isMobile ? "Writes all spots into a file inside your vault, ready to share from Files." : "Opens the system save dialog and writes all spots wherever you choose."
+    );
     exp.settingEl.addClass("fs-setting-stack");
     exp.addButton(
       (b) => b.setButtonText("Export CSV\u2026").onClick(async () => {
         const date = todayIso();
-        await saveToDisk(`Food Spot export ${date}.csv`, spotsToCsv(this.spots()));
+        await saveToDisk(
+          `Food Spot export ${date}.csv`,
+          spotsToCsv(this.spots()),
+          this.exportTarget()
+        );
       })
     );
     exp.addButton(
@@ -23828,13 +23876,14 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         const date = todayIso();
         await saveToDisk(
           `Food Spot export ${date}.json`,
-          JSON.stringify(this.spots(), null, 2)
+          JSON.stringify(this.spots(), null, 2),
+          this.exportTarget()
         );
       })
     );
     this.addHelp(
       exp,
-      "The export always contains every spot, regardless of any filters active in the Spots tab. Exports use the system save dialog (desktop only)."
+      `The export always contains every spot, regardless of any filters active in the Spots tab. On desktop it uses the system save dialog; on mobile there is none, so the file is written to ${this.plugin.settings.spotsFolder}/_exports inside your vault.`
     );
     const bak = new import_obsidian34.Setting(c).setName("Backup & restore").setDesc(
       "Full backup: every field, visits, notes AND the actual photo/menu files, embedded in one JSON. Restore recreates notes and images; existing spots are never overwritten."
@@ -23845,7 +23894,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         b.setDisabled(true);
         try {
           const { json, suggestedName } = await buildBackupJson(this.plugin);
-          await saveToDisk(suggestedName, json);
+          await saveToDisk(suggestedName, json, this.exportTarget());
         } catch (e) {
           new import_obsidian34.Notice(`Backup failed: ${errMsg4(e)}`);
         } finally {
@@ -23885,7 +23934,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     });
     this.addHelp(
       bak,
-      "Export opens the system save dialog \u2014 put the file anywhere (it can get large: photos are embedded). To restore on another vault: install Food Spot there, then Import backup and pick the file. Media files are recreated at their original vault paths."
+      `Export opens the system save dialog on desktop \u2014 put the file anywhere (it can get large: photos are embedded). On mobile it lands in ${this.plugin.settings.spotsFolder}/_exports inside your vault instead. To restore on another vault: install Food Spot there, then Import backup and pick the file. Media files are recreated at their original vault paths.`
     );
     const dupes = new import_obsidian34.Setting(c).setName("Find duplicate spots").setDesc(
       "Finds spots that are the same restaurant \u2014 the same Google place, the same name within one city, or nearly identical coordinates \u2014 and lets you merge a pair into one note."

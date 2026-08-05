@@ -11,6 +11,7 @@ import {
   App,
   Modal,
   Notice,
+  Platform,
   Plugin,
   PluginSettingTab,
   Setting,
@@ -25,6 +26,7 @@ import { confirmModal } from "../ui/modals/confirm";
 import { openDuplicatesModal } from "../ui/modals/duplicates";
 import { starRating } from "../ui/components/starRating";
 import { buildBackupJson, importBackup, saveToDisk } from "../store/backup";
+import type { VaultSaveTarget } from "../store/backup";
 import { sanitizeFileName } from "../import/pipeline";
 import { embedRefPath } from "../store/visitsParser";
 import { todayIso } from "../util/dates";
@@ -274,6 +276,18 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     );
   }
 
+  /**
+   * Fallback location for exports and backups on mobile, where there is no
+   * system save dialog: a folder next to the spot notes. Ignored on desktop —
+   * saveToDisk only reaches for it when the dialog is missing.
+   */
+  private exportTarget(): VaultSaveTarget {
+    return {
+      app: this.app,
+      folder: `${this.plugin.settings.spotsFolder}/_exports`,
+    };
+  }
+
   private spots(): FoodSpot[] {
     try {
       return this.plugin.store.getSpots();
@@ -290,6 +304,10 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("fs-settings");
+    // Phones get the section grid + stacked controls from 80-mobile.css. The
+    // class is namespaced on purpose: a bare `is-mobile` on this element would
+    // collide with Obsidian's own `.is-mobile` rules.
+    containerEl.toggleClass("fs-settings-mobile", Platform.isMobile);
 
     this.navEl = containerEl.createDiv({ cls: "fs-settings-nav" });
     this.bodyEl = containerEl.createDiv({ cls: "fs-settings-body" });
@@ -307,13 +325,18 @@ export class FoodSpotSettingTab extends PluginSettingTab {
           .forEach((el) => el.removeClass("is-active"));
         btn.addClass("is-active");
         this.renderBody();
+        // On a phone the grid fills the screen, so a freshly picked section
+        // would render below the fold. Bring it up.
+        if (Platform.isMobile) {
+          this.bodyEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
       };
     }
     this.renderBody();
   }
 
   hide(): void {
-    this.containerEl.removeClass("fs-settings");
+    this.containerEl.removeClass("fs-settings", "fs-settings-mobile");
     super.hide();
   }
 
@@ -538,12 +561,20 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     // --- Export ---
     const exp = new Setting(c)
       .setName("Export spots")
-      .setDesc("Opens the system save dialog and writes all spots wherever you choose.");
+      .setDesc(
+        Platform.isMobile
+          ? "Writes all spots into a file inside your vault, ready to share from Files."
+          : "Opens the system save dialog and writes all spots wherever you choose.",
+      );
     exp.settingEl.addClass("fs-setting-stack");
     exp.addButton((b) =>
       b.setButtonText("Export CSV…").onClick(async () => {
         const date = todayIso();
-        await saveToDisk(`Food Spot export ${date}.csv`, spotsToCsv(this.spots()));
+        await saveToDisk(
+          `Food Spot export ${date}.csv`,
+          spotsToCsv(this.spots()),
+          this.exportTarget(),
+        );
       }),
     );
     exp.addButton((b) =>
@@ -552,12 +583,13 @@ export class FoodSpotSettingTab extends PluginSettingTab {
         await saveToDisk(
           `Food Spot export ${date}.json`,
           JSON.stringify(this.spots(), null, 2),
+          this.exportTarget(),
         );
       }),
     );
     this.addHelp(
       exp,
-      "The export always contains every spot, regardless of any filters active in the Spots tab. Exports use the system save dialog (desktop only).",
+      `The export always contains every spot, regardless of any filters active in the Spots tab. On desktop it uses the system save dialog; on mobile there is none, so the file is written to ${this.plugin.settings.spotsFolder}/_exports inside your vault.`,
     );
 
     // --- Full backup & restore (metadata + embedded photos/menus) ---
@@ -572,7 +604,7 @@ export class FoodSpotSettingTab extends PluginSettingTab {
         b.setDisabled(true);
         try {
           const { json, suggestedName } = await buildBackupJson(this.plugin);
-          await saveToDisk(suggestedName, json);
+          await saveToDisk(suggestedName, json, this.exportTarget());
         } catch (e) {
           new Notice(`Backup failed: ${errMsg(e)}`);
         } finally {
@@ -612,7 +644,7 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     });
     this.addHelp(
       bak,
-      "Export opens the system save dialog — put the file anywhere (it can get large: photos are embedded). To restore on another vault: install Food Spot there, then Import backup and pick the file. Media files are recreated at their original vault paths.",
+      `Export opens the system save dialog on desktop — put the file anywhere (it can get large: photos are embedded). On mobile it lands in ${this.plugin.settings.spotsFolder}/_exports inside your vault instead. To restore on another vault: install Food Spot there, then Import backup and pick the file. Media files are recreated at their original vault paths.`,
     );
 
     // --- Duplicate finder ---
