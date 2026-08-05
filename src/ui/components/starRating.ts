@@ -1,9 +1,10 @@
 /**
  * Food Spot — 5-star rating widget (WatchLog `Ge` pattern).
  *
- * - Half-stars by mouse half when `halfSteps` is on.
- * - Hover preview repaint; mouseleave restores the committed value.
- * - Clicking the current value clears it (onChange receives 0).
+ * - Half-stars by pointer half when `halfSteps` is on.
+ * - Pointer-driven: hover previews with a mouse, press-drag-release on touch;
+ *   leaving or cancelling restores the committed value.
+ * - Committing the current value clears it (onChange receives 0).
  * - Tier color exposed as `--fs-rating-color` (tier = ceil(value), from the
  *   user-configurable `ratingTiers` palette); optional tier label.
  * - `readOnly` renders a static display (no listeners, no pointer cursor).
@@ -74,26 +75,74 @@ export function starRating(parent: HTMLElement, opts: StarRatingOptions): StarRa
     root.setAttribute("aria-valuemax", "5");
     root.setAttribute("tabindex", "0");
 
-    const valueAt = (starIndex: number, ev: MouseEvent): number => {
-      const star = starEls[starIndex];
-      if (!star) return starIndex + 1;
-      if (!opts.halfSteps) return starIndex + 1;
-      const rect = star.getBoundingClientRect();
-      const half = ev.clientX - rect.left < rect.width / 2;
-      return half ? starIndex + 0.5 : starIndex + 1;
+    /** The rating a viewport x lands on, whichever star that x falls in. */
+    const valueAtPoint = (clientX: number): number => {
+      // Read by position rather than per-star listeners so a drag that crosses
+      // stars keeps reporting, instead of stopping at the star it started on.
+      let idx = 0;
+      for (let i = 0; i < STAR_COUNT; i++) {
+        const r = starEls[i]?.getBoundingClientRect();
+        if (r && clientX >= r.left) idx = i;
+      }
+      const rect = starEls[idx]?.getBoundingClientRect();
+      if (!rect || !opts.halfSteps) return idx + 1;
+      return clientX - rect.left < rect.width / 2 ? idx + 0.5 : idx + 1;
     };
 
-    starEls.forEach((star, i) => {
-      star.addEventListener("mousemove", (ev) => paint(valueAt(i, ev), true));
-      star.addEventListener("click", (ev) => {
-        const v = valueAt(i, ev);
-        // Clicking the current value clears the rating.
-        value = Math.abs(v - value) < 0.001 ? 0 : v;
-        paint(value);
-        opts.onChange?.(value);
-      });
+    const commit = (v: number): void => {
+      // Committing the current value clears the rating.
+      value = Math.abs(v - value) < 0.001 ? 0 : v;
+      paint(value);
+      opts.onChange?.(value);
+    };
+
+    // Pointer events, not mouse events. Touch fires no mousemove, so the old
+    // hover-preview-then-click flow made a rating unsettable on a phone. One
+    // pointer path now covers mouse, touch and pen: press to preview, drag to
+    // adjust, release to commit.
+    let dragging = false;
+
+    const endDrag = (ev: PointerEvent): void => {
+      dragging = false;
+      if (starsEl.hasPointerCapture(ev.pointerId)) starsEl.releasePointerCapture(ev.pointerId);
+    };
+
+    starsEl.addEventListener("pointerdown", (ev) => {
+      dragging = true;
+      starsEl.setPointerCapture(ev.pointerId);
+      // Suppresses the synthesized click and the text selection a drag would
+      // otherwise start; the commit happens on pointerup instead. It also stops
+      // a tap on the stars from reaching a clickable ancestor, such as the card
+      // or list row the widget sits in.
+      ev.preventDefault();
+      root.focus();
+      paint(valueAtPoint(ev.clientX), true);
     });
-    starsEl.addEventListener("mouseleave", () => paint(value));
+
+    starsEl.addEventListener("pointermove", (ev) => {
+      // A mouse previews on hover; touch and pen report no position until
+      // something is pressed, so they only preview mid-drag.
+      if (!dragging && ev.pointerType !== "mouse") return;
+      paint(valueAtPoint(ev.clientX), true);
+    });
+
+    starsEl.addEventListener("pointerup", (ev) => {
+      if (!dragging) return;
+      endDrag(ev);
+      commit(valueAtPoint(ev.clientX));
+    });
+
+    starsEl.addEventListener("pointercancel", (ev) => {
+      // The gesture was claimed by something else — a scroll, a system swipe.
+      // Nothing was chosen, so restore what was already committed.
+      if (!dragging) return;
+      endDrag(ev);
+      paint(value);
+    });
+
+    starsEl.addEventListener("pointerleave", () => {
+      if (!dragging) paint(value);
+    });
 
     // Keyboard: arrows adjust, Backspace/Delete clears.
     root.addEventListener("keydown", (ev) => {

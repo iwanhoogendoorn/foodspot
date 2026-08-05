@@ -2,10 +2,11 @@
  * Food Spot — city guide modal.
  *
  * Pick a city, decide whether the want-to-try list travels with it, and watch
- * the markdown build itself in the preview. Three exits: the clipboard (paste
- * it into a chat), a note in the vault (`<spotsFolder>/Guides/…`, never
- * overwriting an older guide), and the system save dialog for everyone who is
- * not an Obsidian user.
+ * the markdown build itself in the preview. Exits: the clipboard (paste it into
+ * a chat), a note in the vault (`<spotsFolder>/Guides/…`, never overwriting an
+ * older guide), and — for everyone who is not an Obsidian user — a PDF via the
+ * system save dialog on desktop, or the standalone HTML written into
+ * `<spotsFolder>/_exports/` on mobile, where there is no such dialog.
  */
 import { Modal, Notice, TFile } from "obsidian";
 import type { FoodSpot, FoodSpotPluginApi } from "../../types";
@@ -13,7 +14,8 @@ import { buildCityGuide } from "../../tools/cityGuide";
 import { buildGuideHtml, guidePhotoPaths } from "../../tools/guideHtml";
 import { ensureFolder, availablePath } from "../../store/noteWriter";
 import { saveToDisk } from "../../store/backup";
-import { exportHtmlToPdf } from "../../tools/pdfExport";
+import type { VaultSaveTarget } from "../../store/backup";
+import { exportHtmlToPdf, canExportPdf } from "../../tools/pdfExport";
 
 export function openCityGuideModal(plugin: FoodSpotPluginApi, city?: string): void {
   new CityGuideModal(plugin, city).open();
@@ -120,31 +122,61 @@ class CityGuideModal extends Modal {
     this.previewEl.setAttribute("sandbox", "allow-same-origin allow-modals");
 
     const buttons = body.createDiv({ cls: "fs-modal-buttons fs-guide-buttons" });
-    const pdf = buttons.createEl("button", { cls: "mod-cta", text: "Save as PDF…" });
-    pdf.type = "button";
-    pdf.addEventListener("click", () => {
-      pdf.disabled = true;
-      pdf.setText("Saving…");
-      void exportHtmlToPdf(this.html, `${sanitizeFileName(this.noteTitle())}.pdf`)
-        .then((outcome) => {
-          // Any failure — no desktop, no save dialog, unwritable temp dir, a
-          // printToPDF that exists but throws — still leaves the user with the
-          // OS print dialog, which offers "Save as PDF".
-          if (outcome === "failed") this.print();
-        })
-        .catch((e: unknown) => {
-          new Notice(`PDF export failed — ${errorMessage(e)}. Use "Save HTML…" instead.`);
-        })
-        .finally(() => {
-          pdf.disabled = false;
-          pdf.setText("Save as PDF…");
-        });
-    });
-    const htmlBtn = buttons.createEl("button", { text: "Save HTML…" });
-    htmlBtn.type = "button";
-    htmlBtn.addEventListener("click", () => {
-      void saveToDisk(`${sanitizeFileName(this.noteTitle())}.html`, this.html);
-    });
+    // Rendering HTML to PDF bytes needs Electron's <webview>, which mobile has
+    // no equivalent for. Rather than offer a button that can only apologise,
+    // mobile gets the standalone HTML written into the vault — from Files its
+    // share sheet prints to PDF, which is the same document by another route.
+    if (canExportPdf()) {
+      const pdf = buttons.createEl("button", { cls: "mod-cta", text: "Save as PDF…" });
+      pdf.type = "button";
+      pdf.addEventListener("click", () => {
+        pdf.disabled = true;
+        pdf.setText("Saving…");
+        void exportHtmlToPdf(this.html, `${sanitizeFileName(this.noteTitle())}.pdf`)
+          .then((outcome) => {
+            // Any failure — no save dialog, unwritable temp dir, a printToPDF
+            // that exists but throws — still leaves the user with the OS print
+            // dialog, which offers "Save as PDF".
+            if (outcome === "failed") this.print();
+          })
+          .catch((e: unknown) => {
+            new Notice(`PDF export failed — ${errorMessage(e)}. Use "Save HTML…" instead.`);
+          })
+          .finally(() => {
+            pdf.disabled = false;
+            pdf.setText("Save as PDF…");
+          });
+      });
+      const htmlBtn = buttons.createEl("button", { text: "Save HTML…" });
+      htmlBtn.type = "button";
+      htmlBtn.addEventListener("click", () => {
+        void saveToDisk(`${sanitizeFileName(this.noteTitle())}.html`, this.html);
+      });
+    } else {
+      const save = buttons.createEl("button", { cls: "mod-cta", text: "Save guide…" });
+      save.type = "button";
+      save.addEventListener("click", () => {
+        save.disabled = true;
+        save.setText("Saving…");
+        void saveToDisk(
+          `${sanitizeFileName(this.noteTitle())}.html`,
+          this.html,
+          this.exportTarget(),
+        )
+          .then((written) => {
+            if (written) {
+              new Notice(
+                "Open the saved guide from Files and use Share → Print → Save as PDF.",
+                10000,
+              );
+            }
+          })
+          .finally(() => {
+            save.disabled = false;
+            save.setText("Save guide…");
+          });
+      });
+    }
     const copy = buttons.createEl("button", { text: "Copy markdown" });
     copy.type = "button";
     copy.addEventListener("click", () => {
@@ -162,6 +194,17 @@ class CityGuideModal extends Modal {
 
   private noteTitle(): string {
     return `Eating in ${this.city}`;
+  }
+
+  /**
+   * Where a guide lands when there is no system save dialog (mobile): a folder
+   * beside the spot notes, so it is reachable from Files and from any sync.
+   */
+  private exportTarget(): VaultSaveTarget {
+    return {
+      app: this.app,
+      folder: `${this.plugin.settings.spotsFolder}/_exports`,
+    };
   }
 
   private markdown(): string {

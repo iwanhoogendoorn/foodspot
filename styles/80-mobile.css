@@ -636,8 +636,10 @@
   min-height: 0;
 }
 
+/* The list's stars are editable too, and 14px halves are a 7px target. Give
+   them the room the modal's stars already get; the row is tall enough. */
 .fs-mobile .fs-list-rating .fs-star-rating {
-  --fs-star-size: 14px;
+  --fs-star-size: 18px;
 }
 
 .fs-mobile .fs-list-fav,

@@ -6,7 +6,7 @@
  * a note's own embeds stay readable and the cleanup sweep can reason about
  * them like any other media file.
  */
-import { Notice, TFile, normalizePath } from "obsidian";
+import { Notice, Platform, TFile, normalizePath } from "obsidian";
 import type { FoodSpot, FoodSpotPluginApi } from "../../types";
 import { ensureFolder } from "../../store/noteWriter";
 import { embedRefPath } from "../../store/visitsParser";
@@ -73,7 +73,13 @@ export async function importDishPhotos(
   return saved;
 }
 
-/** Open a native file picker for images; resolves to the chosen files. */
+/**
+ * Open a native file picker for images; resolves to the chosen files.
+ *
+ * `accept="image/*"` with no `capture` is deliberate: iOS and Android both
+ * offer "Take Photo" alongside the library for it, so the camera is reachable
+ * without locking the picker to it.
+ */
 export function pickImageFiles(): Promise<File[]> {
   return new Promise((resolve) => {
     const input = createEl("input", {
@@ -88,9 +94,20 @@ export function pickImageFiles(): Promise<File[]> {
       input.remove();
       resolve(files);
     };
-    input.addEventListener("change", () => finish(Array.from(input.files ?? [])));
-    // A cancelled picker fires no event in Electron — release on refocus.
-    window.addEventListener("focus", () => window.setTimeout(() => finish([]), 400), {
+    // Always re-read the input rather than assuming a cancel. The refocus
+    // fallback below used to resolve a hardcoded [], which on a phone threw the
+    // user's photos away: picking one backgrounds the whole app, so refocus
+    // fires on return — sometimes before the file is attached.
+    const settle = (): void => finish(Array.from(input.files ?? []));
+    input.addEventListener("change", settle);
+    // Modern webviews announce a dismissed picker; Electron does not.
+    input.addEventListener("cancel", settle);
+    // Electron's picker fires no event at all on cancel, so a refocus fallback
+    // is still needed there. Mobile gets a longer grace period because the
+    // round trip through the OS photo picker is far slower than a desktop
+    // dialog, and a large or iCloud-backed image lands late.
+    const grace = Platform.isMobile ? 2000 : 400;
+    window.addEventListener("focus", () => window.setTimeout(settle, grace), {
       once: true,
     });
     input.click();

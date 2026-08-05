@@ -93,6 +93,13 @@
   gap: 2px;
 }
 
+/* A horizontal drag paints the rating, a vertical one still scrolls the page.
+   Without this the browser claims the touch as a scroll and cancels the
+   pointer mid-gesture, so the rating never lands. */
+.fs-star-rating:not(.fs-readonly) .fs-stars {
+  touch-action: pan-y;
+}
+
 .fs-star {
   position: relative;
   width: var(--fs-star-size);

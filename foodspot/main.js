@@ -14280,24 +14280,50 @@ function starRating(parent, opts) {
     root.setAttribute("aria-valuemin", "0");
     root.setAttribute("aria-valuemax", "5");
     root.setAttribute("tabindex", "0");
-    const valueAt = (starIndex, ev) => {
-      const star = starEls[starIndex];
-      if (!star) return starIndex + 1;
-      if (!opts.halfSteps) return starIndex + 1;
-      const rect = star.getBoundingClientRect();
-      const half = ev.clientX - rect.left < rect.width / 2;
-      return half ? starIndex + 0.5 : starIndex + 1;
+    const valueAtPoint = (clientX) => {
+      let idx = 0;
+      for (let i = 0; i < STAR_COUNT; i++) {
+        const r = starEls[i]?.getBoundingClientRect();
+        if (r && clientX >= r.left) idx = i;
+      }
+      const rect = starEls[idx]?.getBoundingClientRect();
+      if (!rect || !opts.halfSteps) return idx + 1;
+      return clientX - rect.left < rect.width / 2 ? idx + 0.5 : idx + 1;
     };
-    starEls.forEach((star, i) => {
-      star.addEventListener("mousemove", (ev) => paint(valueAt(i, ev), true));
-      star.addEventListener("click", (ev) => {
-        const v = valueAt(i, ev);
-        value = Math.abs(v - value) < 1e-3 ? 0 : v;
-        paint(value);
-        opts.onChange?.(value);
-      });
+    const commit = (v) => {
+      value = Math.abs(v - value) < 1e-3 ? 0 : v;
+      paint(value);
+      opts.onChange?.(value);
+    };
+    let dragging = false;
+    const endDrag = (ev) => {
+      dragging = false;
+      if (starsEl.hasPointerCapture(ev.pointerId)) starsEl.releasePointerCapture(ev.pointerId);
+    };
+    starsEl.addEventListener("pointerdown", (ev) => {
+      dragging = true;
+      starsEl.setPointerCapture(ev.pointerId);
+      ev.preventDefault();
+      root.focus();
+      paint(valueAtPoint(ev.clientX), true);
     });
-    starsEl.addEventListener("mouseleave", () => paint(value));
+    starsEl.addEventListener("pointermove", (ev) => {
+      if (!dragging && ev.pointerType !== "mouse") return;
+      paint(valueAtPoint(ev.clientX), true);
+    });
+    starsEl.addEventListener("pointerup", (ev) => {
+      if (!dragging) return;
+      endDrag(ev);
+      commit(valueAtPoint(ev.clientX));
+    });
+    starsEl.addEventListener("pointercancel", (ev) => {
+      if (!dragging) return;
+      endDrag(ev);
+      paint(value);
+    });
+    starsEl.addEventListener("pointerleave", () => {
+      if (!dragging) paint(value);
+    });
     root.addEventListener("keydown", (ev) => {
       const step = opts.halfSteps ? 0.5 : 1;
       let next = null;
@@ -15679,8 +15705,11 @@ function pickImageFiles() {
       input.remove();
       resolve(files);
     };
-    input.addEventListener("change", () => finish(Array.from(input.files ?? [])));
-    window.addEventListener("focus", () => window.setTimeout(() => finish([]), 400), {
+    const settle = () => finish(Array.from(input.files ?? []));
+    input.addEventListener("change", settle);
+    input.addEventListener("cancel", settle);
+    const grace = import_obsidian8.Platform.isMobile ? 2e3 : 400;
+    window.addEventListener("focus", () => window.setTimeout(settle, grace), {
       once: true
     });
     input.click();
@@ -21168,6 +21197,9 @@ function electron() {
     return null;
   }
 }
+function canExportPdf() {
+  return electron() !== null;
+}
 async function exportHtmlToPdf(html, suggestedName) {
   const bits = electron();
   if (!bits) {
@@ -21333,25 +21365,49 @@ var CityGuideModal = class extends import_obsidian26.Modal {
     this.previewEl = body.createEl("iframe", { cls: "fs-guide-preview" });
     this.previewEl.setAttribute("sandbox", "allow-same-origin allow-modals");
     const buttons = body.createDiv({ cls: "fs-modal-buttons fs-guide-buttons" });
-    const pdf = buttons.createEl("button", { cls: "mod-cta", text: "Save as PDF\u2026" });
-    pdf.type = "button";
-    pdf.addEventListener("click", () => {
-      pdf.disabled = true;
-      pdf.setText("Saving\u2026");
-      void exportHtmlToPdf(this.html, `${sanitizeFileName3(this.noteTitle())}.pdf`).then((outcome) => {
-        if (outcome === "failed") this.print();
-      }).catch((e) => {
-        new import_obsidian26.Notice(`PDF export failed \u2014 ${errorMessage8(e)}. Use "Save HTML\u2026" instead.`);
-      }).finally(() => {
-        pdf.disabled = false;
-        pdf.setText("Save as PDF\u2026");
+    if (canExportPdf()) {
+      const pdf = buttons.createEl("button", { cls: "mod-cta", text: "Save as PDF\u2026" });
+      pdf.type = "button";
+      pdf.addEventListener("click", () => {
+        pdf.disabled = true;
+        pdf.setText("Saving\u2026");
+        void exportHtmlToPdf(this.html, `${sanitizeFileName3(this.noteTitle())}.pdf`).then((outcome) => {
+          if (outcome === "failed") this.print();
+        }).catch((e) => {
+          new import_obsidian26.Notice(`PDF export failed \u2014 ${errorMessage8(e)}. Use "Save HTML\u2026" instead.`);
+        }).finally(() => {
+          pdf.disabled = false;
+          pdf.setText("Save as PDF\u2026");
+        });
       });
-    });
-    const htmlBtn = buttons.createEl("button", { text: "Save HTML\u2026" });
-    htmlBtn.type = "button";
-    htmlBtn.addEventListener("click", () => {
-      void saveToDisk(`${sanitizeFileName3(this.noteTitle())}.html`, this.html);
-    });
+      const htmlBtn = buttons.createEl("button", { text: "Save HTML\u2026" });
+      htmlBtn.type = "button";
+      htmlBtn.addEventListener("click", () => {
+        void saveToDisk(`${sanitizeFileName3(this.noteTitle())}.html`, this.html);
+      });
+    } else {
+      const save2 = buttons.createEl("button", { cls: "mod-cta", text: "Save guide\u2026" });
+      save2.type = "button";
+      save2.addEventListener("click", () => {
+        save2.disabled = true;
+        save2.setText("Saving\u2026");
+        void saveToDisk(
+          `${sanitizeFileName3(this.noteTitle())}.html`,
+          this.html,
+          this.exportTarget()
+        ).then((written) => {
+          if (written) {
+            new import_obsidian26.Notice(
+              "Open the saved guide from Files and use Share \u2192 Print \u2192 Save as PDF.",
+              1e4
+            );
+          }
+        }).finally(() => {
+          save2.disabled = false;
+          save2.setText("Save guide\u2026");
+        });
+      });
+    }
     const copy = buttons.createEl("button", { text: "Copy markdown" });
     copy.type = "button";
     copy.addEventListener("click", () => {
@@ -21364,6 +21420,16 @@ var CityGuideModal = class extends import_obsidian26.Modal {
   }
   noteTitle() {
     return `Eating in ${this.city}`;
+  }
+  /**
+   * Where a guide lands when there is no system save dialog (mobile): a folder
+   * beside the spot notes, so it is reachable from Files and from any sync.
+   */
+  exportTarget() {
+    return {
+      app: this.app,
+      folder: `${this.plugin.settings.spotsFolder}/_exports`
+    };
   }
   markdown() {
     return buildCityGuide(this.plugin.store.getSpots(), this.city, {

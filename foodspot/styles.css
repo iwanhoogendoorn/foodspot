@@ -3452,6 +3452,13 @@ body.theme-dark .fs-map .leaflet-tile {
   gap: 2px;
 }
 
+/* A horizontal drag paints the rating, a vertical one still scrolls the page.
+   Without this the browser claims the touch as a scroll and cancels the
+   pointer mid-gesture, so the rating never lands. */
+.fs-star-rating:not(.fs-readonly) .fs-stars {
+  touch-action: pan-y;
+}
+
 .fs-star {
   position: relative;
   width: var(--fs-star-size);
@@ -6827,8 +6834,10 @@ a.fs-info-text {
   min-height: 0;
 }
 
+/* The list's stars are editable too, and 14px halves are a 7px target. Give
+   them the room the modal's stars already get; the row is tall enough. */
 .fs-mobile .fs-list-rating .fs-star-rating {
-  --fs-star-size: 14px;
+  --fs-star-size: 18px;
 }
 
 .fs-mobile .fs-list-fav,
