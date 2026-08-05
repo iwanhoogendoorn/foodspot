@@ -304,10 +304,13 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("fs-settings");
-    // Phones get the section grid + stacked controls from 80-mobile.css. The
-    // class is namespaced on purpose: a bare `is-mobile` on this element would
+    // 80-mobile.css keys off these. Two classes, not one: a tablet is wide
+    // enough to keep the desktop nav rail and Obsidian's own row layout, so
+    // only the phone gets the section grid and the stacked controls. The names
+    // are namespaced on purpose — a bare `is-mobile` on this element would
     // collide with Obsidian's own `.is-mobile` rules.
     containerEl.toggleClass("fs-settings-mobile", Platform.isMobile);
+    containerEl.toggleClass("fs-settings-phone", Platform.isPhone);
 
     this.navEl = containerEl.createDiv({ cls: "fs-settings-nav" });
     this.bodyEl = containerEl.createDiv({ cls: "fs-settings-body" });
@@ -336,7 +339,7 @@ export class FoodSpotSettingTab extends PluginSettingTab {
   }
 
   hide(): void {
-    this.containerEl.removeClass("fs-settings", "fs-settings-mobile");
+    this.containerEl.removeClass("fs-settings", "fs-settings-mobile", "fs-settings-phone");
     super.hide();
   }
 

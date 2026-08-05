@@ -23662,6 +23662,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("fs-settings");
     containerEl.toggleClass("fs-settings-mobile", import_obsidian34.Platform.isMobile);
+    containerEl.toggleClass("fs-settings-phone", import_obsidian34.Platform.isPhone);
     this.navEl = containerEl.createDiv({ cls: "fs-settings-nav" });
     this.bodyEl = containerEl.createDiv({ cls: "fs-settings-body" });
     for (const sec of NAV_SECTIONS) {
@@ -23683,7 +23684,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     this.renderBody();
   }
   hide() {
-    this.containerEl.removeClass("fs-settings", "fs-settings-mobile");
+    this.containerEl.removeClass("fs-settings", "fs-settings-mobile", "fs-settings-phone");
     super.hide();
   }
   renderBody() {

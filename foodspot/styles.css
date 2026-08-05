@@ -6198,30 +6198,51 @@ a.fs-info-text {
    NOTHING here may reach the desktop UI. Every selector is scoped to one of:
      .fs-mobile               — the view root, classed from Platform.isMobile
                                 in ui/view.ts
-     .fs-settings-mobile      — the settings tab, classed from Platform.isMobile
-                                in settings/settingsTab.ts
+     .fs-settings-mobile      — the settings tab on any mobile device, and
+     .fs-settings-phone       — the settings tab on a phone only (a tablet is
+                                wide enough to keep the desktop nav rail), both
+                                classed in settings/settingsTab.ts
      body.is-mobile           — Obsidian's own body class, for the surfaces
                                 that render OUTSIDE the view: modals, menus and
                                 the note widgets
 
-   Three rules of thumb drive the layout choices below:
-     1. Use the full width. No centered rails, no leftover gutters.
-     2. Never scroll sideways. A control that does not fit wraps onto its own
-        row or moves to the detail card; long text wraps instead of pushing.
-     3. Touch targets are at least ~36-44px tall.
+   The layout follows the same rules the awty plugin's mobile layer settled on:
+
+     1. Two surfaces, never three. Obsidian's mobile stylesheet paints every
+        `.setting-item` as a card of its own; nested inside our grey panel, with
+        the field's own box inside that, a row reads as boxes in boxes and every
+        control looks cramped against an edge. The panel keeps the surface, the
+        rows inside it are flattened and separated by a hairline instead.
+     2. A real type ladder — 17px panel title, 15px row label, 13px prose —
+        instead of three near-identical sizes set against a pointer.
+     3. Stack a row ONLY when its control is a field, a dropdown, a slider or a
+        lone button. Toggles keep Obsidian's own label-left/switch-right layout,
+        and a `?` help button stays on the field's line rather than being
+        marooned on one of its own.
+     4. 44px minimum tap target (Apple HIG / Material), 16px minimum font on
+        anything focusable — below that iOS zooms the viewport on focus and
+        never zooms back.
+     5. Use the full width, and never scroll the page sideways.
    ========================================================================== */
+
+.fs-settings-mobile,
+.fs-mobile {
+  /* One name, so a sweep of this file shows every place it is applied. */
+  --fs-tap: 44px;
+}
 
 /* ==========================================================================
    1. Settings — section navigator as a two-column card grid
    ========================================================================== */
 
-/* The desktop rail (nav left, body right) becomes nav-on-top, body below. */
-.fs-settings.fs-settings-mobile {
+/* Phone only: a tablet keeps the 150px sticky rail from 60-settings.css, which
+   is the right layout at that width. */
+.fs-settings.fs-settings-phone {
   display: block;
   gap: 0;
 }
 
-.fs-settings-mobile .fs-settings-nav {
+.fs-settings-phone .fs-settings-nav {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
@@ -6230,26 +6251,31 @@ a.fs-info-text {
   margin-bottom: 18px;
 }
 
+/* An odd number of sections: the last one takes the whole row instead of
+   leaving a hole next to it (7 sections today — "Quick info" spans). */
+.fs-settings-phone .fs-settings-nav-item:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* A nav item is transparent and border-less on the desktop because its 150px
+   column already says "navigation". Dropped into a full-width block it needs a
+   surface of its own to read as a target. */
 .fs-settings-mobile .fs-settings-nav-item {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 10px;
-  min-height: 52px;
+  min-height: var(--fs-tap);
   min-width: 0;
   padding: 12px 14px;
   border: 1px solid var(--background-modifier-border);
-  border-radius: 12px;
+  border-radius: var(--radius-m, 8px);
   background: var(--background-primary);
   color: var(--text-normal);
-  font-size: var(--font-ui-medium);
+  font-size: 15px;
   font-weight: 600;
+  line-height: 1.25;
   overflow: hidden;
-}
-
-/* An odd number of sections: the last one takes the whole row instead of
-   leaving a hole next to it (7 sections today — "Quick info" spans). */
-.fs-settings-mobile .fs-settings-nav-item:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
 }
 
 /* The label is a bare span next to the icon span — clip it, never wrap. */
@@ -6269,6 +6295,9 @@ a.fs-info-text {
   height: 18px;
 }
 
+/* 60-settings.css tints the active item with --background-secondary, which is
+   the colour of the panels underneath it — on a phone that made the selected
+   tab the one item that blended into the page. Filled instead. */
 .fs-settings-mobile .fs-settings-nav-item.is-active {
   background: var(--interactive-accent);
   border-color: transparent;
@@ -6276,11 +6305,21 @@ a.fs-info-text {
 }
 
 .fs-settings-mobile .fs-settings-nav-item.is-active .fs-settings-nav-icon svg {
+  color: currentColor;
+}
+
+/* No hover on a touch screen, so the pressed state has to do that work. */
+.fs-settings-mobile .fs-settings-nav-item:active {
+  background: var(--background-modifier-hover);
+}
+
+.fs-settings-mobile .fs-settings-nav-item.is-active:active {
+  background: var(--interactive-accent-hover, var(--interactive-accent));
   color: var(--text-on-accent);
 }
 
 /* ==========================================================================
-   2. Settings — panels and controls own the full width, nothing overflows
+   2. Settings — panel hierarchy: two surfaces, a type ladder, flat rows
    ========================================================================== */
 
 .fs-settings-mobile .fs-settings-body {
@@ -6288,56 +6327,171 @@ a.fs-info-text {
   min-width: 0;
 }
 
-.fs-settings-mobile .fs-sgroup {
-  padding: 12px;
+.fs-settings-phone .fs-sgroup {
+  padding: 14px;
+  margin-bottom: 14px;
 }
 
-/* The status chip used to squeeze the title into two characters; on a phone it
-   drops onto its own line and wraps in full. */
-.fs-settings-mobile .fs-sgroup-head {
-  flex-wrap: wrap;
-  row-gap: 6px;
+/* The head is a grid so the status chip has exactly one place to be: row two,
+   indented to the title's own left edge, in every panel. As a wrapping flex row
+   it sat inline beside a short title and dropped below a long one, so the chips
+   landed at a different height in every panel. A hidden chip is `display: none`
+   and claims no cell, so a panel without one simply has no second row. */
+.fs-settings-phone .fs-sgroup-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
 }
 
+.fs-settings-phone .fs-sgroup-head .fs-chip {
+  grid-column: 2;
+  justify-self: start;
+}
+
+/* A label, not a button: it must not pick up the 44px floor, and it must not
+   stretch into a full-width grey bar. --background-primary rather than
+   --background-modifier-hover, which is nearly the panel's own grey. */
 .fs-settings-mobile .fs-sgroup-head .fs-chip {
-  order: 3;
-  flex: 1 1 100%;
+  min-height: 0;
   max-width: 100%;
+  padding: 3px 10px;
+  background: var(--background-primary);
+  font-size: 12px;
   white-space: normal;
   overflow: visible;
-  overflow-wrap: anywhere;
   text-overflow: clip;
+  overflow-wrap: anywhere;
 }
 
-/* Every setting row stacks: label + description on top, controls underneath at
-   full width. This is the fix for text boxes spilling out of their panel. */
-.fs-settings-mobile .setting-item {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
+.fs-settings-phone .fs-sgroup-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.fs-settings-phone .fs-sgroup-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text-normal);
+}
+
+.fs-settings-phone .fs-sgroup-sub {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* --- flatten the row cards ------------------------------------------------
+   Obsidian's mobile stylesheet gives every `.setting-item` a card of its own.
+   Inside our panel that is the third nested surface, and it is what made the
+   fields look boxed in and tight. The panel keeps the surface; the rows lose
+   theirs and are separated by a hairline, which the desktop does not need
+   because there the panel alone is enough grouping. */
+.fs-settings-phone .fs-sgroup-body .setting-item {
+  gap: 12px;
+  margin: 0;
   padding: 12px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.fs-settings-mobile .setting-item-info {
+/* `:not(:first-child)` rather than `+ .setting-item`, so a row following an
+   open `?` help panel still gets its line instead of silently losing it. */
+.fs-settings-phone .fs-sgroup-body .setting-item:not(:first-child) {
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.fs-settings-phone .fs-sgroup-body .setting-item:last-child {
+  padding-bottom: 0;
+}
+
+/* Stacked rows put the label above its control, so the reserved right-hand
+   gutter is only an indent that lines up with nothing. */
+.fs-settings-phone .fs-sgroup-body .setting-item-info {
   margin-right: 0;
   min-width: 0;
 }
 
-.fs-settings-mobile .setting-item-name,
-.fs-settings-mobile .setting-item-description {
+.fs-settings-phone .fs-sgroup-body .setting-item-name {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--text-normal);
   overflow-wrap: anywhere;
 }
 
-.fs-settings-mobile .setting-item-control {
-  width: 100%;
-  min-width: 0;
-  margin-left: 0;
+.fs-settings-phone .fs-sgroup-body .setting-item-description {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* The longest prose in settings, all of it sized against a pointer. Held to the
+   same 13px as a row description so a panel has one reading size. */
+.fs-settings-phone .fs-setting-help,
+.fs-settings-phone .fs-data-note,
+.fs-settings-phone .fs-provider-warning,
+.fs-settings-phone .fs-provider-links,
+.fs-settings-phone .fs-provider-desc,
+.fs-settings-phone .fs-qi-body {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* --- which rows stack -----------------------------------------------------
+   A field, a dropdown, a slider or a lone button gets its own full-width line
+   under the label. A toggle and a colour swatch do NOT: Obsidian's own
+   label-left / control-right layout is right for those, and stacking them left
+   a switch stranded under two lines of description.
+
+   `:has()` keeps this to the rows that need it. A webview without `:has()`
+   drops these rules and lands on Obsidian's stock mobile Setting layout, which
+   is a safe place to fall back to. */
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control input[type="text"]),
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control input[type="search"]),
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control input[type="number"]),
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control input[type="range"]),
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control textarea),
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control select),
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control > button) {
+  display: block;
+}
+
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control input[type="text"]) .setting-item-control,
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control input[type="search"]) .setting-item-control,
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control input[type="number"]) .setting-item-control,
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control input[type="range"]) .setting-item-control,
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control textarea) .setting-item-control,
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control select) .setting-item-control,
+.fs-settings-phone .fs-sgroup-body .setting-item:has(.setting-item-control > button) .setting-item-control {
   justify-content: flex-start;
+  width: 100%;
+  margin-top: 10px;
+  margin-left: 0;
+  padding-left: 0;
+  /* Wrap belongs to the stacked rows only. On a toggle or colour row the
+     control is a switch plus the `?`, and a wrapping row drops the `?` onto a
+     line of its own beside the description. */
   flex-wrap: wrap;
+}
+
+.fs-settings-mobile .setting-item-control {
   gap: 8px;
 }
 
+/* `flex: 1 1 0` and NOT `width: 100%`: a 100% basis in a wrapping row pushes
+   the `?` button that shares the line onto one of its own. A zero basis lets
+   the field simply take whatever the `?` leaves — one line, field flush left,
+   help flush right. */
 .fs-settings-mobile .setting-item-control input[type="text"],
 .fs-settings-mobile .setting-item-control input[type="search"],
 .fs-settings-mobile .setting-item-control input[type="number"],
@@ -6346,20 +6500,63 @@ a.fs-info-text {
 .fs-settings-mobile .setting-item-control textarea,
 .fs-settings-mobile .setting-item-control select,
 .fs-settings-mobile .setting-item-control .dropdown {
-  flex: 1 1 100%;
-  width: 100%;
+  flex: 1 1 0;
+  width: auto;
   min-width: 0;
   max-width: 100%;
 }
 
-.fs-settings-mobile .setting-item-control button {
+/* Buttons grow into the leftover space so a row of them ends flush with the
+   field above it. `flex-basis: auto` means a button can only grow past its
+   label, never shrink into it, so nothing truncates. */
+.fs-settings-mobile .setting-item-control > button {
   flex: 1 1 auto;
-  min-height: 38px;
+  min-height: var(--fs-tap);
+  margin: 0;
 }
 
-.fs-settings-mobile .fs-setting-help {
-  font-size: var(--font-ui-smaller);
-  overflow-wrap: anywhere;
+/* The `?` is an ExtraButtonComponent — a div.clickable-icon, which none of the
+   button rules reach. It was the last thing in settings under 44px that you are
+   meant to tap. Scoped inside our own control so no other plugin is touched.
+
+   `margin-left: auto` is what makes it read as an affordance rather than as
+   debris: it sits at the row's trailing edge whether it shares the line with
+   its field (the usual case) or a long pair of buttons pushes it onto the next
+   one. Inert next to a field, which already grows into the same space. */
+.fs-settings-mobile .setting-item-control > .clickable-icon {
+  flex: none;
+  margin-left: auto;
+  min-width: var(--fs-tap);
+  min-height: var(--fs-tap);
+}
+
+/* The flatten above strips `border` and `background` from every row in a panel,
+   and the danger box is a row. It has to keep its outline: it is the only
+   visual warning on the control that trashes the whole library. */
+.fs-settings-phone .fs-sgroup-body .fs-danger-setting.setting-item {
+  border: 1px solid color-mix(in srgb, var(--color-red) 40%, var(--background-modifier-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-red) 6%, transparent);
+  padding: 12px 14px;
+  margin-top: 12px;
+}
+
+.fs-settings-phone .fs-sgroup-body .fs-danger-setting .setting-item-name {
+  color: var(--color-red);
+  font-weight: 600;
+}
+
+/* iOS zooms the viewport when a field under 16px takes focus and never zooms
+   back. `max()` keeps a theme that already asks for something larger. */
+.fs-settings-phone input:not([type="checkbox"]):not([type="radio"]),
+.fs-settings-phone select,
+.fs-settings-phone textarea {
+  font-size: max(16px, var(--font-ui-small));
+}
+
+.fs-settings-mobile input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+.fs-settings-mobile select {
+  min-height: var(--fs-tap);
 }
 
 /* --- API: key row --------------------------------------------------------- */
@@ -6371,23 +6568,34 @@ a.fs-info-text {
 
 .fs-settings-mobile .fs-provider-keyrow {
   flex-wrap: wrap;
+  gap: 8px;
 }
 
+/* A 39-character Google key beside an eye and a Test button leaves about ten
+   characters of field — and reading the key back is the eye button's whole
+   purpose. The field takes its own line; the two buttons share the next. */
 .fs-settings-mobile .fs-provider-key {
   flex: 1 1 100%;
-  min-height: 38px;
+  min-height: var(--fs-tap);
 }
 
 .fs-settings-mobile .fs-provider-eye {
   flex: 0 0 auto;
   justify-content: center;
-  min-width: 46px;
-  min-height: 38px;
+  min-width: var(--fs-tap);
+  min-height: var(--fs-tap);
 }
 
 .fs-settings-mobile .fs-provider-keyrow > button:not(.fs-provider-eye) {
   flex: 1 1 auto;
-  min-height: 38px;
+  min-height: var(--fs-tap);
+}
+
+/* Inline links are the whole setup path for this panel, at about 17px tall. */
+.fs-settings-mobile .fs-provider-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--fs-tap);
 }
 
 /* --- Customize: card-size preview + rating tiers -------------------------- */
@@ -6400,32 +6608,38 @@ a.fs-info-text {
   max-width: 100%;
 }
 
-.fs-settings-mobile .fs-tier-row {
-  grid-template-columns: auto minmax(0, 1fr);
+.fs-settings-phone .fs-tier-editor {
+  gap: 10px;
 }
 
-.fs-settings-mobile .fs-tier-preview {
+.fs-settings-phone .fs-tier-row {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+.fs-settings-phone .fs-tier-preview {
   grid-column: 1 / -1;
   justify-content: flex-start;
   min-width: 0;
 }
 
 .fs-settings-mobile .fs-tier-color {
-  width: 46px;
-  height: 34px;
+  width: 52px;
+  height: var(--fs-tap);
 }
 
 .fs-settings-mobile .fs-tier-label {
-  min-height: 34px;
+  min-height: var(--fs-tap);
 }
 
 /* --- Widgets + Quick info: long syntax lines wrap instead of scrolling ---- */
 
-.fs-settings-mobile pre {
+.fs-settings-phone pre {
   white-space: pre-wrap;
   overflow-x: hidden;
   overflow-wrap: anywhere;
-  font-size: 11.5px;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .fs-settings-mobile .fs-example-head {
@@ -6433,22 +6647,24 @@ a.fs-info-text {
   row-gap: 4px;
 }
 
-.fs-settings-mobile .fs-doc-row {
+.fs-settings-phone .fs-doc-row {
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
+  font-size: 13px;
 }
 
-.fs-settings-mobile .fs-doc-row code {
+.fs-settings-phone .fs-doc-row code {
   max-width: 100%;
   overflow-wrap: anywhere;
 }
 
 .fs-settings-mobile .fs-qi-head {
-  min-height: 44px;
+  min-height: var(--fs-tap);
+  font-size: 15px;
 }
 
-.fs-settings-mobile .fs-qi-body p {
+.fs-settings-phone .fs-qi-body p {
   overflow-wrap: anywhere;
 }
 
@@ -6465,6 +6681,7 @@ a.fs-info-text {
 .fs-mobile .fs-tab {
   flex: 1 1 0;
   min-width: 0;
+  min-height: var(--fs-tap);
   justify-content: center;
   padding: 10px 0;
 }
@@ -6496,8 +6713,20 @@ a.fs-info-text {
   max-width: none;
 }
 
+/* Same iOS focus-zoom floor as the settings fields. */
+.fs-mobile input:not([type="checkbox"]):not([type="radio"]),
+.fs-mobile select {
+  font-size: max(16px, var(--font-ui-small));
+}
+
+.fs-mobile .fs-search-input,
+.fs-mobile .fs-discover-input,
+.fs-mobile .fs-map-scope {
+  min-height: var(--fs-tap);
+}
+
 .fs-mobile .fs-toolbar .fs-btn {
-  min-height: 36px;
+  min-height: 38px;
 }
 
 .fs-mobile .fs-bulk-bar {
@@ -6574,6 +6803,7 @@ a.fs-info-text {
 .fs-mobile .fs-list-price {
   max-width: 100%;
   height: 30px;
+  min-height: 0;
 }
 
 .fs-mobile .fs-list-rating .fs-star-rating {
@@ -6603,16 +6833,12 @@ a.fs-info-text {
   max-width: none;
 }
 
-.fs-mobile .fs-discover-input {
-  min-height: 36px;
-}
-
 .fs-mobile .fs-discover-body {
   padding: 10px;
 }
 
 .fs-mobile .fs-discover-add {
-  min-height: 36px;
+  min-height: 38px;
   padding: 6px 12px;
 }
 
@@ -6628,6 +6854,7 @@ a.fs-info-text {
 .fs-mobile .fs-place-label {
   gap: 8px;
   padding: 8px 6px;
+  min-height: var(--fs-tap);
 }
 
 .fs-mobile .fs-coverage {
@@ -6637,7 +6864,6 @@ a.fs-info-text {
 .fs-mobile .fs-map-scope {
   flex: 1 1 100%;
   max-width: none;
-  min-height: 36px;
 }
 
 /* ==========================================================================
@@ -6718,6 +6944,18 @@ body.is-mobile .fs-field-grid {
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* Same iOS focus-zoom floor and tap floor as settings. */
+body.is-phone .fs-modal input:not([type="checkbox"]):not([type="radio"]),
+body.is-phone .fs-modal select,
+body.is-phone .fs-modal textarea {
+  font-size: max(16px, var(--font-ui-small));
+}
+
+body.is-mobile .fs-modal input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+body.is-mobile .fs-modal select {
+  min-height: var(--fs-tap, 44px);
+}
+
 body.is-mobile .fs-modal .setting-item {
   flex-direction: column;
   align-items: stretch;
@@ -6728,9 +6966,30 @@ body.is-mobile .fs-modal-buttons {
   flex-wrap: wrap;
 }
 
+/* Save and Cancel stay on screen in the long forms (add/edit, detail, import)
+   instead of sitting a full screen of scrolling below the last field.
+
+   No max-height and no overflow here on purpose: Obsidian's own
+   `.modal-content` is already the scroll container, and a second one nested
+   inside it strands everything past the cap — the row simply pins against the
+   scroller that is already there. `> ... :last-child` keeps this to the action
+   row that really is the end of the form: the city-guide modal builds its two
+   button rows inside a body div, and neither is a child of .modal-content. */
+body.is-phone .fs-modal > .modal-content > .fs-modal-buttons:last-child {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  /* Solid, not translucent: content scrolls underneath this. */
+  background: var(--background-primary);
+  border-top: 1px solid var(--background-modifier-border);
+  margin-top: 12px;
+  padding-top: 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+}
+
 body.is-mobile .fs-modal-buttons button {
   flex: 1 1 auto;
-  min-height: 40px;
+  min-height: var(--fs-tap, 44px);
 }
 
 /* Segmented controls (status, price) stretch instead of hugging their text. */
@@ -6742,6 +7001,7 @@ body.is-mobile .fs-modal .fs-segmented {
 body.is-mobile .fs-modal .fs-seg-btn {
   flex: 1 1 0;
   min-width: 0;
+  min-height: var(--fs-tap, 44px);
   padding: 8px 6px;
 }
 
