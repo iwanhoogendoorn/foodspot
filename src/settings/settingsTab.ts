@@ -1039,9 +1039,16 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     const paintSwatches = () => {
       const dw = CARD_WIDTHS[s.cardSizeDesktop + 3] ?? 160;
       const mw = CARD_WIDTHS[s.cardSizeMobile + 3] ?? 140;
-      desktopSwatch.style.width = `${dw}px`;
+      // On the desktop the swatch's own width IS the readout. A phone has no
+      // room for that — two boxes of up to 250px do not fit beside each other
+      // in a 358px panel — so there the number carries it and 80-mobile.css
+      // splits the row into two equal cells. Setting no inline width is what
+      // lets that rule apply without an !important.
+      if (!Platform.isPhone) {
+        desktopSwatch.style.width = `${dw}px`;
+        mobileSwatch.style.width = `${mw}px`;
+      }
       desktopSwatch.setText(`${dw}px`);
-      mobileSwatch.style.width = `${mw}px`;
       mobileSwatch.setText(`${mw}px`);
     };
 

@@ -24269,9 +24269,11 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     const paintSwatches = () => {
       const dw = CARD_WIDTHS[s.cardSizeDesktop + 3] ?? 160;
       const mw = CARD_WIDTHS[s.cardSizeMobile + 3] ?? 140;
-      desktopSwatch.style.width = `${dw}px`;
+      if (!import_obsidian34.Platform.isPhone) {
+        desktopSwatch.style.width = `${dw}px`;
+        mobileSwatch.style.width = `${mw}px`;
+      }
       desktopSwatch.setText(`${dw}px`);
-      mobileSwatch.style.width = `${mw}px`;
       mobileSwatch.setText(`${mw}px`);
     };
     new import_obsidian34.Setting(cc).setName("Card size \u2014 desktop").setDesc("Minimum card width in the grid (7 steps).").addSlider(

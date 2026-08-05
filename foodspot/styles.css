@@ -6600,6 +6600,27 @@ a.fs-info-text {
 
 /* --- Customize: card-size preview + rating tiers -------------------------- */
 
+/* Two equal cells across the full width, rather than two boxes of whatever
+   width the setting happens to be — see the note in settingsTab.ts's
+   paintSwatches: on a phone the px value is the readout, not the box. */
+.fs-settings-phone .fs-size-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  /* Clear of the slider above and of the next row's hairline below. */
+  margin: 12px 0;
+}
+
+.fs-settings-phone .fs-size-preview-item {
+  min-width: 0;
+}
+
+.fs-settings-phone .fs-size-swatch {
+  width: 100%;
+  min-width: 0;
+  font-size: 13px;
+}
+
 .fs-settings-mobile .fs-size-preview {
   gap: 10px;
 }
