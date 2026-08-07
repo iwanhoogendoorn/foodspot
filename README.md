@@ -59,31 +59,64 @@ The plugin's `data.json` holds settings only.
 
 ```bash
 npm install
-npm run build    # tsc strict + esbuild → foodspot/
-node tests/smoke.test.mjs
-```
-
-Source in `src/`, per-module CSS in `styles/` (concatenated at build). The compiled
-plugin is `foodspot/` — copy or symlink it into `<vault>/.obsidian/plugins/foodspot/`.
-
-The v0.1 prototype and its one-time JSON→notes migration are retired; both
-remain available in git history if ever needed.
-
-Design docs: `docs/SPEC.md`, research in `docs/research/`.
-
-## Development
-
-```bash
-npm install
 npm run dev            # watch build
 npm run build          # type-check, then bundle
 npm test               # pure-module smoke tests
-npm run install-local  # copy the build into the vault (never touches data.json)
-npm run bump -- patch  # or minor / major — manifest, package.json, versions.json
-npm run release        # build, then cut a GitHub release with the three assets
+npm run install-local  # copy the build into a vault, to try it before releasing
 ```
 
-`main.js` and `styles.css` are generated and not tracked; they ship as release
-assets, which is where BRAT looks for them. `manifest.json` is tracked, because
-it is the source of truth for the plugin's id and version — and `npm run build`
-refuses to run while it disagrees with `package.json`.
+Source in `src/`, per-module CSS in `styles/`, concatenated at build in filename
+order (Leaflet's stylesheet first, so every `fs-` rule can override it).
+
+The repo root **is** the plugin folder: `manifest.json`, `main.js` and
+`styles.css` sit there, which is the layout Obsidian loads and BRAT publishes.
+`main.js` and `styles.css` are generated and gitignored — they ship as release
+assets rather than being committed, so history does not carry a 1 MB bundle per
+version. `manifest.json` is tracked, because it is the source of truth for the
+plugin's id and version.
+
+`npm run install-local` writes only those three files; your `data.json` —
+settings, including the Google API key — is never touched.
+
+Design docs: `docs/SPEC.md`, research in `docs/research/`. The v0.1 prototype and
+its one-time JSON→notes migration are retired, and remain in git history.
+
+## Releasing a new version
+
+Two commands. The first moves the version, the second publishes it.
+
+```bash
+npm run bump -- minor   # patch | minor | major, or an exact version like 2.4.1
+git commit -am "Release 2.2.0"
+git push
+npm run release
+```
+
+**Pick the level by what changed**, since this is the one part no script should
+guess:
+
+| Level | Use it for | Example |
+| --- | --- | --- |
+| `patch` | a fix, no new surface | star ratings would not set by touch |
+| `minor` | new features, still compatible | dish photos on a visit, the photo viewer |
+| `major` | a break — data shape, a removed setting | notes stored a different way |
+
+`npm run bump` moves **all three** places the version is stated — `manifest.json`,
+`package.json` and `versions.json` — in one step, because they had previously
+drifted apart by being edited at different times. `versions.json` gains an entry
+mapping the new version to the Obsidian version it needs, so an older app is
+never offered a build it cannot run.
+
+`npm run release` then refuses to publish unless the work is real: the tree must
+be clean, commits pushed, and the tag must not already exist. It rebuilds from
+scratch every time and re-reads the manifest afterwards, so a release can never
+ship assets older than its own version number — the failure where users hit bugs
+that were fixed weeks earlier. It publishes a GitHub release tagged with the
+version, carrying `main.js`, `manifest.json` and `styles.css`.
+
+Those tags are what BRAT installs: users on the latest get the update
+automatically, and anyone who wants to stay put can pin a specific release.
+
+The build refuses to run at all while `manifest.json` and `package.json`
+disagree, so a half-finished bump fails loudly instead of shipping a build whose
+version number is a lie.
