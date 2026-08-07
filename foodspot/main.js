@@ -15717,10 +15717,11 @@ function pickImageFiles() {
     const settle = () => finish(Array.from(input.files ?? []));
     input.addEventListener("change", settle);
     input.addEventListener("cancel", settle);
-    const grace = import_obsidian8.Platform.isMobile ? 2e3 : 400;
-    window.addEventListener("focus", () => window.setTimeout(settle, grace), {
-      once: true
-    });
+    if (!import_obsidian8.Platform.isMobile) {
+      window.addEventListener("focus", () => window.setTimeout(settle, 400), {
+        once: true
+      });
+    }
     input.click();
   });
 }

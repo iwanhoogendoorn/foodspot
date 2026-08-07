@@ -118,22 +118,26 @@ export function pickImageFiles(): Promise<File[]> {
       input.remove();
       resolve(files);
     };
-    // Always re-read the input rather than assuming a cancel. The refocus
-    // fallback below used to resolve a hardcoded [], which on a phone threw the
-    // user's photos away: picking one backgrounds the whole app, so refocus
-    // fires on return — sometimes before the file is attached.
+    // Always re-read the input rather than assuming a cancel.
     const settle = (): void => finish(Array.from(input.files ?? []));
     input.addEventListener("change", settle);
     // Modern webviews announce a dismissed picker; Electron does not.
     input.addEventListener("cancel", settle);
-    // Electron's picker fires no event at all on cancel, so a refocus fallback
-    // is still needed there. Mobile gets a longer grace period because the
-    // round trip through the OS photo picker is far slower than a desktop
-    // dialog, and a large or iCloud-backed image lands late.
-    const grace = Platform.isMobile ? 2000 : 400;
-    window.addEventListener("focus", () => window.setTimeout(settle, grace), {
-      once: true,
-    });
+    // Electron's picker fires no event at all when cancelled, so on desktop a
+    // refocus fallback is the only way to release the promise.
+    //
+    // Mobile must NOT have that fallback. Choosing "Take Photo" backgrounds the
+    // app for however long it takes to compose the shot, and iOS can fire focus
+    // on the way *into* the camera — so any timer risks settling the picker
+    // empty while the user is still framing, throwing the photo away on arrival.
+    // `cancel` covers a dismissed picker instead; if a webview is too old to
+    // send it, the worst case is a button that did nothing, which beats losing
+    // a photo that cannot be retaken.
+    if (!Platform.isMobile) {
+      window.addEventListener("focus", () => window.setTimeout(settle, 400), {
+        once: true,
+      });
+    }
     input.click();
   });
 }
