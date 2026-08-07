@@ -6,6 +6,12 @@ import path from "path";
 
 const prod = process.argv[2] === "production";
 
+// Obsidian loads manifest.json, main.js and styles.css from the root of a
+// plugin folder, and BRAT ships exactly those three files as release assets —
+// so the repo root IS the plugin folder. main.js and styles.css are generated
+// and gitignored; manifest.json is the source of truth and stays tracked.
+const OUT_DIR = ".";
+
 const banner = `/*
 Food Spot — bundled by esbuild. Source: src/ in this repository.
 */`;
@@ -24,8 +30,8 @@ function concatStyles() {
       fs.readFileSync(leafletCss, "utf8"),
     ...files.map((f) => `/* === ${f} === */\n` + fs.readFileSync(path.join(dir, f), "utf8")),
   ].join("\n\n");
-  fs.writeFileSync("foodspot/styles.css", css);
-  console.log(`styles: concatenated leaflet + ${files.length} files -> foodspot/styles.css`);
+  fs.writeFileSync(path.join(OUT_DIR, "styles.css"), css);
+  console.log(`styles: concatenated leaflet + ${files.length} files -> ${OUT_DIR}/styles.css`);
 }
 
 const stylesPlugin = {
@@ -60,7 +66,7 @@ const context = await esbuild.context({
   logLevel: "info",
   sourcemap: prod ? false : "inline",
   treeShaking: true,
-  outfile: "foodspot/main.js",
+  outfile: `${OUT_DIR}/main.js`,
   plugins: [stylesPlugin],
 });
 

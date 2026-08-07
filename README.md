@@ -6,6 +6,23 @@ ratings — all stored as plain markdown notes in your vault.
 
 Created by **Iwan Hoogendoorn** and **Gaurav Mahadew**.
 
+## Install
+
+### With BRAT (recommended)
+
+1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat) from the
+   community plugins browser.
+2. **BRAT → Add a beta plugin**, and paste `iwanhoogendoorn/foodspot`.
+3. Enable **Food Spot** in Settings → Community plugins.
+
+BRAT then keeps it up to date with each release.
+
+### By hand
+
+Download `main.js`, `manifest.json` and `styles.css` from the
+[latest release](https://github.com/iwanhoogendoorn/foodspot/releases/latest) and
+drop them in `<vault>/.obsidian/plugins/foodspot/`.
+
 ## Why notes, not a database
 
 Every restaurant is one markdown note with frontmatter (`type: foodspot`), so your data
@@ -53,3 +70,20 @@ The v0.1 prototype and its one-time JSON→notes migration are retired; both
 remain available in git history if ever needed.
 
 Design docs: `docs/SPEC.md`, research in `docs/research/`.
+
+## Development
+
+```bash
+npm install
+npm run dev            # watch build
+npm run build          # type-check, then bundle
+npm test               # pure-module smoke tests
+npm run install-local  # copy the build into the vault (never touches data.json)
+npm run bump -- patch  # or minor / major — manifest, package.json, versions.json
+npm run release        # build, then cut a GitHub release with the three assets
+```
+
+`main.js` and `styles.css` are generated and not tracked; they ship as release
+assets, which is where BRAT looks for them. `manifest.json` is tracked, because
+it is the source of truth for the plugin's id and version — and `npm run build`
+refuses to run while it disagrees with `package.json`.

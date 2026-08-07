@@ -11,7 +11,7 @@ polish of the WatchLog plugin (see `docs/research/` for both analysis reports).
 - TypeScript source in `src/`, esbuild bundle emitted to `foodspot/` (main.js,
   manifest.json, styles.css). The old compiled `foodspots/` folder stays untouched until
   migration is verified, then is removed.
-- Per-module CSS in `styles/*.css`, concatenated to `foodspot/styles.css` by the build.
+- Per-module CSS in `styles/*.css`, concatenated to `styles.css` at the repo root by the build.
 - One registered `ItemView`, one ribbon icon, ~6 commands. No UI sprawl.
 
 ## Storage: one markdown note per restaurant (no JSON data blob)
