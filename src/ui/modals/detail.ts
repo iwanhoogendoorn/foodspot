@@ -27,7 +27,13 @@ import { formatHoursForDisplay, localClockApplies, openState } from "../componen
 import { confirmModal } from "./confirm";
 import { openEditModal } from "./addEdit";
 import { canBrowserFetch, openBrowserFetchQueue } from "./browserFetch";
-import { importDishPhotos, pickImageFiles, renderDishThumbs } from "../components/dishPhotos";
+import {
+  MAX_VISIT_PHOTOS,
+  capIncoming,
+  importDishPhotos,
+  pickImageFiles,
+  renderDishThumbs,
+} from "../components/dishPhotos";
 import { openGalleryModal } from "./gallery";
 import { todayIso } from "../../util/dates";
 
@@ -873,12 +879,16 @@ class DetailModal extends Modal {
       const addBtn = photoRow.createEl("button", { cls: "fs-btn fs-small-btn" });
       addBtn.type = "button";
       setIcon(addBtn.createSpan({ cls: "fs-btn-icon" }), "image-plus");
-      addBtn.createSpan({ text: photos.length ? " Add more" : " Add dish photos" });
+      const room = MAX_VISIT_PHOTOS - photos.length;
+      addBtn.createSpan({
+        text: photos.length ? ` Add more (${room} left)` : " Add dish photos",
+      });
+      addBtn.disabled = room <= 0;
       addBtn.addEventListener("click", () => {
         void (async () => {
           const spot = this.spot();
           if (!spot) return;
-          const files = await pickImageFiles();
+          const files = capIncoming(photos.length, await pickImageFiles());
           if (files.length === 0) return;
           const saved = await importDishPhotos(
             this.plugin,
@@ -906,7 +916,7 @@ class DetailModal extends Modal {
     form.addEventListener("drop", (e) => {
       e.preventDefault();
       form.removeClass("fs-drop-active");
-      const files = Array.from(e.dataTransfer?.files ?? []);
+      const files = capIncoming(photos.length, Array.from(e.dataTransfer?.files ?? []));
       if (files.length === 0) return;
       void (async () => {
         const spot = this.spot();

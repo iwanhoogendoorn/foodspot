@@ -13,6 +13,30 @@ import { embedRefPath } from "../../store/visitsParser";
 
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|avif)$/i;
 
+/**
+ * Photos one visit may hold. Enough for a course-by-course meal, few enough
+ * that the note's visit bullet stays readable as plain markdown.
+ */
+export const MAX_VISIT_PHOTOS = 10;
+
+/**
+ * Trim a prospective batch to whatever room is left, saying what was dropped.
+ *
+ * Applied to the picked files rather than the saved paths, so the cap can only
+ * ever undershoot — `importDishPhotos` skips non-images, and a silent overshoot
+ * past the limit would be the worse failure.
+ */
+export function capIncoming<T>(existing: number, incoming: T[]): T[] {
+  const room = Math.max(0, MAX_VISIT_PHOTOS - existing);
+  if (incoming.length <= room) return incoming;
+  new Notice(
+    room === 0
+      ? `A visit holds at most ${MAX_VISIT_PHOTOS} photos — remove one to add another.`
+      : `Only ${room} more photo${room === 1 ? "" : "s"} fit; a visit holds at most ${MAX_VISIT_PHOTOS}.`,
+  );
+  return incoming.slice(0, room);
+}
+
 function sanitize(name: string): string {
   return name
     .replace(/[\\/:*?"<>|#^[\]]/g, " ")
@@ -112,6 +136,46 @@ export function pickImageFiles(): Promise<File[]> {
     });
     input.click();
   });
+}
+
+/**
+ * Thumbnail strip for photos chosen but not yet written to the vault.
+ *
+ * Log-a-visit holds the picked files in memory until the visit is actually
+ * saved, so abandoning the form leaves no orphans in the media folder. Previews
+ * come from object URLs; the returned disposer revokes them, and callers must
+ * run it before re-rendering or closing or the blobs leak.
+ */
+export function renderPendingThumbs(
+  parent: HTMLElement,
+  files: File[],
+  onRemove: (index: number) => void,
+): () => void {
+  if (files.length === 0) return () => undefined;
+  const urls: string[] = [];
+  const strip = parent.createDiv({ cls: "fs-dish-strip" });
+  files.forEach((file, i) => {
+    const cell = strip.createDiv({ cls: "fs-dish-thumb" });
+    const url = URL.createObjectURL(file);
+    urls.push(url);
+    const img = cell.createEl("img", { cls: "fs-dish-img" });
+    img.src = url;
+    img.alt = file.name;
+    cell.title = file.name;
+    const rm = cell.createEl("button", {
+      cls: "fs-dish-remove",
+      attr: { "aria-label": `Remove ${file.name}` },
+    });
+    rm.type = "button";
+    rm.setText("×");
+    rm.addEventListener("click", (e) => {
+      e.stopPropagation();
+      onRemove(i);
+    });
+  });
+  return () => {
+    for (const u of urls) URL.revokeObjectURL(u);
+  };
 }
 
 /**

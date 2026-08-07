@@ -15653,6 +15653,15 @@ function openBrowserFetchQueue(plugin, path, urls) {
 // src/ui/components/dishPhotos.ts
 var import_obsidian8 = require("obsidian");
 var IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|avif)$/i;
+var MAX_VISIT_PHOTOS = 10;
+function capIncoming(existing, incoming) {
+  const room = Math.max(0, MAX_VISIT_PHOTOS - existing);
+  if (incoming.length <= room) return incoming;
+  new import_obsidian8.Notice(
+    room === 0 ? `A visit holds at most ${MAX_VISIT_PHOTOS} photos \u2014 remove one to add another.` : `Only ${room} more photo${room === 1 ? "" : "s"} fit; a visit holds at most ${MAX_VISIT_PHOTOS}.`
+  );
+  return incoming.slice(0, room);
+}
 function sanitize(name) {
   return name.replace(/[\\/:*?"<>|#^[\]]/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -15714,6 +15723,33 @@ function pickImageFiles() {
     });
     input.click();
   });
+}
+function renderPendingThumbs(parent, files, onRemove) {
+  if (files.length === 0) return () => void 0;
+  const urls = [];
+  const strip = parent.createDiv({ cls: "fs-dish-strip" });
+  files.forEach((file, i) => {
+    const cell = strip.createDiv({ cls: "fs-dish-thumb" });
+    const url = URL.createObjectURL(file);
+    urls.push(url);
+    const img = cell.createEl("img", { cls: "fs-dish-img" });
+    img.src = url;
+    img.alt = file.name;
+    cell.title = file.name;
+    const rm = cell.createEl("button", {
+      cls: "fs-dish-remove",
+      attr: { "aria-label": `Remove ${file.name}` }
+    });
+    rm.type = "button";
+    rm.setText("\xD7");
+    rm.addEventListener("click", (e) => {
+      e.stopPropagation();
+      onRemove(i);
+    });
+  });
+  return () => {
+    for (const u of urls) URL.revokeObjectURL(u);
+  };
 }
 function renderDishThumbs(parent, plugin, photos, sourcePath, onRemove) {
   if (photos.length === 0) return;
@@ -16579,12 +16615,16 @@ var DetailModal = class extends import_obsidian10.Modal {
       const addBtn = photoRow.createEl("button", { cls: "fs-btn fs-small-btn" });
       addBtn.type = "button";
       (0, import_obsidian10.setIcon)(addBtn.createSpan({ cls: "fs-btn-icon" }), "image-plus");
-      addBtn.createSpan({ text: photos.length ? " Add more" : " Add dish photos" });
+      const room = MAX_VISIT_PHOTOS - photos.length;
+      addBtn.createSpan({
+        text: photos.length ? ` Add more (${room} left)` : " Add dish photos"
+      });
+      addBtn.disabled = room <= 0;
       addBtn.addEventListener("click", () => {
         void (async () => {
           const spot = this.spot();
           if (!spot) return;
-          const files = await pickImageFiles();
+          const files = capIncoming(photos.length, await pickImageFiles());
           if (files.length === 0) return;
           const saved = await importDishPhotos(
             this.plugin,
@@ -16610,7 +16650,7 @@ var DetailModal = class extends import_obsidian10.Modal {
     form.addEventListener("drop", (e) => {
       e.preventDefault();
       form.removeClass("fs-drop-active");
-      const files = Array.from(e.dataTransfer?.files ?? []);
+      const files = capIncoming(photos.length, Array.from(e.dataTransfer?.files ?? []));
       if (files.length === 0) return;
       void (async () => {
         const spot = this.spot();
@@ -16929,6 +16969,12 @@ var VisitModal = class extends import_obsidian11.Modal {
     this.path = path;
     this.rating = 0;
     this.saving = false;
+    /**
+     * Picked but not yet imported. Files stay in memory until the visit is saved
+     * so a cancelled form never leaves stray images in the media folder.
+     */
+    this.photoFiles = [];
+    this.disposeThumbs = null;
   }
   onOpen() {
     const spot = this.plugin.store.getByPath(this.path);
@@ -16978,6 +17024,24 @@ var VisitModal = class extends import_obsidian11.Modal {
     this.noteInput.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") void this.save();
     });
+    const photoField = form.createDiv({ cls: "fs-field" });
+    photoField.createEl("label", { cls: "fs-field-label", text: "Photos" });
+    this.photoRow = photoField.createDiv({ cls: "fs-visit-photos" });
+    this.renderPhotos();
+    form.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      form.addClass("fs-drop-active");
+    });
+    form.addEventListener("dragleave", () => form.removeClass("fs-drop-active"));
+    form.addEventListener("drop", (e) => {
+      e.preventDefault();
+      form.removeClass("fs-drop-active");
+      const dropped = Array.from(e.dataTransfer?.files ?? []).filter(
+        (f) => f.type.startsWith("image/")
+      );
+      if (dropped.length === 0) return;
+      this.addPhotos(dropped);
+    });
     const buttons = this.contentEl.createDiv({ cls: "fs-modal-buttons" });
     const cancel = buttons.createEl("button", { text: "Cancel" });
     cancel.type = "button";
@@ -16985,6 +17049,34 @@ var VisitModal = class extends import_obsidian11.Modal {
     const save = buttons.createEl("button", { text: "Log visit", cls: "mod-cta" });
     save.type = "button";
     save.addEventListener("click", () => void this.save());
+  }
+  addPhotos(files) {
+    const picked = capIncoming(this.photoFiles.length, files);
+    if (picked.length === 0) return;
+    this.photoFiles = [...this.photoFiles, ...picked];
+    this.renderPhotos();
+  }
+  renderPhotos() {
+    this.disposeThumbs?.();
+    this.disposeThumbs = null;
+    this.photoRow.empty();
+    const room = MAX_VISIT_PHOTOS - this.photoFiles.length;
+    const add = this.photoRow.createEl("button", { cls: "fs-btn fs-small-btn" });
+    add.type = "button";
+    (0, import_obsidian11.setIcon)(add.createSpan({ cls: "fs-btn-icon" }), "image-plus");
+    add.createSpan({
+      text: this.photoFiles.length === 0 ? " Add photos" : ` Add more (${room} left)`
+    });
+    add.disabled = room <= 0;
+    add.addEventListener("click", () => {
+      void (async () => {
+        this.addPhotos(await pickImageFiles());
+      })();
+    });
+    this.disposeThumbs = renderPendingThumbs(this.photoRow, this.photoFiles, (i) => {
+      this.photoFiles = this.photoFiles.filter((_, n) => n !== i);
+      this.renderPhotos();
+    });
   }
   /** Inline, per-field feedback — this form never throws a Notice wall. */
   setFieldError(input, msg) {
@@ -17017,16 +17109,22 @@ var VisitModal = class extends import_obsidian11.Modal {
       }
       spent = parsed;
     }
-    const visit = {
-      date,
-      rating: this.rating > 0 ? this.rating : void 0,
-      spent,
-      note: this.noteInput.value.trim()
-    };
     this.saving = true;
     try {
       const before = this.plugin.store.getByPath(this.path);
       const wasWantToTry = before?.status === "want-to-try";
+      let photos;
+      if (this.photoFiles.length > 0 && before) {
+        const saved = await importDishPhotos(this.plugin, before, date, this.photoFiles);
+        if (saved.length > 0) photos = saved;
+      }
+      const visit = {
+        date,
+        rating: this.rating > 0 ? this.rating : void 0,
+        spent,
+        note: this.noteInput.value.trim(),
+        photos
+      };
       await this.plugin.store.addVisit(this.path, visit);
       if (wasWantToTry) {
         await this.plugin.store.updateSpot(this.path, { status: "visited" });
@@ -17041,6 +17139,8 @@ var VisitModal = class extends import_obsidian11.Modal {
     }
   }
   onClose() {
+    this.disposeThumbs?.();
+    this.disposeThumbs = null;
     this.contentEl.empty();
   }
 };
