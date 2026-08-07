@@ -3,7 +3,7 @@
  * dot + connector line per visit, spot name → detail modal, stars, spent
  * (currency symbol from settings), note text. "Log visit" button on top.
  */
-import { setIcon } from "obsidian";
+import { Platform, setIcon } from "obsidian";
 import type {
   DateFormat,
   FoodSpot,
@@ -25,7 +25,28 @@ type TimelineItem =
   | { kind: "visit"; spot: FoodSpot; visit: Visit };
 
 const DAY_ROW_HEIGHT = 44;
-const VISIT_ROW_HEIGHT = 76;
+
+/*
+ * Row heights must cover what the row actually renders. The list positions
+ * rows absolutely at cumulative offsets, so anything taller than its slot is
+ * painted over by the row below — which is how a visit with a dish photo ended
+ * up sitting on top of the next day's date. These mirror 32-visits.css; the
+ * numbers run slightly generous, because slack only adds whitespace whereas a
+ * shortfall overlaps.
+ */
+/** Name line, plus the meta line it wraps onto when the screen is narrow. */
+const VISIT_BASE_HEIGHT = Platform.isMobile ? 58 : 42;
+/** `.fs-tl-note`, clamped to two lines. */
+const NOTE_HEIGHT = 34;
+/** One 54px thumb row plus its 6px top margin; the strip never wraps here. */
+const PHOTO_STRIP_HEIGHT = 60;
+
+function visitRowHeight(visit: Visit): number {
+  let h = VISIT_BASE_HEIGHT;
+  if (visit.note) h += NOTE_HEIGHT;
+  if ((visit.photos?.length ?? 0) > 0) h += PHOTO_STRIP_HEIGHT;
+  return h;
+}
 
 function fmtDate(iso: string, format: DateFormat): string {
   const [y, m, d] = iso.split("-");
@@ -63,7 +84,7 @@ export function mountVisitsTab(container: HTMLElement, plugin: FoodSpotPluginApi
   let emptyEl: HTMLElement | null = null;
 
   const list: VirtualHandle<TimelineItem> = createVirtualList<TimelineItem>(root, {
-    itemHeight: (item) => (item.kind === "day" ? DAY_ROW_HEIGHT : VISIT_ROW_HEIGHT),
+    itemHeight: (item) => (item.kind === "day" ? DAY_ROW_HEIGHT : visitRowHeight(item.visit)),
     render: (item, rowEl) => {
       if (item.kind === "day") {
         rowEl.addClass("fs-tl-day");

@@ -150,3 +150,21 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* --- dish photos in a timeline row ---------------------------------------- */
+/* The row is positioned by a virtualized list at a height visits.ts computes,
+   so this strip must stay exactly one thumb tall. It scrolls sideways instead
+   of wrapping; wrapping would grow the row past its slot and the next day's
+   header would be drawn over the top of it. */
+.fs-tl-body .fs-dish-strip {
+  margin-top: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fs-tl-body .fs-dish-strip::-webkit-scrollbar {
+  display: none;
+}

@@ -879,6 +879,46 @@ body.is-mobile .fs-visit-actions {
   opacity: 1;
 }
 
+/* --- visit timeline ------------------------------------------------------- */
+/* Obsidian's mobile stylesheet gives every <button> a filled pill with its own
+   height and padding. The timeline's spot name is a link wearing a button for
+   accessibility, and the pill swallowed the whole row. */
+body.is-mobile .fs-tl-name {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  height: auto;
+  min-height: 0;
+  line-height: 1.35;
+  font-size: 14px;
+  color: var(--text-normal);
+  /* Take the full width so a long restaurant name gets its own line and the
+     rating and spend wrap underneath instead of being squeezed off the edge.
+     visits.ts budgets for that second line in VISIT_BASE_HEIGHT. */
+  flex: 1 1 100%;
+  white-space: normal;
+  overflow: visible;
+}
+
+body.is-mobile .fs-tl-top {
+  row-gap: 2px;
+}
+
+body.is-mobile .fs-tl-row {
+  padding: 2px 12px;
+}
+
+/* A finger needs more than a 10px dot's worth of rail to aim at. */
+body.is-mobile .fs-tl-rail {
+  width: 20px;
+}
+
+body.is-mobile .fs-tl-day {
+  padding: 14px 12px 4px;
+  font-size: 13px;
+}
+
 body.is-mobile .fs-menu-preview,
 body.is-mobile .fs-hours-details {
   margin-left: 0;

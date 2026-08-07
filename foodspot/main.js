@@ -9589,7 +9589,7 @@ __export(main_exports, {
   default: () => FoodSpotPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian39 = require("obsidian");
+var import_obsidian40 = require("obsidian");
 
 // src/types.ts
 var SPOT_STATUSES = ["want-to-try", "visited"];
@@ -12206,10 +12206,10 @@ var ImportPipeline = class {
 };
 
 // src/ui/view.ts
-var import_obsidian31 = require("obsidian");
+var import_obsidian32 = require("obsidian");
 
 // src/ui/tabs/spots.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 
 // node_modules/fuse.js/dist/fuse.mjs
 function isArray(value) {
@@ -12580,7 +12580,7 @@ function convertMaskToIndices(matchmask = [], minMatchCharLength = Config.minMat
   if (matchmask[i - 1] && i - start >= minMatchCharLength) indices.push([start, i - 1]);
   return indices;
 }
-function search(text, pattern, patternAlphabet, { location = Config.location, distance = Config.distance, threshold = Config.threshold, findAllMatches = Config.findAllMatches, minMatchCharLength = Config.minMatchCharLength, includeMatches = Config.includeMatches, ignoreLocation = Config.ignoreLocation } = {}) {
+function search(text, pattern, patternAlphabet, { location = Config.location, distance: distance2 = Config.distance, threshold = Config.threshold, findAllMatches = Config.findAllMatches, minMatchCharLength = Config.minMatchCharLength, includeMatches = Config.includeMatches, ignoreLocation = Config.ignoreLocation } = {}) {
   if (pattern.length > 32) throw new Error(PATTERN_LENGTH_TOO_LARGE(32));
   const patternLen = pattern.length;
   const textLen = text.length;
@@ -12591,8 +12591,8 @@ function search(text, pattern, patternAlphabet, { location = Config.location, di
     const accuracy = errors / patternLen;
     if (ignoreLocation) return accuracy;
     const proximity = Math.abs(expectedLocation - currentLocation);
-    if (!distance) return proximity ? 1 : accuracy;
-    return accuracy + proximity / distance;
+    if (!distance2) return proximity ? 1 : accuracy;
+    return accuracy + proximity / distance2;
   };
   const computeMatches = minMatchCharLength > 1 || includeMatches;
   const matchMask = computeMatches ? Array(textLen) : [];
@@ -12699,11 +12699,11 @@ var NON_DECOMPOSABLE_MAP = {
 var NON_DECOMPOSABLE_RE = new RegExp("[" + Object.keys(NON_DECOMPOSABLE_MAP).join("") + "]", "g");
 var stripDiacritics = typeof String.prototype.normalize === "function" ? (str) => str.normalize("NFD").replace(/[\u0300-\u036F\u0483-\u0489\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u0711\u0730-\u074A\u07A6-\u07B0\u07EB-\u07F3\u07FD\u0816-\u0819\u081B-\u0823\u0825-\u0827\u0829-\u082D\u0859-\u085B\u08D3-\u08E1\u08E3-\u0903\u093A-\u093C\u093E-\u094F\u0951-\u0957\u0962\u0963\u0981-\u0983\u09BC\u09BE-\u09C4\u09C7\u09C8\u09CB-\u09CD\u09D7\u09E2\u09E3\u09FE\u0A01-\u0A03\u0A3C\u0A3E-\u0A42\u0A47\u0A48\u0A4B-\u0A4D\u0A51\u0A70\u0A71\u0A75\u0A81-\u0A83\u0ABC\u0ABE-\u0AC5\u0AC7-\u0AC9\u0ACB-\u0ACD\u0AE2\u0AE3\u0AFA-\u0AFF\u0B01-\u0B03\u0B3C\u0B3E-\u0B44\u0B47\u0B48\u0B4B-\u0B4D\u0B56\u0B57\u0B62\u0B63\u0B82\u0BBE-\u0BC2\u0BC6-\u0BC8\u0BCA-\u0BCD\u0BD7\u0C00-\u0C04\u0C3E-\u0C44\u0C46-\u0C48\u0C4A-\u0C4D\u0C55\u0C56\u0C62\u0C63\u0C81-\u0C83\u0CBC\u0CBE-\u0CC4\u0CC6-\u0CC8\u0CCA-\u0CCD\u0CD5\u0CD6\u0CE2\u0CE3\u0D00-\u0D03\u0D3B\u0D3C\u0D3E-\u0D44\u0D46-\u0D48\u0D4A-\u0D4D\u0D57\u0D62\u0D63\u0D82\u0D83\u0DCA\u0DCF-\u0DD4\u0DD6\u0DD8-\u0DDF\u0DF2\u0DF3\u0E31\u0E34-\u0E3A\u0E47-\u0E4E\u0EB1\u0EB4-\u0EB9\u0EBB\u0EBC\u0EC8-\u0ECD\u0F18\u0F19\u0F35\u0F37\u0F39\u0F3E\u0F3F\u0F71-\u0F84\u0F86\u0F87\u0F8D-\u0F97\u0F99-\u0FBC\u0FC6\u102B-\u103E\u1056-\u1059\u105E-\u1060\u1062-\u1064\u1067-\u106D\u1071-\u1074\u1082-\u108D\u108F\u109A-\u109D\u135D-\u135F\u1712-\u1714\u1732-\u1734\u1752\u1753\u1772\u1773\u17B4-\u17D3\u17DD\u180B-\u180D\u1885\u1886\u18A9\u1920-\u192B\u1930-\u193B\u1A17-\u1A1B\u1A55-\u1A5E\u1A60-\u1A7C\u1A7F\u1AB0-\u1ABE\u1B00-\u1B04\u1B34-\u1B44\u1B6B-\u1B73\u1B80-\u1B82\u1BA1-\u1BAD\u1BE6-\u1BF3\u1C24-\u1C37\u1CD0-\u1CD2\u1CD4-\u1CE8\u1CED\u1CF2-\u1CF4\u1CF7-\u1CF9\u1DC0-\u1DF9\u1DFB-\u1DFF\u20D0-\u20F0\u2CEF-\u2CF1\u2D7F\u2DE0-\u2DFF\u302A-\u302F\u3099\u309A\uA66F-\uA672\uA674-\uA67D\uA69E\uA69F\uA6F0\uA6F1\uA802\uA806\uA80B\uA823-\uA827\uA880\uA881\uA8B4-\uA8C5\uA8E0-\uA8F1\uA8FF\uA926-\uA92D\uA947-\uA953\uA980-\uA983\uA9B3-\uA9C0\uA9E5\uAA29-\uAA36\uAA43\uAA4C\uAA4D\uAA7B-\uAA7D\uAAB0\uAAB2-\uAAB4\uAAB7\uAAB8\uAABE\uAABF\uAAC1\uAAEB-\uAAEF\uAAF5\uAAF6\uABE3-\uABEA\uABEC\uABED\uFB1E\uFE00-\uFE0F\uFE20-\uFE2F]/g, "").replace(NON_DECOMPOSABLE_RE, (ch) => NON_DECOMPOSABLE_MAP[ch]) : (str) => str;
 var BitapSearch = class {
-  constructor(pattern, { location = Config.location, threshold = Config.threshold, distance = Config.distance, includeMatches = Config.includeMatches, findAllMatches = Config.findAllMatches, minMatchCharLength = Config.minMatchCharLength, isCaseSensitive = Config.isCaseSensitive, ignoreDiacritics = Config.ignoreDiacritics, ignoreLocation = Config.ignoreLocation } = {}) {
+  constructor(pattern, { location = Config.location, threshold = Config.threshold, distance: distance2 = Config.distance, includeMatches = Config.includeMatches, findAllMatches = Config.findAllMatches, minMatchCharLength = Config.minMatchCharLength, isCaseSensitive = Config.isCaseSensitive, ignoreDiacritics = Config.ignoreDiacritics, ignoreLocation = Config.ignoreLocation } = {}) {
     this.options = {
       location,
       threshold,
-      distance,
+      distance: distance2,
       includeMatches,
       findAllMatches,
       minMatchCharLength,
@@ -12754,14 +12754,14 @@ var BitapSearch = class {
       if (includeMatches) result2.indices = [[0, text.length - 1]];
       return result2;
     }
-    const { location, distance, threshold, findAllMatches, minMatchCharLength, ignoreLocation } = this.options;
+    const { location, distance: distance2, threshold, findAllMatches, minMatchCharLength, ignoreLocation } = this.options;
     const allIndices = [];
     let totalScore = 0;
     let hasMatches = false;
     this.chunks.forEach(({ pattern, alphabet, startIndex }) => {
       const { isMatch, score, indices } = search(text, pattern, alphabet, {
         location: location + startIndex,
-        distance,
+        distance: distance2,
         threshold,
         findAllMatches,
         minMatchCharLength,
@@ -13003,7 +13003,7 @@ function parseQuery(pattern, options = {}) {
   });
 }
 var ExtendedSearch = class {
-  constructor(pattern, { isCaseSensitive = Config.isCaseSensitive, ignoreDiacritics = Config.ignoreDiacritics, includeMatches = Config.includeMatches, minMatchCharLength = Config.minMatchCharLength, ignoreLocation = Config.ignoreLocation, findAllMatches = Config.findAllMatches, location = Config.location, threshold = Config.threshold, distance = Config.distance } = {}) {
+  constructor(pattern, { isCaseSensitive = Config.isCaseSensitive, ignoreDiacritics = Config.ignoreDiacritics, includeMatches = Config.includeMatches, minMatchCharLength = Config.minMatchCharLength, ignoreLocation = Config.ignoreLocation, findAllMatches = Config.findAllMatches, location = Config.location, threshold = Config.threshold, distance: distance2 = Config.distance } = {}) {
     this.query = null;
     this.options = {
       isCaseSensitive,
@@ -13014,7 +13014,7 @@ var ExtendedSearch = class {
       ignoreLocation,
       location,
       threshold,
-      distance
+      distance: distance2
     };
     pattern = isCaseSensitive ? pattern : pattern.toLowerCase();
     pattern = ignoreDiacritics ? stripDiacritics(pattern) : pattern;
@@ -14089,7 +14089,7 @@ function attachSearchTips(plugin, anchorEl) {
 }
 
 // src/ui/components/card.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 
 // src/ui/components/hours.ts
 var DISPLAY_DAYS = [1, 2, 3, 4, 5, 6, 0];
@@ -14234,7 +14234,7 @@ function formatHoursForDisplay(hours) {
 }
 
 // src/ui/modals/detail.ts
-var import_obsidian10 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 
 // src/ui/components/starRating.ts
 var import_obsidian4 = require("obsidian");
@@ -15651,13 +15651,268 @@ function openBrowserFetchQueue(plugin, path, urls) {
 }
 
 // src/ui/components/dishPhotos.ts
+var import_obsidian9 = require("obsidian");
+
+// src/ui/components/lightbox.ts
 var import_obsidian8 = require("obsidian");
+var MIN_SCALE = 1;
+var MAX_SCALE = 6;
+var DOUBLE_TAP_SCALE = 2.5;
+var TAP_SLOP_PX = 8;
+var DOUBLE_TAP_MS = 300;
+var SWIPE_PX = 60;
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+function midpoint(a, b) {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+var LightboxModal = class extends import_obsidian8.Modal {
+  constructor(plugin, items, startIndex) {
+    super(plugin.app);
+    this.plugin = plugin;
+    this.items = items;
+    this.scale = 1;
+    this.tx = 0;
+    this.ty = 0;
+    /** Live pointers by id — two of them means a pinch is in progress. */
+    this.pointers = /* @__PURE__ */ new Map();
+    this.startDistance = 0;
+    this.startScale = 1;
+    this.startMid = { x: 0, y: 0 };
+    this.startTx = 0;
+    this.startTy = 0;
+    this.panFrom = null;
+    this.downAt = null;
+    this.lastTapTime = 0;
+    this.moved = false;
+    this.index = Math.min(Math.max(0, startIndex), Math.max(0, items.length - 1));
+  }
+  onOpen() {
+    this.modalEl.addClass("fs-modal", "fs-lightbox-modal");
+    this.titleEl.remove();
+    this.contentEl.addClass("fs-lightbox");
+    const bar = this.contentEl.createDiv({ cls: "fs-lightbox-bar" });
+    this.counterEl = bar.createSpan({ cls: "fs-lightbox-counter" });
+    const close = bar.createEl("button", {
+      cls: "fs-lightbox-close",
+      attr: { "aria-label": "Close" }
+    });
+    close.type = "button";
+    (0, import_obsidian8.setIcon)(close, "x");
+    close.addEventListener("click", () => this.close());
+    this.stage = this.contentEl.createDiv({ cls: "fs-lightbox-stage" });
+    this.img = this.stage.createEl("img", { cls: "fs-lightbox-img" });
+    this.img.draggable = false;
+    const foot = this.contentEl.createDiv({ cls: "fs-lightbox-foot" });
+    this.captionEl = foot.createDiv({ cls: "fs-lightbox-caption" });
+    if (this.items.length > 1) {
+      const prev = this.navButton(this.stage, "chevron-left", "Previous photo", -1);
+      const next = this.navButton(this.stage, "chevron-right", "Next photo", 1);
+      prev.addClass("fs-lightbox-prev");
+      next.addClass("fs-lightbox-next");
+    }
+    this.bindGestures();
+    this.show();
+    this.scope.register([], "ArrowLeft", () => {
+      this.step(-1);
+      return false;
+    });
+    this.scope.register([], "ArrowRight", () => {
+      this.step(1);
+      return false;
+    });
+  }
+  navButton(parent, icon, label, delta) {
+    const btn = parent.createEl("button", {
+      cls: "fs-lightbox-nav",
+      attr: { "aria-label": label }
+    });
+    btn.type = "button";
+    (0, import_obsidian8.setIcon)(btn, icon);
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.step(delta);
+    });
+    return btn;
+  }
+  show() {
+    const item = this.items[this.index];
+    if (!item) return;
+    this.img.src = this.plugin.app.vault.getResourcePath(item.file);
+    this.img.alt = item.file.basename;
+    this.captionEl.setText(item.caption ?? item.file.basename);
+    this.counterEl.setText(
+      this.items.length > 1 ? `${this.index + 1} / ${this.items.length}` : ""
+    );
+    this.reset();
+  }
+  /** Back to fit-the-screen; every photo starts unzoomed. */
+  reset() {
+    this.scale = 1;
+    this.tx = 0;
+    this.ty = 0;
+    this.apply();
+  }
+  apply() {
+    this.img.style.transform = `translate(${this.tx}px, ${this.ty}px) scale(${this.scale})`;
+    this.stage.toggleClass("is-zoomed", this.scale > 1.01);
+  }
+  step(delta) {
+    if (this.items.length < 2) return;
+    this.index = (this.index + delta + this.items.length) % this.items.length;
+    this.show();
+  }
+  /**
+   * Keep the image from being flung off-screen: at 1x it stays centred, and
+   * when zoomed it may travel only as far as its own overflow.
+   */
+  clamp() {
+    if (this.scale <= 1.01) {
+      this.tx = 0;
+      this.ty = 0;
+      return;
+    }
+    const stage = this.stage.getBoundingClientRect();
+    const w = this.img.clientWidth * this.scale;
+    const h = this.img.clientHeight * this.scale;
+    const maxX = Math.max(0, (w - stage.width) / 2);
+    const maxY = Math.max(0, (h - stage.height) / 2);
+    this.tx = Math.min(maxX, Math.max(-maxX, this.tx));
+    this.ty = Math.min(maxY, Math.max(-maxY, this.ty));
+  }
+  /** Zoom about a screen point, so the pixel under the fingers stays put. */
+  zoomTo(next, focus) {
+    const stage = this.stage.getBoundingClientRect();
+    const cx = focus.x - stage.left - stage.width / 2;
+    const cy = focus.y - stage.top - stage.height / 2;
+    const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
+    const ratio = clamped / this.scale;
+    this.tx = cx - (cx - this.tx) * ratio;
+    this.ty = cy - (cy - this.ty) * ratio;
+    this.scale = clamped;
+    this.clamp();
+    this.apply();
+  }
+  bindGestures() {
+    const stage = this.stage;
+    stage.addEventListener("pointerdown", (ev) => {
+      if (ev.target.closest(".fs-lightbox-nav")) return;
+      this.pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      this.downAt = { x: ev.clientX, y: ev.clientY };
+      this.moved = false;
+      try {
+        stage.setPointerCapture(ev.pointerId);
+      } catch {
+      }
+      const pts = [...this.pointers.values()];
+      if (pts.length === 2 && pts[0] && pts[1]) {
+        this.startDistance = distance(pts[0], pts[1]);
+        this.startScale = this.scale;
+        this.startMid = midpoint(pts[0], pts[1]);
+        this.startTx = this.tx;
+        this.startTy = this.ty;
+        this.panFrom = null;
+      } else {
+        this.panFrom = { x: ev.clientX, y: ev.clientY };
+        this.startTx = this.tx;
+        this.startTy = this.ty;
+      }
+    });
+    stage.addEventListener("pointermove", (ev) => {
+      if (!this.pointers.has(ev.pointerId)) return;
+      this.pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      const pts = [...this.pointers.values()];
+      if (pts.length >= 2 && pts[0] && pts[1]) {
+        this.moved = true;
+        if (this.startDistance <= 0) return;
+        const next = this.startScale * (distance(pts[0], pts[1]) / this.startDistance);
+        const mid = midpoint(pts[0], pts[1]);
+        this.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
+        const ratio = this.scale / this.startScale;
+        const stageRect = stage.getBoundingClientRect();
+        const cx = this.startMid.x - stageRect.left - stageRect.width / 2;
+        const cy = this.startMid.y - stageRect.top - stageRect.height / 2;
+        this.tx = cx - (cx - this.startTx) * ratio + (mid.x - this.startMid.x);
+        this.ty = cy - (cy - this.startTy) * ratio + (mid.y - this.startMid.y);
+        this.clamp();
+        this.apply();
+        return;
+      }
+      if (!this.panFrom || !this.downAt) return;
+      const dx = ev.clientX - this.panFrom.x;
+      const dy = ev.clientY - this.panFrom.y;
+      if (Math.hypot(ev.clientX - this.downAt.x, ev.clientY - this.downAt.y) > TAP_SLOP_PX) {
+        this.moved = true;
+      }
+      if (this.scale > 1.01) {
+        this.tx = this.startTx + dx;
+        this.ty = this.startTy + dy;
+        this.clamp();
+        this.apply();
+      }
+    });
+    const release = (ev) => {
+      if (!this.pointers.has(ev.pointerId)) return;
+      const down = this.downAt;
+      this.pointers.delete(ev.pointerId);
+      if (stage.hasPointerCapture(ev.pointerId)) stage.releasePointerCapture(ev.pointerId);
+      if (this.pointers.size > 0) {
+        this.panFrom = null;
+        return;
+      }
+      const dx = down ? ev.clientX - down.x : 0;
+      const dy = down ? ev.clientY - down.y : 0;
+      if (!this.moved) {
+        const now = Date.now();
+        if (now - this.lastTapTime < DOUBLE_TAP_MS) {
+          this.lastTapTime = 0;
+          this.zoomTo(this.scale > 1.01 ? 1 : DOUBLE_TAP_SCALE, {
+            x: ev.clientX,
+            y: ev.clientY
+          });
+        } else {
+          this.lastTapTime = now;
+        }
+      } else if (this.scale <= 1.01 && Math.abs(dx) > SWIPE_PX && Math.abs(dx) > Math.abs(dy)) {
+        this.step(dx < 0 ? 1 : -1);
+      }
+      this.panFrom = null;
+      this.downAt = null;
+      this.moved = false;
+    };
+    stage.addEventListener("pointerup", release);
+    stage.addEventListener("pointercancel", release);
+    stage.addEventListener(
+      "wheel",
+      (ev) => {
+        ev.preventDefault();
+        const factor = Math.exp(-ev.deltaY / 400);
+        this.zoomTo(this.scale * factor, { x: ev.clientX, y: ev.clientY });
+      },
+      { passive: false }
+    );
+    stage.addEventListener("click", (ev) => {
+      if (ev.target === stage && this.scale <= 1.01) this.close();
+    });
+  }
+  onClose() {
+    this.pointers.clear();
+    this.contentEl.empty();
+  }
+};
+function openLightbox(plugin, items, startIndex = 0) {
+  if (items.length === 0) return;
+  new LightboxModal(plugin, items, startIndex).open();
+}
+
+// src/ui/components/dishPhotos.ts
 var IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|avif)$/i;
 var MAX_VISIT_PHOTOS = 10;
 function capIncoming(existing, incoming) {
   const room = Math.max(0, MAX_VISIT_PHOTOS - existing);
   if (incoming.length <= room) return incoming;
-  new import_obsidian8.Notice(
+  new import_obsidian9.Notice(
     room === 0 ? `A visit holds at most ${MAX_VISIT_PHOTOS} photos \u2014 remove one to add another.` : `Only ${room} more photo${room === 1 ? "" : "s"} fit; a visit holds at most ${MAX_VISIT_PHOTOS}.`
   );
   return incoming.slice(0, room);
@@ -15670,17 +15925,17 @@ function resolveDishFile(plugin, ref, sourcePath) {
   if (!raw || /^https?:\/\//i.test(raw)) return null;
   const direct = plugin.app.metadataCache.getFirstLinkpathDest(raw, sourcePath);
   if (direct) return direct;
-  const byPath = plugin.app.vault.getAbstractFileByPath((0, import_obsidian8.normalizePath)(raw));
-  return byPath instanceof import_obsidian8.TFile ? byPath : null;
+  const byPath = plugin.app.vault.getAbstractFileByPath((0, import_obsidian9.normalizePath)(raw));
+  return byPath instanceof import_obsidian9.TFile ? byPath : null;
 }
 async function importDishPhotos(plugin, spot, date, files) {
-  const dir = (0, import_obsidian8.normalizePath)(`${plugin.settings.mediaFolder}/dishes`);
+  const dir = (0, import_obsidian9.normalizePath)(`${plugin.settings.mediaFolder}/dishes`);
   await ensureFolder(plugin.app, dir);
   const saved = [];
   let index = 1;
   for (const file of files) {
     if (!IMAGE_EXT.test(file.name) && !file.type.startsWith("image/")) {
-      new import_obsidian8.Notice(`Skipped "${file.name}" \u2014 not an image.`);
+      new import_obsidian9.Notice(`Skipped "${file.name}" \u2014 not an image.`);
       continue;
     }
     const ext = (IMAGE_EXT.exec(file.name)?.[0] ?? ".jpg").toLowerCase();
@@ -15695,7 +15950,7 @@ async function importDishPhotos(plugin, spot, date, files) {
       saved.push(candidate);
       index++;
     } catch (e) {
-      new import_obsidian8.Notice(`Couldn't save "${file.name}": ${e instanceof Error ? e.message : String(e)}`);
+      new import_obsidian9.Notice(`Couldn't save "${file.name}": ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   return saved;
@@ -15717,7 +15972,7 @@ function pickImageFiles() {
     const settle = () => finish(Array.from(input.files ?? []));
     input.addEventListener("change", settle);
     input.addEventListener("cancel", settle);
-    if (!import_obsidian8.Platform.isMobile) {
+    if (!import_obsidian9.Platform.isMobile) {
       window.addEventListener("focus", () => window.setTimeout(settle, 400), {
         once: true
       });
@@ -15755,6 +16010,11 @@ function renderPendingThumbs(parent, files, onRemove) {
 function renderDishThumbs(parent, plugin, photos, sourcePath, onRemove) {
   if (photos.length === 0) return;
   const strip = parent.createDiv({ cls: "fs-dish-strip" });
+  const set = [];
+  for (const ref of photos) {
+    const found = resolveDishFile(plugin, ref, sourcePath);
+    if (found) set.push({ file: found });
+  }
   for (const ref of photos) {
     const cell = strip.createDiv({ cls: "fs-dish-thumb" });
     const file = resolveDishFile(plugin, ref, sourcePath);
@@ -15764,7 +16024,8 @@ function renderDishThumbs(parent, plugin, photos, sourcePath, onRemove) {
       img.alt = file.basename;
       cell.title = file.name;
       cell.addEventListener("click", () => {
-        void plugin.app.workspace.openLinkText(file.path, sourcePath);
+        const at = set.findIndex((i) => i.file.path === file.path);
+        openLightbox(plugin, set, at < 0 ? 0 : at);
       });
     } else {
       cell.addClass("fs-dish-missing");
@@ -15787,7 +16048,7 @@ function renderDishThumbs(parent, plugin, photos, sourcePath, onRemove) {
 }
 
 // src/ui/modals/gallery.ts
-var import_obsidian9 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 function openGalleryModal(plugin, path) {
   new GalleryModal(plugin, path).open();
 }
@@ -15815,7 +16076,7 @@ function formatDate(iso, fmt) {
       return `${y}-${m}-${d}`;
   }
 }
-var GalleryModal = class extends import_obsidian9.Modal {
+var GalleryModal = class extends import_obsidian10.Modal {
   constructor(plugin, path) {
     super(plugin.app);
     this.plugin = plugin;
@@ -15823,12 +16084,15 @@ var GalleryModal = class extends import_obsidian9.Modal {
     this.observer = null;
     /** Tile -> "load me now", consumed once the tile scrolls into view. */
     this.loaders = /* @__PURE__ */ new WeakMap();
+    /** The rendered set, in display order — the viewer pages through it. */
+    this.entries = [];
   }
   onOpen() {
     this.modalEl.addClass("fs-modal", "fs-gallery-modal");
     const spot = this.path === void 0 ? void 0 : this.plugin.store.getByPath(this.path);
     this.titleEl.setText(spot ? `Dish photos \u2014 ${spot.name}` : "Dish photos");
     const entries = collect(spot ? [spot] : this.plugin.store.getSpots());
+    this.entries = entries;
     const body = this.contentEl;
     if (entries.length === 0) {
       body.createDiv({
@@ -15879,14 +16143,28 @@ var GalleryModal = class extends import_obsidian9.Modal {
       img.loading = "lazy";
     });
     this.observer?.observe(frame);
-    tile.addEventListener("click", () => {
-      if (showSpotName) openDetailModal(this.plugin, entry.sourcePath);
-      else void this.openImage(file, entry.sourcePath);
-    });
+    tile.addEventListener("click", () => this.openViewer(entry));
   }
-  async openImage(file, sourcePath) {
-    this.close();
-    await this.plugin.app.workspace.openLinkText(file.path, sourcePath);
+  /**
+   * Open the zoomable viewer on the whole gallery, positioned at the tapped
+   * photo, so it pages through the set rather than showing one dead-end image.
+   *
+   * Previously a tile either jumped to the spot's detail modal or handed the
+   * file to `openLinkText`, which opens it as a document tab: no zoom at all.
+   */
+  openViewer(entry) {
+    const items = [];
+    let start = 0;
+    for (const e of this.entries) {
+      const f = resolveDishFile(this.plugin, e.ref, e.sourcePath);
+      if (!f) continue;
+      if (e === entry) start = items.length;
+      items.push({
+        file: f,
+        caption: `${e.spotName} \xB7 ${formatDate(e.date, this.plugin.settings.dateFormat)}`
+      });
+    }
+    openLightbox(this.plugin, items, start);
   }
   onClose() {
     this.observer?.disconnect();
@@ -15903,7 +16181,7 @@ var STATUS_LABELS2 = {
   "want-to-try": "Want to try",
   visited: "Visited"
 };
-var DetailModal = class extends import_obsidian10.Modal {
+var DetailModal = class extends import_obsidian11.Modal {
   constructor(plugin, path) {
     super(plugin.app);
     this.plugin = plugin;
@@ -16005,7 +16283,7 @@ var DetailModal = class extends import_obsidian10.Modal {
       input.remove();
       h2.show();
       if (commit && value !== "" && value !== spot.name) {
-        void this.plugin.store.updateSpot(this.path, { name: value }).catch((e) => new import_obsidian10.Notice(`Couldn't rename \u2014 ${errorMessage3(e)}`));
+        void this.plugin.store.updateSpot(this.path, { name: value }).catch((e) => new import_obsidian11.Notice(`Couldn't rename \u2014 ${errorMessage3(e)}`));
       }
     };
     input.addEventListener("keydown", (ev) => {
@@ -16039,7 +16317,7 @@ var DetailModal = class extends import_obsidian10.Modal {
     const fav = row.createEl("button", { cls: "fs-fav-toggle" });
     fav.type = "button";
     fav.title = spot.favorite ? "Remove from favorites" : "Mark as favorite";
-    (0, import_obsidian10.setIcon)(fav, "heart");
+    (0, import_obsidian11.setIcon)(fav, "heart");
     if (spot.favorite) {
       fav.addClass("fs-active");
       fav.style.color = this.plugin.settings.statusColors.favorite;
@@ -16167,24 +16445,24 @@ var DetailModal = class extends import_obsidian10.Modal {
     if (locationText) {
       const row = block.createDiv({ cls: "fs-info-row" });
       const icon = row.createSpan({ cls: "fs-info-icon" });
-      (0, import_obsidian10.setIcon)(icon, "map-pin");
+      (0, import_obsidian11.setIcon)(icon, "map-pin");
       row.createSpan({ cls: "fs-info-text", text: locationText });
       this.iconButton(row, "map", "Open in Google Maps", () => {
         window.open(this.mapsUrl(spot));
       });
       this.iconButton(row, "copy", "Copy address", () => {
-        void navigator.clipboard.writeText(spot.address ?? locationText).then(() => new import_obsidian10.Notice("Address copied."));
+        void navigator.clipboard.writeText(spot.address ?? locationText).then(() => new import_obsidian11.Notice("Address copied."));
       });
     } else {
       const row = block.createDiv({ cls: "fs-info-row fs-info-empty" });
       const icon = row.createSpan({ cls: "fs-info-icon" });
-      (0, import_obsidian10.setIcon)(icon, "map-pin");
+      (0, import_obsidian11.setIcon)(icon, "map-pin");
       row.createSpan({ cls: "fs-info-text", text: "No address yet \u2014 edit the spot to add one." });
     }
     if (spot.url) {
       const row = block.createDiv({ cls: "fs-info-row" });
       const icon = row.createSpan({ cls: "fs-info-icon" });
-      (0, import_obsidian10.setIcon)(icon, "globe");
+      (0, import_obsidian11.setIcon)(icon, "globe");
       const link = row.createEl("a", { cls: "fs-info-text", text: prettyUrl(spot.url) });
       link.href = spot.url;
       link.addEventListener("click", (ev) => {
@@ -16192,16 +16470,16 @@ var DetailModal = class extends import_obsidian10.Modal {
         window.open(spot.url);
       });
       this.iconButton(row, "copy", "Copy link", () => {
-        void navigator.clipboard.writeText(spot.url ?? "").then(() => new import_obsidian10.Notice("Link copied."));
+        void navigator.clipboard.writeText(spot.url ?? "").then(() => new import_obsidian11.Notice("Link copied."));
       });
     }
     if (spot.phone) {
       const row = block.createDiv({ cls: "fs-info-row" });
       const icon = row.createSpan({ cls: "fs-info-icon" });
-      (0, import_obsidian10.setIcon)(icon, "phone");
+      (0, import_obsidian11.setIcon)(icon, "phone");
       row.createSpan({ cls: "fs-info-text", text: spot.phone });
       this.iconButton(row, "copy", "Copy phone number", () => {
-        void navigator.clipboard.writeText(spot.phone ?? "").then(() => new import_obsidian10.Notice("Phone number copied."));
+        void navigator.clipboard.writeText(spot.phone ?? "").then(() => new import_obsidian11.Notice("Phone number copied."));
       });
     }
     this.renderHours(block, spot);
@@ -16209,7 +16487,7 @@ var DetailModal = class extends import_obsidian10.Modal {
     if (spot.sourceUrl && spot.sourceUrl !== spot.url) {
       const row = block.createDiv({ cls: "fs-info-row" });
       const icon = row.createSpan({ cls: "fs-info-icon" });
-      (0, import_obsidian10.setIcon)(icon, "external-link");
+      (0, import_obsidian11.setIcon)(icon, "external-link");
       const link = row.createEl("a", { cls: "fs-info-text", text: `Source: ${prettyUrl(spot.sourceUrl)}` });
       link.href = spot.sourceUrl;
       link.addEventListener("click", (ev) => {
@@ -16228,7 +16506,7 @@ var DetailModal = class extends import_obsidian10.Modal {
     const state2 = localClockApplies(spot.country, this.plugin.settings.defaultCountry) ? openState(spot.hours, /* @__PURE__ */ new Date()) : null;
     const row = block.createDiv({ cls: "fs-info-row" });
     const icon = row.createSpan({ cls: "fs-info-icon" });
-    (0, import_obsidian10.setIcon)(icon, "clock");
+    (0, import_obsidian11.setIcon)(icon, "clock");
     if (state2) {
       const text = row.createSpan({
         cls: `fs-info-text fs-hours-state ${state2.open ? "is-open" : "is-closed"}`,
@@ -16258,7 +16536,7 @@ var DetailModal = class extends import_obsidian10.Modal {
     const menu = spot.menu;
     const row = block.createDiv({ cls: "fs-info-row" });
     const icon = row.createSpan({ cls: "fs-info-icon" });
-    (0, import_obsidian10.setIcon)(icon, "book-open");
+    (0, import_obsidian11.setIcon)(icon, "book-open");
     if (/^https?:\/\//i.test(menu)) {
       const link2 = row.createEl("a", { cls: "fs-info-text", text: `Menu \u2014 ${prettyUrl(menu)}` });
       link2.href = menu;
@@ -16268,13 +16546,13 @@ var DetailModal = class extends import_obsidian10.Modal {
         window.open(menu);
       });
       this.iconButton(row, "copy", "Copy menu link", () => {
-        void navigator.clipboard.writeText(menu).then(() => new import_obsidian10.Notice("Menu link copied."));
+        void navigator.clipboard.writeText(menu).then(() => new import_obsidian11.Notice("Menu link copied."));
       });
       return;
     }
     const app = this.plugin.app;
     const file = app.metadataCache.getFirstLinkpathDest(menu, spot.path) ?? app.vault.getAbstractFileByPath(menu);
-    if (!(file instanceof import_obsidian10.TFile)) {
+    if (!(file instanceof import_obsidian11.TFile)) {
       row.addClass("fs-info-empty");
       row.createSpan({ cls: "fs-info-text", text: `Menu file not found \u2014 ${menu}` });
       return;
@@ -16363,12 +16641,12 @@ var DetailModal = class extends import_obsidian10.Modal {
       findBtn.type = "button";
       findBtn.title = "Auto-attach verifiable sources (Eet.nu rating + Facebook link via the Eet.nu API). TripAdvisor/Yelp/TheFork/OpenTable bot-wall automated lookups \u2014 paste those via their + chips.";
       const findIcon = findBtn.createSpan({ cls: "fs-btn-icon" });
-      (0, import_obsidian10.setIcon)(findIcon, "wand-sparkles");
+      (0, import_obsidian11.setIcon)(findIcon, "wand-sparkles");
       const findLabel = findBtn.createSpan({ text: " Find sources" });
       findBtn.addEventListener("click", () => {
         findBtn.disabled = true;
         findBtn.addClass("fs-loading");
-        (0, import_obsidian10.setIcon)(findIcon, "loader-2");
+        (0, import_obsidian11.setIcon)(findIcon, "loader-2");
         void (async () => {
           try {
             const res = await this.plugin.importer.discoverSources(
@@ -16381,19 +16659,19 @@ var DetailModal = class extends import_obsidian10.Modal {
               });
             }
             if (res.attached.length > 0) {
-              new import_obsidian10.Notice(`Attached: ${res.attached.join(", ")}.`);
+              new import_obsidian11.Notice(`Attached: ${res.attached.join(", ")}.`);
             } else {
-              new import_obsidian10.Notice(
+              new import_obsidian11.Notice(
                 "Nothing auto-attachable found. TripAdvisor, Yelp, TheFork and OpenTable block automated lookups \u2014 use their + chips to paste the page link.",
                 8e3
               );
             }
             this.render();
           } catch (e) {
-            new import_obsidian10.Notice(`Source discovery failed: ${errorMessage3(e)}`);
+            new import_obsidian11.Notice(`Source discovery failed: ${errorMessage3(e)}`);
             findBtn.disabled = false;
             findBtn.removeClass("fs-loading");
-            (0, import_obsidian10.setIcon)(findIcon, "wand-sparkles");
+            (0, import_obsidian11.setIcon)(findIcon, "wand-sparkles");
             findLabel.setText(" Find sources");
           }
         })();
@@ -16424,7 +16702,7 @@ var DetailModal = class extends import_obsidian10.Modal {
     const refresh = row.createEl("button", { cls: "fs-ext-refresh" });
     refresh.type = "button";
     refresh.title = "Refresh public ratings from every linked source";
-    (0, import_obsidian10.setIcon)(refresh, "refresh-cw");
+    (0, import_obsidian11.setIcon)(refresh, "refresh-cw");
     refresh.createSpan({ text: " Refresh" });
     refresh.addEventListener("click", () => void this.refreshRatings(refresh, spot));
   }
@@ -16436,15 +16714,15 @@ var DetailModal = class extends import_obsidian10.Modal {
     try {
       const updated = await this.plugin.importer.refreshRatings(
         spot,
-        (msg) => new import_obsidian10.Notice(msg, 8e3)
+        (msg) => new import_obsidian11.Notice(msg, 8e3)
       );
       if (updated) {
         await this.plugin.store.updateSpot(this.path, {
           external: { ...spot.external, ...updated }
         });
-        new import_obsidian10.Notice("Public ratings refreshed.");
+        new import_obsidian11.Notice("Public ratings refreshed.");
       } else {
-        new import_obsidian10.Notice("No fresh ratings found for this spot.");
+        new import_obsidian11.Notice("No fresh ratings found for this spot.");
       }
       const fresh = this.plugin.store.getByPath(this.path);
       if (fresh && canBrowserFetch()) {
@@ -16459,7 +16737,7 @@ var DetailModal = class extends import_obsidian10.Modal {
         if (pending.length > 0) openBrowserFetchQueue(this.plugin, this.path, pending);
       }
     } catch (e) {
-      new import_obsidian10.Notice(`Couldn't refresh ratings \u2014 ${errorMessage3(e)}`);
+      new import_obsidian11.Notice(`Couldn't refresh ratings \u2014 ${errorMessage3(e)}`);
     } finally {
       this.refreshingRatings = false;
       if (btn.isConnected) {
@@ -16480,13 +16758,13 @@ var DetailModal = class extends import_obsidian10.Modal {
       const gallery = head.createEl("button", { cls: "fs-small-btn" });
       gallery.type = "button";
       gallery.title = `Browse the ${dishCount} dish photo${dishCount === 1 ? "" : "s"} of this spot`;
-      (0, import_obsidian10.setIcon)(gallery.createSpan({ cls: "fs-btn-icon" }), "images");
+      (0, import_obsidian11.setIcon)(gallery.createSpan({ cls: "fs-btn-icon" }), "images");
       gallery.createSpan({ text: ` Photos (${dishCount})` });
       gallery.addEventListener("click", () => openGalleryModal(this.plugin, this.path));
     }
     const addBtn = head.createEl("button", { cls: "fs-small-btn" });
     addBtn.type = "button";
-    (0, import_obsidian10.setIcon)(addBtn.createSpan(), "plus");
+    (0, import_obsidian11.setIcon)(addBtn.createSpan(), "plus");
     addBtn.createSpan({ text: "Log visit" });
     const formHost = section.createDiv();
     addBtn.addEventListener("click", () => {
@@ -16498,7 +16776,7 @@ var DetailModal = class extends import_obsidian10.Modal {
         await this.plugin.store.addVisit(this.path, visit);
         if (before?.status === "want-to-try") {
           await this.plugin.store.updateSpot(this.path, { status: "visited" });
-          new import_obsidian10.Notice(`Visit logged \u2014 \u201C${before.name}\u201D marked as visited.`);
+          new import_obsidian11.Notice(`Visit logged \u2014 \u201C${before.name}\u201D marked as visited.`);
         }
         this.addingVisit = false;
         this.render();
@@ -16529,7 +16807,7 @@ var DetailModal = class extends import_obsidian10.Modal {
         const idx = this.resolveVisitIndex(visit, index);
         if (idx === -1) {
           this.editingVisitIndex = null;
-          new import_obsidian10.Notice("That visit changed while you were editing \u2014 your change was not applied.");
+          new import_obsidian11.Notice("That visit changed while you were editing \u2014 your change was not applied.");
           this.render();
           return;
         }
@@ -16576,13 +16854,13 @@ var DetailModal = class extends import_obsidian10.Modal {
         try {
           const idx = this.resolveVisitIndex(visit, index);
           if (idx === -1) {
-            new import_obsidian10.Notice("That visit changed while the dialog was open \u2014 nothing was deleted.");
+            new import_obsidian11.Notice("That visit changed while the dialog was open \u2014 nothing was deleted.");
             this.render();
             return;
           }
           await this.plugin.store.deleteVisit(this.path, idx);
         } catch (e) {
-          new import_obsidian10.Notice(`Couldn't delete the visit \u2014 ${errorMessage3(e)}`);
+          new import_obsidian11.Notice(`Couldn't delete the visit \u2014 ${errorMessage3(e)}`);
         }
       });
     });
@@ -16615,7 +16893,7 @@ var DetailModal = class extends import_obsidian10.Modal {
       photoRow.empty();
       const addBtn = photoRow.createEl("button", { cls: "fs-btn fs-small-btn" });
       addBtn.type = "button";
-      (0, import_obsidian10.setIcon)(addBtn.createSpan({ cls: "fs-btn-icon" }), "image-plus");
+      (0, import_obsidian11.setIcon)(addBtn.createSpan({ cls: "fs-btn-icon" }), "image-plus");
       const room = MAX_VISIT_PHOTOS - photos.length;
       addBtn.createSpan({
         text: photos.length ? ` Add more (${room} left)` : " Add dish photos"
@@ -16698,7 +16976,7 @@ var DetailModal = class extends import_obsidian10.Modal {
         photos: photos.length > 0 ? photos : void 0
       }).catch((e) => {
         save.disabled = false;
-        new import_obsidian10.Notice(`Couldn't save the visit \u2014 ${errorMessage3(e)}`);
+        new import_obsidian11.Notice(`Couldn't save the visit \u2014 ${errorMessage3(e)}`);
       });
     };
     save.addEventListener("click", doSave);
@@ -16754,7 +17032,7 @@ var DetailModal = class extends import_obsidian10.Modal {
       await this.plugin.store.setNotes(this.path, notes);
     } catch (e) {
       if (this.pendingNotes === null) this.pendingNotes = notes;
-      new import_obsidian10.Notice(`Couldn't save notes \u2014 ${errorMessage3(e)}`);
+      new import_obsidian11.Notice(`Couldn't save notes \u2014 ${errorMessage3(e)}`);
     }
   }
   // -------------------------------------------------------------- footer
@@ -16762,7 +17040,7 @@ var DetailModal = class extends import_obsidian10.Modal {
     const footer = parent.createDiv({ cls: "fs-detail-footer" });
     const openNote = footer.createEl("button", { cls: "fs-small-btn" });
     openNote.type = "button";
-    (0, import_obsidian10.setIcon)(openNote.createSpan(), "file-text");
+    (0, import_obsidian11.setIcon)(openNote.createSpan(), "file-text");
     openNote.createSpan({ text: "Open note" });
     openNote.addEventListener("click", () => {
       this.close();
@@ -16770,7 +17048,7 @@ var DetailModal = class extends import_obsidian10.Modal {
     });
     const edit = footer.createEl("button", { cls: "fs-small-btn" });
     edit.type = "button";
-    (0, import_obsidian10.setIcon)(edit.createSpan(), "pencil");
+    (0, import_obsidian11.setIcon)(edit.createSpan(), "pencil");
     edit.createSpan({ text: "Edit" });
     edit.addEventListener("click", () => {
       this.close();
@@ -16786,7 +17064,7 @@ var DetailModal = class extends import_obsidian10.Modal {
     const btn = parent.createEl("button", { cls: "fs-icon-btn" });
     btn.type = "button";
     btn.title = title;
-    (0, import_obsidian10.setIcon)(btn, icon);
+    (0, import_obsidian11.setIcon)(btn, icon);
     btn.addEventListener("click", (ev) => {
       ev.stopPropagation();
       onClick();
@@ -16798,7 +17076,7 @@ var DetailModal = class extends import_obsidian10.Modal {
     if (/^https?:\/\//i.test(spot.photo)) return spot.photo;
     const app = this.plugin.app;
     const file = app.metadataCache.getFirstLinkpathDest(spot.photo, spot.path) ?? app.vault.getAbstractFileByPath(spot.photo);
-    return file instanceof import_obsidian10.TFile ? app.vault.getResourcePath(file) : null;
+    return file instanceof import_obsidian11.TFile ? app.vault.getResourcePath(file) : null;
   }
   formatDate(iso) {
     return formatDate2(iso, this.plugin.settings.dateFormat);
@@ -16807,7 +17085,7 @@ var DetailModal = class extends import_obsidian10.Modal {
     try {
       await this.plugin.store.updateSpot(this.path, input);
     } catch (e) {
-      new import_obsidian10.Notice(`Couldn't save the change \u2014 ${errorMessage3(e)}`);
+      new import_obsidian11.Notice(`Couldn't save the change \u2014 ${errorMessage3(e)}`);
     }
   }
   onClose() {
@@ -16852,7 +17130,7 @@ function hashStr(s) {
 function errorMessage3(e) {
   return e instanceof Error ? e.message : String(e);
 }
-var AttachSourceModal = class extends import_obsidian10.Modal {
+var AttachSourceModal = class extends import_obsidian11.Modal {
   constructor(plugin, spot, source, onDone) {
     super(plugin.app);
     this.plugin = plugin;
@@ -16895,7 +17173,7 @@ var AttachSourceModal = class extends import_obsidian10.Modal {
     const doSave = async () => {
       const url = input.value.trim();
       if (!/^https?:\/\//i.test(url)) {
-        new import_obsidian10.Notice("Paste a full http(s) link.");
+        new import_obsidian11.Notice("Paste a full http(s) link.");
         return;
       }
       save.disabled = true;
@@ -16909,16 +17187,16 @@ var AttachSourceModal = class extends import_obsidian10.Modal {
           await this.plugin.store.updateSpot(this.spot.path, {
             external: { ...updated.external, ...fresh }
           });
-          new import_obsidian10.Notice(`${this.source.label} rating attached.`);
+          new import_obsidian11.Notice(`${this.source.label} rating attached.`);
         } else {
-          new import_obsidian10.Notice(
+          new import_obsidian11.Notice(
             `${this.source.label} link saved, but no public rating was found on that page.`
           );
         }
         this.onDone();
       } catch (e) {
         save.disabled = false;
-        new import_obsidian10.Notice(`Attach failed: ${errorMessage3(e)}`);
+        new import_obsidian11.Notice(`Attach failed: ${errorMessage3(e)}`);
       }
     };
     save.addEventListener("click", () => void doSave());
@@ -16933,7 +17211,7 @@ var AttachSourceModal = class extends import_obsidian10.Modal {
 };
 
 // src/ui/modals/logVisit.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 function openLogVisitPicker(plugin, path) {
   if (path) {
     new VisitModal(plugin, path).open();
@@ -16941,12 +17219,12 @@ function openLogVisitPicker(plugin, path) {
   }
   const spots = plugin.store.getSpots();
   if (spots.length === 0) {
-    new import_obsidian11.Notice("No food spots yet \u2014 add one before logging a visit.");
+    new import_obsidian12.Notice("No food spots yet \u2014 add one before logging a visit.");
     return;
   }
   new SpotPickerModal(plugin, spots).open();
 }
-var SpotPickerModal = class extends import_obsidian11.FuzzySuggestModal {
+var SpotPickerModal = class extends import_obsidian12.FuzzySuggestModal {
   constructor(plugin, spots) {
     super(plugin.app);
     this.plugin = plugin;
@@ -16963,7 +17241,7 @@ var SpotPickerModal = class extends import_obsidian11.FuzzySuggestModal {
     new VisitModal(this.plugin, spot.path).open();
   }
 };
-var VisitModal = class extends import_obsidian11.Modal {
+var VisitModal = class extends import_obsidian12.Modal {
   constructor(plugin, path) {
     super(plugin.app);
     this.plugin = plugin;
@@ -16980,7 +17258,7 @@ var VisitModal = class extends import_obsidian11.Modal {
   onOpen() {
     const spot = this.plugin.store.getByPath(this.path);
     if (!spot) {
-      new import_obsidian11.Notice("That spot no longer exists.");
+      new import_obsidian12.Notice("That spot no longer exists.");
       this.close();
       return;
     }
@@ -17064,7 +17342,7 @@ var VisitModal = class extends import_obsidian11.Modal {
     const room = MAX_VISIT_PHOTOS - this.photoFiles.length;
     const add = this.photoRow.createEl("button", { cls: "fs-btn fs-small-btn" });
     add.type = "button";
-    (0, import_obsidian11.setIcon)(add.createSpan({ cls: "fs-btn-icon" }), "image-plus");
+    (0, import_obsidian12.setIcon)(add.createSpan({ cls: "fs-btn-icon" }), "image-plus");
     add.createSpan({
       text: this.photoFiles.length === 0 ? " Add photos" : ` Add more (${room} left)`
     });
@@ -17129,14 +17407,14 @@ var VisitModal = class extends import_obsidian11.Modal {
       await this.plugin.store.addVisit(this.path, visit);
       if (wasWantToTry) {
         await this.plugin.store.updateSpot(this.path, { status: "visited" });
-        new import_obsidian11.Notice(`Visit logged \u2014 \u201C${before?.name ?? "spot"}\u201D marked as visited.`);
+        new import_obsidian12.Notice(`Visit logged \u2014 \u201C${before?.name ?? "spot"}\u201D marked as visited.`);
       } else {
-        new import_obsidian11.Notice("Visit logged.");
+        new import_obsidian12.Notice("Visit logged.");
       }
       this.close();
     } catch (e) {
       this.saving = false;
-      new import_obsidian11.Notice(`Food Spot: couldn't log the visit \u2014 ${errorMessage4(e)}`);
+      new import_obsidian12.Notice(`Food Spot: couldn't log the visit \u2014 ${errorMessage4(e)}`);
     }
   }
   onClose() {
@@ -17236,7 +17514,7 @@ function resolveSrc(plugin, spot) {
     } else {
       try {
         const file = plugin.app.metadataCache.getFirstLinkpathDest(raw, spot.path) ?? plugin.app.vault.getAbstractFileByPath(raw);
-        src = file instanceof import_obsidian12.TFile ? plugin.app.vault.getResourcePath(file) : NONE;
+        src = file instanceof import_obsidian13.TFile ? plugin.app.vault.getResourcePath(file) : NONE;
       } catch {
         src = NONE;
       }
@@ -17294,17 +17572,17 @@ function attachLazyPhoto(photoEl, plugin, spot, hostEl) {
 }
 async function refreshSpotRatings(plugin, spot) {
   try {
-    const updated = await plugin.importer.refreshRatings(spot, (msg) => new import_obsidian12.Notice(msg, 8e3));
+    const updated = await plugin.importer.refreshRatings(spot, (msg) => new import_obsidian13.Notice(msg, 8e3));
     if (updated) {
       await plugin.store.updateSpot(spot.path, {
         external: { ...spot.external, ...updated }
       });
-      new import_obsidian12.Notice(`Ratings refreshed for "${spot.name}".`);
+      new import_obsidian13.Notice(`Ratings refreshed for "${spot.name}".`);
     } else {
-      new import_obsidian12.Notice(`No fresh ratings found for "${spot.name}".`);
+      new import_obsidian13.Notice(`No fresh ratings found for "${spot.name}".`);
     }
   } catch (e) {
-    new import_obsidian12.Notice(`Rating refresh failed: ${e instanceof Error ? e.message : String(e)}`);
+    new import_obsidian13.Notice(`Rating refresh failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 function isUnderfilled(spot) {
@@ -17312,7 +17590,7 @@ function isUnderfilled(spot) {
 }
 async function pullSpotInfo(plugin, spot) {
   if (!plugin.importer.hasGoogleKey()) {
-    new import_obsidian12.Notice("Add a Google Places API key in Settings \u2192 Food Spot \u2192 API first.");
+    new import_obsidian13.Notice("Add a Google Places API key in Settings \u2192 Food Spot \u2192 API first.");
     return;
   }
   try {
@@ -17325,32 +17603,32 @@ async function pullSpotInfo(plugin, spot) {
     });
     if (patch && Object.keys(patch).length > 0) {
       await plugin.store.updateSpot(spot.path, patch);
-      new import_obsidian12.Notice(`Pulled Google info for "${spot.name}".`);
+      new import_obsidian13.Notice(`Pulled Google info for "${spot.name}".`);
     } else {
-      new import_obsidian12.Notice(`Nothing new found for "${spot.name}".`);
+      new import_obsidian13.Notice(`Nothing new found for "${spot.name}".`);
     }
   } catch (e) {
     if (e instanceof EnrichStepError && e.partial && Object.keys(e.partial).length > 0) {
       try {
         await plugin.store.updateSpot(spot.path, e.partial);
-        new import_obsidian12.Notice(`Pull partly failed for "${spot.name}": ${e.message} The rest was saved.`, 1e4);
+        new import_obsidian13.Notice(`Pull partly failed for "${spot.name}": ${e.message} The rest was saved.`, 1e4);
         return;
       } catch (writeError) {
-        new import_obsidian12.Notice(
+        new import_obsidian13.Notice(
           `Pull failed for "${spot.name}": ${e.message} Saving what was found also failed \u2014 ${writeError instanceof Error ? writeError.message : String(writeError)}`,
           1e4
         );
         return;
       }
     }
-    new import_obsidian12.Notice(`Pull failed: ${e instanceof Error ? e.message : String(e)}`);
+    new import_obsidian13.Notice(`Pull failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 function spotMediaFiles(plugin, spot) {
   const out = [];
   for (const ref of [spot.photo, spot.menu]) {
     if (!ref || /^https?:\/\//i.test(ref)) continue;
-    const f = plugin.app.vault.getFileByPath((0, import_obsidian12.normalizePath)(ref));
+    const f = plugin.app.vault.getFileByPath((0, import_obsidian13.normalizePath)(ref));
     if (f && !out.includes(f)) out.push(f);
   }
   return out;
@@ -17380,12 +17658,12 @@ async function deleteWithConfirm(plugin, spot) {
       }
     }
   }
-  new import_obsidian12.Notice(
+  new import_obsidian13.Notice(
     `Deleted "${spot.name}"${trashed > 0 ? ` and ${trashed} media file${trashed === 1 ? "" : "s"}` : ""} \u2014 recoverable from the trash.`
   );
 }
 function spotMenu(plugin, spot) {
-  const menu = new import_obsidian12.Menu();
+  const menu = new import_obsidian13.Menu();
   menu.addItem(
     (i) => i.setTitle("Open note").setIcon("file-text").onClick(() => void plugin.store.openNote(spot.path))
   );
@@ -17456,7 +17734,7 @@ function buildMiniCard(parent, spot, plugin) {
   if (spot.rating !== void 0) {
     const badge = photo.createSpan({ cls: "fs-mini-rating" });
     const star = badge.createSpan({ cls: "fs-star-icon" });
-    (0, import_obsidian12.setIcon)(star, "star");
+    (0, import_obsidian13.setIcon)(star, "star");
     badge.createSpan({ text: fmtRating(spot.rating) });
     const tier = tierFor(spot.rating, plugin.settings.ratingTiers);
     if (tier) badge.style.setProperty("--fs-tier", tier.color);
@@ -17465,7 +17743,7 @@ function buildMiniCard(parent, spot, plugin) {
     cls: "fs-card-menu fs-mini-menu",
     attr: { "aria-label": "More actions" }
   });
-  (0, import_obsidian12.setIcon)(menuBtn, "more-vertical");
+  (0, import_obsidian13.setIcon)(menuBtn, "more-vertical");
   menuBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     spotMenu(plugin, spot).showAtMouseEvent(e);
@@ -17503,17 +17781,17 @@ function buildFullCard(parent, spot, plugin) {
       attr: { "aria-label": "Pull photo & info from Google", title: "Pull photo & info from Google" }
     });
     const pullIcon = pull.createSpan({ cls: "fs-btn-icon" });
-    (0, import_obsidian12.setIcon)(pullIcon, "cloud-download");
+    (0, import_obsidian13.setIcon)(pullIcon, "cloud-download");
     pull.createSpan({ cls: "fs-card-pull-label", text: "Pull info" });
     pull.addEventListener("click", (e) => {
       e.stopPropagation();
       pull.addClass("fs-loading");
       pull.disabled = true;
-      (0, import_obsidian12.setIcon)(pullIcon, "loader-2");
+      (0, import_obsidian13.setIcon)(pullIcon, "loader-2");
       void pullSpotInfo(plugin, spot).finally(() => {
         pull.removeClass("fs-loading");
         pull.disabled = false;
-        (0, import_obsidian12.setIcon)(pullIcon, "cloud-download");
+        (0, import_obsidian13.setIcon)(pullIcon, "cloud-download");
       });
     });
   }
@@ -17537,7 +17815,7 @@ function buildFullCard(parent, spot, plugin) {
     cls: "fs-card-fav",
     attr: { "aria-label": spot.favorite ? "Remove from favorites" : "Add to favorites" }
   });
-  (0, import_obsidian12.setIcon)(fav, "star");
+  (0, import_obsidian13.setIcon)(fav, "star");
   fav.toggleClass("is-active", spot.favorite);
   fav.style.setProperty("--fs-fav", plugin.settings.statusColors.favorite);
   fav.addEventListener("click", (e) => {
@@ -17548,7 +17826,7 @@ function buildFullCard(parent, spot, plugin) {
     cls: "fs-card-menu",
     attr: { "aria-label": "More actions" }
   });
-  (0, import_obsidian12.setIcon)(menuBtn, "more-vertical");
+  (0, import_obsidian13.setIcon)(menuBtn, "more-vertical");
   menuBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     spotMenu(plugin, spot).showAtMouseEvent(e);
@@ -17570,7 +17848,7 @@ function buildFullCard(parent, spot, plugin) {
   if (spot.rating !== void 0) {
     const mine = meta.createSpan({ cls: "fs-meta-stars" });
     const star = mine.createSpan({ cls: "fs-star-icon" });
-    (0, import_obsidian12.setIcon)(star, "star");
+    (0, import_obsidian13.setIcon)(star, "star");
     mine.createSpan({ text: fmtRating(spot.rating) });
     const tier = tierFor(spot.rating, plugin.settings.ratingTiers);
     if (tier) mine.style.setProperty("--fs-tier", tier.color);
@@ -17633,7 +17911,7 @@ function buildCompactRow(parent, spot, plugin) {
   if (spot.rating !== void 0) {
     const mine = right.createSpan({ cls: "fs-meta-stars" });
     const star = mine.createSpan({ cls: "fs-star-icon" });
-    (0, import_obsidian12.setIcon)(star, "star");
+    (0, import_obsidian13.setIcon)(star, "star");
     mine.createSpan({ text: fmtRating(spot.rating) });
     const tier = tierFor(spot.rating, plugin.settings.ratingTiers);
     if (tier) mine.style.setProperty("--fs-tier", tier.color);
@@ -17651,7 +17929,7 @@ function buildCompactRow(parent, spot, plugin) {
     cls: "fs-card-menu fs-card-row-menu",
     attr: { "aria-label": "More actions" }
   });
-  (0, import_obsidian12.setIcon)(menuBtn, "more-vertical");
+  (0, import_obsidian13.setIcon)(menuBtn, "more-vertical");
   menuBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     spotMenu(plugin, spot).showAtMouseEvent(e);
@@ -17667,7 +17945,7 @@ function buildCompactRow(parent, spot, plugin) {
 }
 
 // src/ui/components/toolbar.ts
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 function debounce(fn, ms) {
   let timer = null;
   return (...args) => {
@@ -17681,7 +17959,7 @@ function debounce(fn, ms) {
 function buildSearchBox(parent, opts) {
   const wrap = parent.createDiv({ cls: "fs-search" });
   const icon = wrap.createSpan({ cls: "fs-search-icon" });
-  (0, import_obsidian13.setIcon)(icon, "search");
+  (0, import_obsidian14.setIcon)(icon, "search");
   const input = wrap.createEl("input", {
     cls: "fs-search-input",
     attr: {
@@ -17696,7 +17974,7 @@ function buildSearchBox(parent, opts) {
     cls: "fs-search-clear",
     attr: { "aria-label": "Clear search", tabindex: "-1" }
   });
-  (0, import_obsidian13.setIcon)(clear, "x");
+  (0, import_obsidian14.setIcon)(clear, "x");
   const emit = debounce((q) => opts.onQuery(q), opts.debounceMs ?? 250);
   const syncClear = () => clear.toggleClass("is-visible", input.value.length > 0);
   input.addEventListener("input", () => {
@@ -17726,18 +18004,18 @@ function iconButton(parent, opts) {
     attr: { "aria-label": opts.label, title: opts.label }
   });
   const ic = btn.createSpan({ cls: "fs-btn-icon" });
-  (0, import_obsidian13.setIcon)(ic, opts.icon);
+  (0, import_obsidian14.setIcon)(ic, opts.icon);
   if (opts.text) btn.createSpan({ cls: "fs-btn-label", text: opts.text });
   btn.addEventListener("click", (e) => opts.onClick(e));
   return btn;
 }
 function setButtonIcon(btn, icon) {
   const ic = btn.querySelector(".fs-btn-icon");
-  if (ic) (0, import_obsidian13.setIcon)(ic, icon);
+  if (ic) (0, import_obsidian14.setIcon)(ic, icon);
 }
 
 // src/ui/components/filtersDropdown.ts
-var import_obsidian14 = require("obsidian");
+var import_obsidian15 = require("obsidian");
 var EMPTY_LABEL = "(empty)";
 function cloneFilters(f) {
   return {
@@ -17753,7 +18031,7 @@ function cloneFilters(f) {
 function isFilterActive(f) {
   return f.favoritesOnly || f.minRating > 0 || f.excludedStatuses.length > 0 || f.excludedCuisines.length > 0 || f.excludedCountries.length > 0 || f.excludedCities.length > 0 || f.excludedPrices.length > 0;
 }
-var PresetNameModal = class extends import_obsidian14.Modal {
+var PresetNameModal = class extends import_obsidian15.Modal {
   constructor(app, onSubmit) {
     super(app);
     this.onSubmit = onSubmit;
@@ -17798,14 +18076,14 @@ function buildFiltersControl(parent, plugin, opts) {
     attr: { "aria-label": "Filters", title: "Filters" }
   });
   const fbIcon = filterBtn.createSpan({ cls: "fs-btn-icon" });
-  (0, import_obsidian14.setIcon)(fbIcon, "filter");
+  (0, import_obsidian15.setIcon)(fbIcon, "filter");
   filterBtn.createSpan({ cls: "fs-btn-label", text: "Filters" });
   filterBtn.createSpan({ cls: "fs-filter-dot" });
   const clearBtn = wrap.createEl("button", {
     cls: "fs-btn fs-filter-clear",
     attr: { "aria-label": "Reset filters \u2014 show all spots", title: "Reset filters \u2014 show all spots" }
   });
-  (0, import_obsidian14.setIcon)(clearBtn, "x");
+  (0, import_obsidian15.setIcon)(clearBtn, "x");
   const presetBtn = iconButton(wrap, {
     icon: "bookmark",
     label: "Filter preset",
@@ -17889,14 +18167,14 @@ function buildFiltersControl(parent, plugin, opts) {
     const makeChip = (parentEl, label) => {
       const chip = parentEl.createEl("button", { cls: "fs-filter-chip" });
       const check = chip.createSpan({ cls: "fs-chip-check" });
-      (0, import_obsidian14.setIcon)(check, "check");
+      (0, import_obsidian15.setIcon)(check, "check");
       chip.createSpan({ text: label });
       return chip;
     };
     const favRow = panel.createDiv({ cls: "fs-filter-favrow" });
     const favChip = favRow.createEl("button", { cls: "fs-filter-chip fs-filter-fav" });
     const favIcon = favChip.createSpan({ cls: "fs-btn-icon" });
-    (0, import_obsidian14.setIcon)(favIcon, "star");
+    (0, import_obsidian15.setIcon)(favIcon, "star");
     favChip.createSpan({ text: "Favorites only" });
     favChip.toggleClass("is-on", opts.getState().favoritesOnly);
     favChip.addEventListener("click", () => {
@@ -18073,10 +18351,10 @@ function buildFiltersControl(parent, plugin, opts) {
     };
     await plugin.saveSettings();
     sync();
-    new import_obsidian14.Notice(`Preset "${name}" saved.`);
+    new import_obsidian15.Notice(`Preset "${name}" saved.`);
   }
   function openPresetMenu(e) {
-    const menu = new import_obsidian14.Menu();
+    const menu = new import_obsidian15.Menu();
     const preset = plugin.settings.savedPreset;
     if (preset) {
       menu.addItem(
@@ -18090,7 +18368,7 @@ function buildFiltersControl(parent, plugin, opts) {
           plugin.settings.savedPreset = void 0;
           await plugin.saveSettings();
           sync();
-          new import_obsidian14.Notice("Preset removed.");
+          new import_obsidian15.Notice("Preset removed.");
         })
       );
     } else {
@@ -18109,7 +18387,7 @@ function buildFiltersControl(parent, plugin, opts) {
 }
 
 // src/ui/components/sortMenu.ts
-var import_obsidian15 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 var SORT_KEYS = [
   "name",
   "rating",
@@ -18146,7 +18424,7 @@ function buildSortButton(parent, opts) {
   const labelEl = btn.createSpan({ cls: "fs-btn-label" });
   const sync = () => {
     const { primary } = opts.get();
-    (0, import_obsidian15.setIcon)(iconEl, primary.direction === "asc" ? "arrow-up-narrow-wide" : "arrow-down-wide-narrow");
+    (0, import_obsidian16.setIcon)(iconEl, primary.direction === "asc" ? "arrow-up-narrow-wide" : "arrow-down-wide-narrow");
     labelEl.setText(SORT_LABELS[primary.key] ?? "Sort");
   };
   const arrow = (spec, key) => {
@@ -18155,7 +18433,7 @@ function buildSortButton(parent, opts) {
   };
   btn.addEventListener("click", (e) => {
     const { primary, secondary } = opts.get();
-    const menu = new import_obsidian15.Menu();
+    const menu = new import_obsidian16.Menu();
     menu.addItem((i) => i.setTitle("Sort by").setDisabled(true));
     for (const key of SORT_KEYS) {
       menu.addItem((i) => {
@@ -18193,10 +18471,10 @@ function buildSortButton(parent, opts) {
 }
 
 // src/ui/components/virtualGrid.ts
-var import_obsidian16 = require("obsidian");
+var import_obsidian17 = require("obsidian");
 var CARD_SIZE_STEPS = [100, 120, 140, 160, 185, 215, 250];
 function cardMinWidth(settings) {
-  const step = import_obsidian16.Platform.isMobile ? settings.cardSizeMobile : settings.cardSizeDesktop;
+  const step = import_obsidian17.Platform.isMobile ? settings.cardSizeMobile : settings.cardSizeDesktop;
   const idx = Math.max(0, Math.min(CARD_SIZE_STEPS.length - 1, step + 3));
   return CARD_SIZE_STEPS[idx];
 }
@@ -18401,7 +18679,7 @@ function createVirtualList(parent, opts) {
 }
 
 // src/ui/tabs/list.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 var CUSTOM = "__custom__";
 function mapsUrl2(spot) {
   const q = spot.coordinates ? `${spot.coordinates.lat},${spot.coordinates.lng}` : [spot.name, spot.city, spot.country].filter(Boolean).join(" ");
@@ -18553,7 +18831,7 @@ function createEditableTable(container, plugin, opts) {
       attr: { "aria-label": spot.favorite ? "Remove favorite" : "Mark favorite" }
     });
     fav.type = "button";
-    (0, import_obsidian17.setIcon)(fav, "star");
+    (0, import_obsidian18.setIcon)(fav, "star");
     fav.toggleClass("is-active", spot.favorite);
     fav.style.setProperty("--fs-fav", plugin.settings.statusColors.favorite);
     fav.addEventListener("click", () => void save(spot, { favorite: !spot.favorite }));
@@ -18562,7 +18840,7 @@ function createEditableTable(container, plugin, opts) {
       const b = actTd.createEl("button", { cls: "fs-list-action", attr: { "aria-label": label } });
       b.type = "button";
       b.title = label;
-      (0, import_obsidian17.setIcon)(b, icon);
+      (0, import_obsidian18.setIcon)(b, icon);
       b.addEventListener("click", fn);
     };
     action("file-text", "Open note", () => void plugin.store.openNote(spot.path));
@@ -18573,9 +18851,9 @@ function createEditableTable(container, plugin, opts) {
     });
     moreBtn.type = "button";
     moreBtn.title = "More";
-    (0, import_obsidian17.setIcon)(moreBtn, "more-vertical");
+    (0, import_obsidian18.setIcon)(moreBtn, "more-vertical");
     moreBtn.addEventListener("click", (ev) => {
-      const menu = new import_obsidian17.Menu();
+      const menu = new import_obsidian18.Menu();
       menu.addItem(
         (i) => i.setTitle(spot.status === "visited" ? "Mark want to try" : "Mark visited").setIcon("check").onClick(
           () => void save(spot, { status: spot.status === "visited" ? "want-to-try" : "visited" })
@@ -18594,7 +18872,7 @@ function createEditableTable(container, plugin, opts) {
     try {
       await plugin.store.updateSpot(spot.path, patch);
     } catch (e) {
-      new import_obsidian17.Notice(`Couldn't save \u2014 ${e instanceof Error ? e.message : String(e)}`);
+      new import_obsidian18.Notice(`Couldn't save \u2014 ${e instanceof Error ? e.message : String(e)}`);
       renderRows();
     }
   }
@@ -18637,28 +18915,28 @@ function createEditableTable(container, plugin, opts) {
 }
 
 // src/ui/modals/addChooser.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 
 // src/ui/modals/importFlow.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 function importFromClipboard(plugin) {
   navigator.clipboard.readText().then((text) => {
     const url = (text ?? "").trim();
     if (/^https?:\/\/\S+$/i.test(url)) {
       openImportModal(plugin, url);
     } else {
-      new import_obsidian18.Notice("Clipboard doesn't contain a web link \u2014 paste one into the import box.");
+      new import_obsidian19.Notice("Clipboard doesn't contain a web link \u2014 paste one into the import box.");
       openImportModal(plugin);
     }
   }).catch(() => {
-    new import_obsidian18.Notice("Couldn't read the clipboard \u2014 paste the link manually.");
+    new import_obsidian19.Notice("Couldn't read the clipboard \u2014 paste the link manually.");
     openImportModal(plugin);
   });
 }
 function openImportModal(plugin, url) {
   new ImportModal(plugin, url).open();
 }
-var ImportModal = class extends import_obsidian18.Modal {
+var ImportModal = class extends import_obsidian19.Modal {
   constructor(plugin, initialUrl) {
     super(plugin.app);
     this.plugin = plugin;
@@ -18702,7 +18980,7 @@ var ImportModal = class extends import_obsidian18.Modal {
     if (text === "") return;
     if (spinning) {
       const icon = this.statusEl.createSpan({ cls: "fs-spin" });
-      (0, import_obsidian18.setIcon)(icon, "loader-2");
+      (0, import_obsidian19.setIcon)(icon, "loader-2");
     }
     this.statusEl.createSpan({ text });
   }
@@ -18749,7 +19027,7 @@ var ImportModal = class extends import_obsidian18.Modal {
     const input = draftToInput(this.plugin, draft);
     if (!input) {
       this.close();
-      new import_obsidian18.Notice("Couldn't read a name from that link \u2014 review the details before saving.");
+      new import_obsidian19.Notice("Couldn't read a name from that link \u2014 review the details before saving.");
       openAddModal(this.plugin, draft);
       return;
     }
@@ -18757,7 +19035,7 @@ var ImportModal = class extends import_obsidian18.Modal {
       const created = await this.plugin.store.createSpot(input);
       this.close();
       showUndoNotice(this.plugin, created);
-      for (const w of draft.warnings) new import_obsidian18.Notice(`Import warning \u2014 ${w}`, 1e4);
+      for (const w of draft.warnings) new import_obsidian19.Notice(`Import warning \u2014 ${w}`, 1e4);
     } catch (e) {
       this.running = false;
       this.importBtn.disabled = false;
@@ -18788,7 +19066,7 @@ var ImportModal = class extends import_obsidian18.Modal {
   showAttachChoice(target, source, draft) {
     const banner = this.contentEl.createDiv({ cls: "fs-dup-banner fs-attach-banner" });
     const icon = banner.createSpan({ cls: "fs-dup-icon" });
-    (0, import_obsidian18.setIcon)(icon, "star");
+    (0, import_obsidian19.setIcon)(icon, "star");
     const text = banner.createDiv({ cls: "fs-dup-text" });
     text.createDiv({
       text: `This ${SOURCE_LABELS[source]} page looks like \u201C${target.name}\u201D${target.city ? ` in ${target.city}` : ""}, which is already in your library.`
@@ -18803,7 +19081,7 @@ var ImportModal = class extends import_obsidian18.Modal {
       attach.disabled = true;
       void this.attachRatingSource(target, source, draft.sourceUrl).catch((e) => {
         attach.disabled = false;
-        new import_obsidian18.Notice(`Couldn't attach the rating source \u2014 ${errorMessage5(e)}`);
+        new import_obsidian19.Notice(`Couldn't attach the rating source \u2014 ${errorMessage5(e)}`);
       });
     });
     const merge = actions.createEl("button", { text: "Merge into existing" });
@@ -18826,7 +19104,7 @@ var ImportModal = class extends import_obsidian18.Modal {
       external: { ...target.external, [key]: url }
     });
     this.close();
-    new import_obsidian18.Notice(`Attached ${SOURCE_LABELS[source]} as a rating source for \u201C${target.name}\u201D.`);
+    new import_obsidian19.Notice(`Attached ${SOURCE_LABELS[source]} as a rating source for \u201C${target.name}\u201D.`);
     void refreshSpotRatings(this.plugin, updated);
   }
   onClose() {
@@ -18916,12 +19194,12 @@ function showUndoNotice(plugin, spot) {
   frag.createSpan({ text: `Added \u201C${spot.name}\u201D. ` });
   const btn = frag.createEl("button", { text: "Undo", cls: "fs-notice-undo" });
   btn.type = "button";
-  const notice = new import_obsidian18.Notice(frag, 1e4);
+  const notice = new import_obsidian19.Notice(frag, 1e4);
   btn.addEventListener("click", () => {
     notice.hide();
     plugin.store.deleteSpot(spot.path).then(
-      () => new import_obsidian18.Notice("Import undone \u2014 the note went to the trash."),
-      (e) => new import_obsidian18.Notice(`Couldn't undo the import \u2014 ${errorMessage5(e)}`)
+      () => new import_obsidian19.Notice("Import undone \u2014 the note went to the trash."),
+      (e) => new import_obsidian19.Notice(`Couldn't undo the import \u2014 ${errorMessage5(e)}`)
     );
   });
 }
@@ -18930,7 +19208,7 @@ function errorMessage5(e) {
 }
 
 // src/ui/modals/listImport.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 
 // src/import/listParse.ts
 var MAX_NAMES = 100;
@@ -19071,7 +19349,7 @@ function isConfident(pasted, c) {
   if (a === "" || b === "") return false;
   return a === b || a.includes(b) || b.includes(a);
 }
-var ListImportModal = class extends import_obsidian19.Modal {
+var ListImportModal = class extends import_obsidian20.Modal {
   constructor(plugin) {
     super(plugin.app);
     this.plugin = plugin;
@@ -19142,7 +19420,7 @@ var ListImportModal = class extends import_obsidian19.Modal {
     const lookupBtn = buttons.createEl("button", { cls: "mod-cta" });
     lookupBtn.type = "button";
     const lookupIcon = lookupBtn.createSpan({ cls: "fs-btn-icon" });
-    (0, import_obsidian19.setIcon)(lookupIcon, "search");
+    (0, import_obsidian20.setIcon)(lookupIcon, "search");
     lookupBtn.createSpan({ text: "Look up on Google" });
     const hasKey = this.plugin.importer.hasGoogleKey();
     if (!hasKey) lookupBtn.title = NO_KEY_HINT;
@@ -19171,7 +19449,7 @@ var ListImportModal = class extends import_obsidian19.Modal {
     });
     lookupBtn.addEventListener("click", () => {
       if (!hasKey) {
-        new import_obsidian19.Notice(NO_KEY_HINT);
+        new import_obsidian20.Notice(NO_KEY_HINT);
         return;
       }
       void this.runLookup(parseNameListVerbose(this.text).names);
@@ -19474,7 +19752,7 @@ var ListImportModal = class extends import_obsidian19.Modal {
     if (skipped > 0) parts.push(`${skipped} skipped (already saved)`);
     if (failed > 0) parts.push(`${failed} failed`);
     this.close();
-    new import_obsidian19.Notice(
+    new import_obsidian20.Notice(
       `${cancelled ? "List import cancelled" : "List import done"} \u2014 ${parts.join(" \xB7 ")}.`,
       1e4
     );
@@ -19515,7 +19793,7 @@ var ListImportModal = class extends import_obsidian19.Modal {
 function openAddChooser(plugin) {
   new AddChooserModal(plugin).open();
 }
-var AddChooserModal = class extends import_obsidian20.Modal {
+var AddChooserModal = class extends import_obsidian21.Modal {
   constructor(plugin) {
     super(plugin.app);
     this.plugin = plugin;
@@ -19566,7 +19844,7 @@ var AddChooserModal = class extends import_obsidian20.Modal {
       btn.disabled = true;
     }
     const icon = btn.createSpan({ cls: "fs-chooser-icon" });
-    (0, import_obsidian20.setIcon)(icon, opts.icon);
+    (0, import_obsidian21.setIcon)(icon, opts.icon);
     const text = btn.createDiv({ cls: "fs-chooser-text" });
     text.createDiv({ cls: "fs-chooser-title", text: opts.title });
     text.createDiv({ cls: "fs-chooser-desc", text: opts.desc });
@@ -19696,7 +19974,7 @@ function mountSpotsTab(container, plugin) {
     text: "Status",
     onClick: (e) => {
       if (selected.size === 0) return;
-      const menu = new import_obsidian21.Menu();
+      const menu = new import_obsidian22.Menu();
       const statuses = [
         { st: "want-to-try", label: "Want to try" },
         { st: "visited", label: "Visited" }
@@ -19792,7 +20070,7 @@ function mountSpotsTab(container, plugin) {
     if (!kind) return;
     emptyEl = bodyEl.createDiv({ cls: "fs-empty" });
     const ic = emptyEl.createDiv({ cls: "fs-empty-icon" });
-    (0, import_obsidian21.setIcon)(ic, kind === "first-run" ? "utensils" : "search-x");
+    (0, import_obsidian22.setIcon)(ic, kind === "first-run" ? "utensils" : "search-x");
     if (kind === "first-run") {
       emptyEl.createDiv({ cls: "fs-empty-title", text: "No food spots yet" });
       emptyEl.createDiv({
@@ -19892,7 +20170,7 @@ function mountSpotsTab(container, plugin) {
       } catch {
       }
     }
-    new import_obsidian21.Notice(`Status set on ${n} spot${n === 1 ? "" : "s"}.`);
+    new import_obsidian22.Notice(`Status set on ${n} spot${n === 1 ? "" : "s"}.`);
   }
   async function bulkTag(tag) {
     let n = 0;
@@ -19905,7 +20183,7 @@ function mountSpotsTab(container, plugin) {
       } catch {
       }
     }
-    new import_obsidian21.Notice(`Tag "${tag}" added to ${n} spot${n === 1 ? "" : "s"}.`);
+    new import_obsidian22.Notice(`Tag "${tag}" added to ${n} spot${n === 1 ? "" : "s"}.`);
   }
   async function bulkDelete() {
     const n = selected.size;
@@ -19927,7 +20205,7 @@ function mountSpotsTab(container, plugin) {
     }
     selected.clear();
     syncSelection();
-    new import_obsidian21.Notice(`Deleted ${deleted} spot${deleted === 1 ? "" : "s"} \u2014 recoverable from the trash.`);
+    new import_obsidian22.Notice(`Deleted ${deleted} spot${deleted === 1 ? "" : "s"} \u2014 recoverable from the trash.`);
   }
   const controller = {
     applyLocation(loc) {
@@ -20014,11 +20292,11 @@ function mountSpotsTab(container, plugin) {
 }
 
 // src/ui/tabs/discover.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 
 // src/ui/modals/quickAdd.ts
-var import_obsidian22 = require("obsidian");
-var QuickAddModal = class extends import_obsidian22.Modal {
+var import_obsidian23 = require("obsidian");
+var QuickAddModal = class extends import_obsidian23.Modal {
   constructor(plugin, spotName, suggestedPrice, resolve) {
     super(plugin.app);
     this.plugin = plugin;
@@ -20120,7 +20398,7 @@ var QuickAddModal = class extends import_obsidian22.Modal {
     cancel.addEventListener("click", () => this.close());
     const save = buttonsRow.createEl("button", { cls: "mod-cta" });
     save.type = "button";
-    (0, import_obsidian22.setIcon)(save.createSpan({ cls: "fs-btn-icon" }), "plus");
+    (0, import_obsidian23.setIcon)(save.createSpan({ cls: "fs-btn-icon" }), "plus");
     save.createSpan({ text: " Add spot" });
     save.addEventListener("click", () => {
       const spentRaw = spentInput.value.trim();
@@ -20170,7 +20448,7 @@ async function createWithQuickAdd(plugin, input, choice) {
       note: choice.visit.note
     });
   }
-  new import_obsidian22.Notice(
+  new import_obsidian23.Notice(
     `Added ${spot.name} \u2014 ${choice.status === "visited" ? "visited" : "want to try"}${choice.rating ? ` \xB7 ${choice.rating}\u2605` : ""}`
   );
   return spot.path;
@@ -20332,7 +20610,7 @@ function mountDiscoverTab(container, plugin) {
       attr: { "aria-label": "Clear", tabindex: "-1", title: "Clear" }
     });
     btn.type = "button";
-    (0, import_obsidian23.setIcon)(btn, "x");
+    (0, import_obsidian24.setIcon)(btn, "x");
     const sync = () => btn.toggleClass("is-visible", input.value.length > 0);
     sync();
     input.addEventListener("input", sync);
@@ -20375,7 +20653,7 @@ function mountDiscoverTab(container, plugin) {
     attr: { "aria-label": "Search restaurants", title: "Search restaurants" }
   });
   const searchIcon = searchBtn.createSpan({ cls: "fs-btn-icon" });
-  (0, import_obsidian23.setIcon)(searchIcon, "search");
+  (0, import_obsidian24.setIcon)(searchIcon, "search");
   searchBtn.createSpan({ cls: "fs-btn-label", text: "Search" });
   searchBtn.addEventListener("click", () => void runSearch());
   const onEnter = (e) => {
@@ -20423,13 +20701,13 @@ function mountDiscoverTab(container, plugin) {
   async function runSearch() {
     if (busy()) return;
     if (!places.hasKey()) {
-      new import_obsidian23.Notice(NO_KEY_HINT2);
+      new import_obsidian24.Notice(NO_KEY_HINT2);
       render();
       return;
     }
     const location = locationInput.value.trim();
     if (location === "") {
-      new import_obsidian23.Notice("Enter a location to search \u2014 a city, country or area.");
+      new import_obsidian24.Notice("Enter a location to search \u2014 a city, country or area.");
       locationInput.focus();
       return;
     }
@@ -20525,19 +20803,19 @@ function mountDiscoverTab(container, plugin) {
         await createWithQuickAdd(plugin, input, choice);
       } else {
         const spot = await plugin.store.createSpot(input);
-        new import_obsidian23.Notice(`Added ${spot.name} \u2014 want to try`);
+        new import_obsidian24.Notice(`Added ${spot.name} \u2014 want to try`);
       }
       markSaved();
     } catch (e) {
       btn.disabled = false;
       btn.setText(label);
-      new import_obsidian23.Notice(`Couldn't add ${c.name} \u2014 ${errorMessage7(e)}`);
+      new import_obsidian24.Notice(`Couldn't add ${c.name} \u2014 ${errorMessage7(e)}`);
     }
   }
   function emptyState(icon, title, text, action) {
     const empty = bodyEl.createDiv({ cls: "fs-empty" });
     const ic = empty.createDiv({ cls: "fs-empty-icon" });
-    (0, import_obsidian23.setIcon)(ic, icon);
+    (0, import_obsidian24.setIcon)(ic, icon);
     empty.createDiv({ cls: "fs-empty-title", text: title });
     empty.createDiv({ cls: "fs-empty-text", text });
     if (action) {
@@ -20587,7 +20865,7 @@ function mountDiscoverTab(container, plugin) {
       });
       add.type = "button";
       const ic = add.createSpan({ cls: "fs-btn-icon" });
-      (0, import_obsidian23.setIcon)(ic, "plus");
+      (0, import_obsidian24.setIcon)(ic, "plus");
       add.createSpan({ cls: "fs-btn-label", text: "Add" });
       add.addEventListener("click", () => void addCandidate(c, add, () => sync(true)));
       const opts = actions.createEl("button", {
@@ -20598,7 +20876,7 @@ function mountDiscoverTab(container, plugin) {
         }
       });
       opts.type = "button";
-      (0, import_obsidian23.setIcon)(opts.createSpan({ cls: "fs-btn-icon" }), "sliders-horizontal");
+      (0, import_obsidian24.setIcon)(opts.createSpan({ cls: "fs-btn-icon" }), "sliders-horizontal");
       opts.addEventListener("click", () => void addCandidate(c, opts, () => sync(true), true));
     };
     sync(saved);
@@ -20626,7 +20904,7 @@ function mountDiscoverTab(container, plugin) {
         "key-round",
         "Google Places key required",
         "Discover searches Google for restaurants you haven't saved yet. It needs an API key.",
-        { label: "How do I add a key?", onClick: () => new import_obsidian23.Notice(NO_KEY_HINT2) }
+        { label: "How do I add a key?", onClick: () => new import_obsidian24.Notice(NO_KEY_HINT2) }
       );
       return;
     }
@@ -20683,10 +20961,10 @@ function mountDiscoverTab(container, plugin) {
 }
 
 // src/ui/tabs/places.ts
-var import_obsidian27 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 
 // src/ui/modals/cityGuide.ts
-var import_obsidian26 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 
 // src/tools/cityGuide.ts
 var OTHER_GROUP = "Other";
@@ -20920,7 +21198,7 @@ function guidePhotoPaths(spots, city, includeWantToTry) {
 }
 
 // src/store/backup.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 var BACKUP_VERSION = 2;
 function base64FromBuffer(buf) {
   const bytes = new Uint8Array(buf);
@@ -20956,8 +21234,8 @@ function mediaRefsOf(spot) {
 function resolveRef(app, ref, sourcePath) {
   const linked = app.metadataCache.getFirstLinkpathDest(ref, sourcePath);
   if (linked) return linked;
-  const direct = app.vault.getAbstractFileByPath((0, import_obsidian24.normalizePath)(ref));
-  return direct instanceof import_obsidian24.TFile ? direct : null;
+  const direct = app.vault.getAbstractFileByPath((0, import_obsidian25.normalizePath)(ref));
+  return direct instanceof import_obsidian25.TFile ? direct : null;
 }
 async function buildBackupJson(plugin) {
   const spots = plugin.store.getSpots();
@@ -21008,7 +21286,7 @@ async function buildBackupJson(plugin) {
   const name = `Food Spot backup ${todayIso()}.json`;
   if (warnings.length > 0) {
     const head = warnings.slice(0, 3).join(" ");
-    new import_obsidian24.Notice(
+    new import_obsidian25.Notice(
       `Backup is INCOMPLETE \u2014 ${warnings.length} item${warnings.length === 1 ? "" : "s"} could not be included. ${head}${warnings.length > 3 ? " \u2026" : ""}`,
       15e3
     );
@@ -21019,7 +21297,7 @@ function freeVaultPath(app, folder, fileName) {
   const dot = fileName.lastIndexOf(".");
   const base = dot > 0 ? fileName.slice(0, dot) : fileName;
   const ext = dot > 0 ? fileName.slice(dot) : "";
-  const prefix = folder ? `${(0, import_obsidian24.normalizePath)(folder)}/` : "";
+  const prefix = folder ? `${(0, import_obsidian25.normalizePath)(folder)}/` : "";
   let candidate = `${prefix}${base}${ext}`;
   let n = 2;
   while (app.vault.getAbstractFileByPath(candidate)) {
@@ -21030,14 +21308,14 @@ function freeVaultPath(app, folder, fileName) {
 }
 async function saveIntoVault(target, defaultName, content) {
   try {
-    const folder = (0, import_obsidian24.normalizePath)(target.folder);
+    const folder = (0, import_obsidian25.normalizePath)(target.folder);
     await ensureFolder(target.app, folder);
     const path = freeVaultPath(target.app, folder, defaultName);
     await target.app.vault.create(path, content);
-    new import_obsidian24.Notice(`Saved to ${path} \u2014 open it from Files to share or move it.`, 1e4);
+    new import_obsidian25.Notice(`Saved to ${path} \u2014 open it from Files to share or move it.`, 1e4);
     return true;
   } catch (e) {
-    new import_obsidian24.Notice(`Couldn't save inside the vault: ${errMsg2(e)}`);
+    new import_obsidian25.Notice(`Couldn't save inside the vault: ${errMsg2(e)}`);
     return false;
   }
 }
@@ -21046,13 +21324,13 @@ async function saveToDisk(defaultName, content, target) {
   const nodeRequire = globalThis.require;
   if (!dialog || !nodeRequire) {
     if (target) return saveIntoVault(target, defaultName, content);
-    new import_obsidian24.Notice("Saving outside the vault is only available on desktop.");
+    new import_obsidian25.Notice("Saving outside the vault is only available on desktop.");
     return false;
   }
   const res = await dialog.showSaveDialog({ defaultPath: defaultName });
   if (res.canceled || res.filePath === void 0) return false;
   nodeRequire("fs").writeFileSync(res.filePath, content, "utf8");
-  new import_obsidian24.Notice(`Saved to ${res.filePath}`);
+  new import_obsidian25.Notice(`Saved to ${res.filePath}`);
   return true;
 }
 function vaultSegments(raw) {
@@ -21066,7 +21344,7 @@ function mediaTarget(mediaFolder, key) {
   const folder = vaultSegments(mediaFolder) ?? [];
   const inside = folder.length > 0 && segments.length > folder.length && folder.every((seg, i) => segments[i] === seg);
   const relative = inside ? segments.slice(folder.length) : [segments[segments.length - 1]];
-  return (0, import_obsidian24.normalizePath)([...folder, ...relative].join("/"));
+  return (0, import_obsidian25.normalizePath)([...folder, ...relative].join("/"));
 }
 function sameBytes(a, b) {
   if (a.byteLength !== b.byteLength) return false;
@@ -21158,12 +21436,12 @@ async function importBackup(plugin, json, onProgress, signal) {
   }
   const referenced = /* @__PURE__ */ new Set();
   for (const spot of parsed.spots) {
-    for (const ref of mediaRefsOf(spot)) referenced.add((0, import_obsidian24.normalizePath)(ref));
+    for (const ref of mediaRefsOf(spot)) referenced.add((0, import_obsidian25.normalizePath)(ref));
   }
   for (const entry of noteEntries) {
     for (const [ref, path] of Object.entries(entry?.refs ?? {})) {
-      referenced.add((0, import_obsidian24.normalizePath)(ref));
-      if (typeof path === "string") referenced.add((0, import_obsidian24.normalizePath)(path));
+      referenced.add((0, import_obsidian25.normalizePath)(ref));
+      if (typeof path === "string") referenced.add((0, import_obsidian25.normalizePath)(path));
     }
   }
   const mediaEntries = Object.entries(parsed.media ?? {});
@@ -21173,7 +21451,7 @@ async function importBackup(plugin, json, onProgress, signal) {
   for (const [key, b64] of mediaEntries) {
     if (signal?.cancelled) return summary;
     onProgress?.(done++, total, key.split("/").pop() ?? key);
-    if (!referenced.has((0, import_obsidian24.normalizePath)(key))) {
+    if (!referenced.has((0, import_obsidian25.normalizePath)(key))) {
       summary.errors.push(`media ${key}: no spot in this backup references it \u2014 not restored.`);
       continue;
     }
@@ -21207,12 +21485,12 @@ async function importBackup(plugin, json, onProgress, signal) {
       if (entry) {
         for (const [ref, original] of Object.entries(entry.refs ?? {})) {
           const actual = written.get(original);
-          if (actual !== void 0 && actual !== (0, import_obsidian24.normalizePath)(original)) remap.set(ref, actual);
+          if (actual !== void 0 && actual !== (0, import_obsidian25.normalizePath)(original)) remap.set(ref, actual);
         }
       } else {
         for (const ref of mediaRefsOf(spot)) {
           const actual = written.get(ref);
-          if (actual !== void 0 && actual !== (0, import_obsidian24.normalizePath)(ref)) remap.set(ref, actual);
+          if (actual !== void 0 && actual !== (0, import_obsidian25.normalizePath)(ref)) remap.set(ref, actual);
         }
       }
       if (entry && entry.markdown.trim() !== "") {
@@ -21256,11 +21534,11 @@ async function importBackup(plugin, json, onProgress, signal) {
       summary.errors.push(`${spot.name}: ${errMsg2(e)}`);
     }
   }
-  new import_obsidian24.Notice(
+  new import_obsidian25.Notice(
     `Restore: ${summary.created} spots created, ${summary.skipped} already existed, ${summary.mediaWritten} media files written${summary.errors.length ? `, ${summary.errors.length} problems (see below)` : ""}.`
   );
   if (summary.errors.length > 0) {
-    new import_obsidian24.Notice(
+    new import_obsidian25.Notice(
       `Restore problems: ${summary.errors.slice(0, 3).join(" ")}${summary.errors.length > 3 ? " \u2026" : ""}`,
       15e3
     );
@@ -21269,7 +21547,7 @@ async function importBackup(plugin, json, onProgress, signal) {
 }
 
 // src/tools/pdfExport.ts
-var import_obsidian25 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 function errorText(e) {
   return e instanceof Error ? e.message : String(e);
 }
@@ -21304,7 +21582,7 @@ function canExportPdf() {
 async function exportHtmlToPdf(html, suggestedName) {
   const bits = electron();
   if (!bits) {
-    new import_obsidian25.Notice("Direct PDF export needs the desktop app \u2014 opening the print dialog instead.");
+    new import_obsidian26.Notice("Direct PDF export needs the desktop app \u2014 opening the print dialog instead.");
     return "failed";
   }
   let res;
@@ -21314,7 +21592,7 @@ async function exportHtmlToPdf(html, suggestedName) {
       filters: [{ name: "PDF", extensions: ["pdf"] }]
     });
   } catch (e) {
-    new import_obsidian25.Notice(`Couldn't open the save dialog \u2014 ${errorText(e)}`);
+    new import_obsidian26.Notice(`Couldn't open the save dialog \u2014 ${errorText(e)}`);
     return "failed";
   }
   if (res.canceled || !res.filePath) return "cancelled";
@@ -21323,7 +21601,7 @@ async function exportHtmlToPdf(html, suggestedName) {
   try {
     tmpPath = bits.tmpFile(`foodspot-guide-${Date.now()}.html`, html);
   } catch (e) {
-    new import_obsidian25.Notice(`Couldn't prepare the guide for printing \u2014 ${errorText(e)}`);
+    new import_obsidian26.Notice(`Couldn't prepare the guide for printing \u2014 ${errorText(e)}`);
     return "failed";
   }
   const view = document.createElement("webview");
@@ -21340,7 +21618,7 @@ async function exportHtmlToPdf(html, suggestedName) {
       try {
         bits.removeFile(tmpPath);
       } catch (e) {
-        new import_obsidian25.Notice(
+        new import_obsidian26.Notice(
           `Couldn't remove the temporary guide file \u2014 delete ${tmpPath} yourself (${errorText(e)}).`,
           1e4
         );
@@ -21350,7 +21628,7 @@ async function exportHtmlToPdf(html, suggestedName) {
       if (settled) return;
       settled = true;
       cleanup();
-      new import_obsidian25.Notice(msg);
+      new import_obsidian26.Notice(msg);
       resolve("failed");
     };
     const onReady = () => {
@@ -21366,7 +21644,7 @@ async function exportHtmlToPdf(html, suggestedName) {
             bits.writeFile(target, data);
             settled = true;
             cleanup();
-            new import_obsidian25.Notice(`PDF saved to ${target}`);
+            new import_obsidian26.Notice(`PDF saved to ${target}`);
             bits.openPath?.(target);
             resolve("saved");
           } catch (e) {
@@ -21413,7 +21691,7 @@ var MIME = {
 function sanitizeFileName3(name) {
   return name.replace(/[\\/:*?"<>|#^[\]]/g, " ").replace(/\s+/g, " ").trim();
 }
-var CityGuideModal = class extends import_obsidian26.Modal {
+var CityGuideModal = class extends import_obsidian27.Modal {
   constructor(plugin, preselect) {
     super(plugin.app);
     this.plugin = plugin;
@@ -21475,7 +21753,7 @@ var CityGuideModal = class extends import_obsidian26.Modal {
         void exportHtmlToPdf(this.html, `${sanitizeFileName3(this.noteTitle())}.pdf`).then((outcome) => {
           if (outcome === "failed") this.print();
         }).catch((e) => {
-          new import_obsidian26.Notice(`PDF export failed \u2014 ${errorMessage8(e)}. Use "Save HTML\u2026" instead.`);
+          new import_obsidian27.Notice(`PDF export failed \u2014 ${errorMessage8(e)}. Use "Save HTML\u2026" instead.`);
         }).finally(() => {
           pdf.disabled = false;
           pdf.setText("Save as PDF\u2026");
@@ -21498,7 +21776,7 @@ var CityGuideModal = class extends import_obsidian26.Modal {
           this.exportTarget()
         ).then((written) => {
           if (written) {
-            new import_obsidian26.Notice(
+            new import_obsidian27.Notice(
               "Open the saved guide from Files and use Share \u2192 Print \u2192 Save as PDF.",
               1e4
             );
@@ -21512,7 +21790,7 @@ var CityGuideModal = class extends import_obsidian26.Modal {
     const copy = buttons.createEl("button", { text: "Copy markdown" });
     copy.type = "button";
     copy.addEventListener("click", () => {
-      void navigator.clipboard.writeText(this.markdown()).then(() => new import_obsidian26.Notice(`Guide for ${this.city} copied.`)).catch((e) => new import_obsidian26.Notice(`Couldn't copy \u2014 ${errorMessage8(e)}`));
+      void navigator.clipboard.writeText(this.markdown()).then(() => new import_obsidian27.Notice(`Guide for ${this.city} copied.`)).catch((e) => new import_obsidian27.Notice(`Couldn't copy \u2014 ${errorMessage8(e)}`));
     });
     const save = buttons.createEl("button", { text: "Save as note" });
     save.type = "button";
@@ -21543,7 +21821,7 @@ var CityGuideModal = class extends import_obsidian26.Modal {
     for (const p of paths) {
       if (this.images.has(p)) continue;
       const file = this.plugin.app.metadataCache.getFirstLinkpathDest(p, "") ?? this.plugin.app.vault.getAbstractFileByPath(p);
-      if (!(file instanceof import_obsidian26.TFile)) continue;
+      if (!(file instanceof import_obsidian27.TFile)) continue;
       try {
         const bytes = new Uint8Array(await this.plugin.app.vault.readBinary(file));
         let bin = "";
@@ -21574,14 +21852,14 @@ var CityGuideModal = class extends import_obsidian26.Modal {
   print() {
     const win = this.previewEl.contentWindow;
     if (!win) {
-      new import_obsidian26.Notice("Preview isn't ready yet \u2014 try again in a second.");
+      new import_obsidian27.Notice("Preview isn't ready yet \u2014 try again in a second.");
       return;
     }
     try {
       win.focus();
       win.print();
     } catch (e) {
-      new import_obsidian26.Notice(`Couldn't open the print dialog \u2014 ${errorMessage8(e)}. Use "Save HTML\u2026" instead.`);
+      new import_obsidian27.Notice(`Couldn't open the print dialog \u2014 ${errorMessage8(e)}. Use "Save HTML\u2026" instead.`);
     }
   }
   async saveAsNote() {
@@ -21596,12 +21874,12 @@ var CityGuideModal = class extends import_obsidian26.Modal {
       );
       const file = await this.plugin.app.vault.create(path, markdown);
       this.close();
-      new import_obsidian26.Notice(`Guide saved to ${path}`);
-      if (file instanceof import_obsidian26.TFile) {
+      new import_obsidian27.Notice(`Guide saved to ${path}`);
+      if (file instanceof import_obsidian27.TFile) {
         await this.plugin.app.workspace.getLeaf("tab").openFile(file);
       }
     } catch (e) {
-      new import_obsidian26.Notice(`Couldn't save the guide \u2014 ${errorMessage8(e)}`);
+      new import_obsidian27.Notice(`Couldn't save the guide \u2014 ${errorMessage8(e)}`);
     }
   }
   onClose() {
@@ -21673,7 +21951,7 @@ function mountPlacesTab(container, plugin) {
       attr: { "aria-label": expanded.has(node.key) ? "Collapse" : "Expand" }
     });
     if (hasChildren) {
-      (0, import_obsidian27.setIcon)(chevron, "chevron-right");
+      (0, import_obsidian28.setIcon)(chevron, "chevron-right");
       chevron.addEventListener("click", (e) => {
         e.stopPropagation();
         if (expanded.has(node.key)) expanded.delete(node.key);
@@ -21705,7 +21983,7 @@ function mountPlacesTab(container, plugin) {
           title: `Create a shareable guide for ${node.label}`
         }
       });
-      (0, import_obsidian27.setIcon)(guide, "notebook-text");
+      (0, import_obsidian28.setIcon)(guide, "notebook-text");
       guide.addEventListener("click", (e) => {
         e.stopPropagation();
         openCityGuideModal(plugin, node.loc.city);
@@ -21723,7 +22001,7 @@ function mountPlacesTab(container, plugin) {
     if (tree.length === 0) {
       const empty = root.createDiv({ cls: "fs-empty" });
       const ic = empty.createDiv({ cls: "fs-empty-icon" });
-      (0, import_obsidian27.setIcon)(ic, "map-pin");
+      (0, import_obsidian28.setIcon)(ic, "map-pin");
       empty.createDiv({ cls: "fs-empty-title", text: "No places yet" });
       empty.createDiv({
         cls: "fs-empty-text",
@@ -21747,7 +22025,7 @@ function mountPlacesTab(container, plugin) {
 
 // src/ui/tabs/map.ts
 var import_leaflet = __toESM(require_leaflet_src());
-var import_obsidian28 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 var OSM_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 var OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 function safeColor(c) {
@@ -21777,7 +22055,7 @@ function mountMapTab(container, plugin) {
     if (carrier.openEnrichModal) {
       carrier.openEnrichModal({ scope: "missing-coords" });
     } else {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         'Run the "Enrich all spots from Google" command to fill in missing coordinates.'
       );
     }
@@ -21949,7 +22227,7 @@ function mountMapTab(container, plugin) {
     const total = plugin.store.getSpots().length;
     const box = emptyEl.createDiv({ cls: "fs-empty" });
     const ic = box.createDiv({ cls: "fs-empty-icon" });
-    (0, import_obsidian28.setIcon)(ic, "map");
+    (0, import_obsidian29.setIcon)(ic, "map");
     if (mappedCount > 0) {
       box.createDiv({ cls: "fs-empty-title", text: "All spots filtered out" });
       box.createDiv({
@@ -22015,7 +22293,7 @@ function mountMapTab(container, plugin) {
     if (match.length === 0) {
       if (scopeCountry || scopeCity) {
         const label = scopeCity || scopeCountry;
-        new import_obsidian28.Notice(`No spots in ${label} have coordinates yet.`);
+        new import_obsidian29.Notice(`No spots in ${label} have coordinates yet.`);
       }
       return;
     }
@@ -22069,9 +22347,17 @@ function mountMapTab(container, plugin) {
 }
 
 // src/ui/tabs/visits.ts
-var import_obsidian29 = require("obsidian");
+var import_obsidian30 = require("obsidian");
 var DAY_ROW_HEIGHT = 44;
-var VISIT_ROW_HEIGHT = 76;
+var VISIT_BASE_HEIGHT = import_obsidian30.Platform.isMobile ? 58 : 42;
+var NOTE_HEIGHT = 34;
+var PHOTO_STRIP_HEIGHT = 60;
+function visitRowHeight(visit) {
+  let h = VISIT_BASE_HEIGHT;
+  if (visit.note) h += NOTE_HEIGHT;
+  if ((visit.photos?.length ?? 0) > 0) h += PHOTO_STRIP_HEIGHT;
+  return h;
+}
 function fmtDate(iso, format2) {
   const [y, m, d] = iso.split("-");
   if (!y || !m || !d) return iso;
@@ -22104,7 +22390,7 @@ function mountVisitsTab(container, plugin) {
   });
   let emptyEl = null;
   const list = createVirtualList(root, {
-    itemHeight: (item) => item.kind === "day" ? DAY_ROW_HEIGHT : VISIT_ROW_HEIGHT,
+    itemHeight: (item) => item.kind === "day" ? DAY_ROW_HEIGHT : visitRowHeight(item.visit),
     render: (item, rowEl) => {
       if (item.kind === "day") {
         rowEl.addClass("fs-tl-day");
@@ -22144,7 +22430,7 @@ function mountVisitsTab(container, plugin) {
       if (visit.rating !== void 0) {
         const stars2 = top.createSpan({ cls: "fs-tl-stars" });
         const star = stars2.createSpan({ cls: "fs-star-icon" });
-        (0, import_obsidian29.setIcon)(star, "star");
+        (0, import_obsidian30.setIcon)(star, "star");
         stars2.createSpan({ text: fmtRating(visit.rating) });
         const tier = tierFor(visit.rating, plugin.settings.ratingTiers);
         if (tier) stars2.style.setProperty("--fs-tier", tier.color);
@@ -22195,7 +22481,7 @@ function mountVisitsTab(container, plugin) {
       list.setItems([]);
       emptyEl = root.createDiv({ cls: "fs-empty" });
       const ic = emptyEl.createDiv({ cls: "fs-empty-icon" });
-      (0, import_obsidian29.setIcon)(ic, "history");
+      (0, import_obsidian30.setIcon)(ic, "history");
       emptyEl.createDiv({ cls: "fs-empty-title", text: "No visits logged yet" });
       emptyEl.createDiv({
         cls: "fs-empty-text",
@@ -22224,7 +22510,7 @@ function mountVisitsTab(container, plugin) {
 }
 
 // src/ui/tabs/dashboard.ts
-var import_obsidian30 = require("obsidian");
+var import_obsidian31 = require("obsidian");
 var RING_R = 45;
 var RING_C = 2 * Math.PI * RING_R;
 function clamp01(n) {
@@ -22422,7 +22708,7 @@ function mountDashboardTab(container, plugin) {
   const renderHero = () => {
     const hero = root.createDiv({ cls: "fs-hero" });
     const icon = hero.createDiv({ cls: "fs-hero-icon" });
-    (0, import_obsidian30.setIcon)(icon, "utensils");
+    (0, import_obsidian31.setIcon)(icon, "utensils");
     hero.createEl("h2", { text: "No food spots yet" });
     hero.createEl("p", {
       text: "Track restaurants you want to try, log visits with ratings, and never wonder where to eat again."
@@ -22473,7 +22759,7 @@ function mountDashboardTab(container, plugin) {
     const chip = (icon, value, label) => {
       const el = chips.createDiv({ cls: "fs-chipstat" });
       const box = el.createDiv({ cls: "fs-chipstat-icon" });
-      (0, import_obsidian30.setIcon)(box, icon);
+      (0, import_obsidian31.setIcon)(box, icon);
       const txt = el.createDiv({ cls: "fs-chipstat-text" });
       txt.createDiv({ cls: "fs-chipstat-value", text: String(value) });
       txt.createDiv({ cls: "fs-chipstat-label", text: label });
@@ -22721,7 +23007,7 @@ function mountDashboardTab(container, plugin) {
     const acc = root.createDiv({ cls: "fs-stats-acc" });
     const header = acc.createDiv({ cls: "fs-stats-toggle" });
     const chev = header.createDiv({ cls: "fs-stats-chevron" });
-    (0, import_obsidian30.setIcon)(chev, "chevron-right");
+    (0, import_obsidian31.setIcon)(chev, "chevron-right");
     header.createSpan({ text: "More statistics" });
     const content = acc.createDiv({ cls: "fs-stats-content" });
     const paint = () => {
@@ -22757,7 +23043,7 @@ function mountDashboardTab(container, plugin) {
         cls: "fs-sug-shuffle",
         attr: { "aria-label": "Shuffle suggestion" }
       });
-      (0, import_obsidian30.setIcon)(shuffleBtn, "shuffle");
+      (0, import_obsidian31.setIcon)(shuffleBtn, "shuffle");
       const slot = card2.createDiv({ cls: "fs-sug-slot" });
       const note = card2.createDiv({ cls: "fs-sug-sub" });
       const inCity = (s) => !suggestionCity || (s.city ?? "").trim() === suggestionCity;
@@ -22907,7 +23193,7 @@ var TABS = [
   { id: "map", label: "Map", icon: "map", mount: mountMapTab },
   { id: "visits", label: "Visits", icon: "history", mount: mountVisitsTab }
 ];
-var FoodSpotView = class extends import_obsidian31.ItemView {
+var FoodSpotView = class extends import_obsidian32.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.handles = /* @__PURE__ */ new Map();
@@ -22931,7 +23217,7 @@ var FoodSpotView = class extends import_obsidian31.ItemView {
     const root = this.contentEl;
     root.empty();
     root.addClass("fs-view");
-    if (import_obsidian31.Platform.isMobile) root.addClass("fs-mobile");
+    if (import_obsidian32.Platform.isMobile) root.addClass("fs-mobile");
     const bar = root.createDiv({ cls: "fs-tab-bar" });
     const content = root.createDiv({ cls: "fs-tab-content" });
     for (const def of TABS) {
@@ -22940,11 +23226,11 @@ var FoodSpotView = class extends import_obsidian31.ItemView {
         attr: { "aria-label": def.label, "data-tab": def.id }
       });
       const ic = btn.createSpan({ cls: "fs-tab-icon" });
-      (0, import_obsidian31.setIcon)(ic, def.icon);
-      if (!import_obsidian31.Platform.isMobile) btn.createSpan({ cls: "fs-tab-label", text: def.label });
+      (0, import_obsidian32.setIcon)(ic, def.icon);
+      if (!import_obsidian32.Platform.isMobile) btn.createSpan({ cls: "fs-tab-label", text: def.label });
       if (def.id === "visits") {
         this.badgeEl = btn.createSpan({
-          cls: import_obsidian31.Platform.isMobile ? "fs-tab-dot" : "fs-tab-badge"
+          cls: import_obsidian32.Platform.isMobile ? "fs-tab-dot" : "fs-tab-badge"
         });
       }
       btn.addEventListener("click", () => this.setActiveTab(def.id));
@@ -23022,7 +23308,7 @@ var FoodSpotView = class extends import_obsidian31.ItemView {
     if (!this.badgeEl) return;
     const count = this.visitsThisMonth();
     const btn = this.tabButtons.get("visits");
-    if (import_obsidian31.Platform.isMobile) {
+    if (import_obsidian32.Platform.isMobile) {
       this.badgeEl.toggleClass("is-visible", count > 0);
       btn?.setAttribute("aria-label", count > 0 ? `Visits (${count} this month)` : "Visits");
     } else {
@@ -23034,10 +23320,10 @@ var FoodSpotView = class extends import_obsidian31.ItemView {
 };
 
 // src/settings/settingsTab.ts
-var import_obsidian34 = require("obsidian");
+var import_obsidian35 = require("obsidian");
 
 // src/ui/modals/duplicates.ts
-var import_obsidian32 = require("obsidian");
+var import_obsidian33 = require("obsidian");
 
 // src/tools/duplicates.ts
 var PROXIMITY_METERS = 60;
@@ -23370,7 +23656,7 @@ function managedFrontmatterKeys(spot) {
     )
   );
 }
-var DuplicatesModal = class extends import_obsidian32.Modal {
+var DuplicatesModal = class extends import_obsidian33.Modal {
   constructor(plugin) {
     super(plugin.app);
     this.plugin = plugin;
@@ -23402,7 +23688,7 @@ var DuplicatesModal = class extends import_obsidian32.Modal {
       all = findDuplicates(this.plugin.store.getSpots());
     } catch (e) {
       all = [];
-      new import_obsidian32.Notice(`Duplicate scan failed: ${errMsg3(e)}`);
+      new import_obsidian33.Notice(`Duplicate scan failed: ${errMsg3(e)}`);
     }
     this.pairs = all.filter(
       (p) => !this.dismissed.has(pairKey(p.a, p.b)) && !this.gone.has(p.a.path) && !this.gone.has(p.b.path)
@@ -23428,7 +23714,7 @@ var DuplicatesModal = class extends import_obsidian32.Modal {
     const row = this.listEl.createDiv({ cls: "fs-dupfind-row" });
     const badge = row.createDiv({ cls: `fs-dupfind-badge fs-dupfind-${pair.reason}` });
     const icon = badge.createSpan({ cls: "fs-dupfind-badge-icon" });
-    (0, import_obsidian32.setIcon)(icon, REASON_ICON[pair.reason]);
+    (0, import_obsidian33.setIcon)(icon, REASON_ICON[pair.reason]);
     badge.createSpan({ text: reasonLabel(pair) });
     const sides = row.createDiv({ cls: "fs-dupfind-sides" });
     for (const spot of [pair.a, pair.b]) {
@@ -23476,7 +23762,7 @@ var DuplicatesModal = class extends import_obsidian32.Modal {
       const keepFile = this.plugin.store.fileFor(keep.path);
       const dropFile = this.plugin.store.fileFor(drop.path);
       if (!keepFile || !dropFile) {
-        new import_obsidian32.Notice(
+        new import_obsidian33.Notice(
           `Merge cancelled \u2014 the note for "${keepFile ? drop.name : keep.name}" is no longer in the vault. Nothing was changed.`,
           1e4
         );
@@ -23487,7 +23773,7 @@ var DuplicatesModal = class extends import_obsidian32.Modal {
       try {
         dropContent = await this.app.vault.read(dropFile);
       } catch (e) {
-        new import_obsidian32.Notice(
+        new import_obsidian33.Notice(
           `Merge cancelled \u2014 "${drop.name}" could not be read (${errMsg3(e)}). Nothing was changed.`,
           1e4
         );
@@ -23497,7 +23783,7 @@ var DuplicatesModal = class extends import_obsidian32.Modal {
       try {
         await this.plugin.store.updateSpot(keep.path, planMerge(keep, drop));
       } catch (e) {
-        new import_obsidian32.Notice(
+        new import_obsidian33.Notice(
           `Merge failed \u2014 "${keep.name}" was not changed and "${drop.name}" is still there: ${errMsg3(e)}`,
           1e4
         );
@@ -23507,7 +23793,7 @@ var DuplicatesModal = class extends import_obsidian32.Modal {
       try {
         await this.carryOver(keepFile, dropFile, drop, dropContent);
       } catch (e) {
-        new import_obsidian32.Notice(
+        new import_obsidian33.Notice(
           `"${keep.name}" now holds the combined data, but the extra sections and properties of "${drop.name}" could not be copied across (${errMsg3(e)}) \u2014 that note was left in place, so nothing is lost. Move the rest by hand, then delete it.`,
           15e3
         );
@@ -23517,7 +23803,7 @@ var DuplicatesModal = class extends import_obsidian32.Modal {
       try {
         await this.plugin.store.deleteSpot(drop.path);
       } catch (e) {
-        new import_obsidian32.Notice(
+        new import_obsidian33.Notice(
           `"${keep.name}" now holds the combined data, but "${drop.name}" could not be trashed (${errMsg3(e)}) \u2014 delete that note by hand.`,
           1e4
         );
@@ -23526,7 +23812,7 @@ var DuplicatesModal = class extends import_obsidian32.Modal {
       }
       this.gone.add(drop.path);
       this.dismissed.add(pairKey(pair.a, pair.b));
-      new import_obsidian32.Notice(
+      new import_obsidian33.Notice(
         `Merged "${drop.name}" into "${keep.name}" \u2014 its note is in the trash.`,
         8e3
       );
@@ -23564,8 +23850,8 @@ ${block}`;
 };
 
 // src/ui/modals/progress.ts
-var import_obsidian33 = require("obsidian");
-var ProgressModal = class extends import_obsidian33.Modal {
+var import_obsidian34 = require("obsidian");
+var ProgressModal = class extends import_obsidian34.Modal {
   constructor(app, title, signal) {
     super(app);
     this.title = title;
@@ -23683,10 +23969,10 @@ function spotsToCsv(spots) {
 }
 var DISH_FILE_SUFFIX = /\s\d{4}-\d{2}-\d{2}(\s\d+)?$/;
 function classifyMediaFolder(app, settings, spots) {
-  const folderPath = (0, import_obsidian34.normalizePath)(settings.mediaFolder);
+  const folderPath = (0, import_obsidian35.normalizePath)(settings.mediaFolder);
   const folder = app.vault.getFolderByPath(folderPath);
   if (!folder) return null;
-  const spotsRoot = (0, import_obsidian34.normalizePath)(settings.spotsFolder);
+  const spotsRoot = (0, import_obsidian35.normalizePath)(settings.spotsFolder);
   const dedicated = folderPath !== spotsRoot && folderPath.startsWith(`${spotsRoot}/`);
   const spotPaths = new Set(spots.map((s) => s.path));
   const referenced = /* @__PURE__ */ new Set();
@@ -23701,8 +23987,8 @@ function classifyMediaFolder(app, settings, spots) {
     ];
     for (const ref of refs) {
       if (!ref || /^https?:\/\//i.test(ref)) continue;
-      const f = app.metadataCache.getFirstLinkpathDest(ref, spot.path) ?? app.vault.getAbstractFileByPath((0, import_obsidian34.normalizePath)(ref));
-      referenced.add(f instanceof import_obsidian34.TFile ? f.path : (0, import_obsidian34.normalizePath)(ref));
+      const f = app.metadataCache.getFirstLinkpathDest(ref, spot.path) ?? app.vault.getAbstractFileByPath((0, import_obsidian35.normalizePath)(ref));
+      referenced.add(f instanceof import_obsidian35.TFile ? f.path : (0, import_obsidian35.normalizePath)(ref));
     }
   }
   const linkedElsewhere = /* @__PURE__ */ new Set();
@@ -23727,11 +24013,11 @@ function classifyMediaFolder(app, settings, spots) {
   const leftAlone = [];
   const walk = (dir) => {
     for (const child of dir.children) {
-      if (child instanceof import_obsidian34.TFolder) {
+      if (child instanceof import_obsidian35.TFolder) {
         walk(child);
         continue;
       }
-      if (!(child instanceof import_obsidian34.TFile)) continue;
+      if (!(child instanceof import_obsidian35.TFile)) continue;
       if (linkedElsewhere.has(child.path)) {
         leftAlone.push({ file: child, reason: "linked from another note" });
       } else if (referenced.has(child.path) || dedicated || pluginNamed(child)) {
@@ -23747,7 +24033,7 @@ function classifyMediaFolder(app, settings, spots) {
 function plural(n, noun) {
   return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
-var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
+var FoodSpotSettingTab = class extends import_obsidian35.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.active = "general";
@@ -23773,7 +24059,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     const box = parent.createDiv({ cls: "fs-sgroup" });
     const head = box.createDiv({ cls: "fs-sgroup-head" });
     const icon = head.createDiv({ cls: "fs-sgroup-icon" });
-    (0, import_obsidian34.setIcon)(icon, o.icon);
+    (0, import_obsidian35.setIcon)(icon, o.icon);
     const titles = head.createDiv({ cls: "fs-sgroup-titles" });
     titles.createDiv({ cls: "fs-sgroup-title", text: o.title });
     titles.createDiv({ cls: "fs-sgroup-sub", text: o.subtitle });
@@ -23828,14 +24114,14 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("fs-settings");
-    containerEl.toggleClass("fs-settings-mobile", import_obsidian34.Platform.isMobile);
-    containerEl.toggleClass("fs-settings-phone", import_obsidian34.Platform.isPhone);
+    containerEl.toggleClass("fs-settings-mobile", import_obsidian35.Platform.isMobile);
+    containerEl.toggleClass("fs-settings-phone", import_obsidian35.Platform.isPhone);
     this.navEl = containerEl.createDiv({ cls: "fs-settings-nav" });
     this.bodyEl = containerEl.createDiv({ cls: "fs-settings-body" });
     for (const sec of NAV_SECTIONS) {
       const btn = this.navEl.createEl("button", { cls: "fs-settings-nav-item" });
       const icon = btn.createSpan({ cls: "fs-settings-nav-icon" });
-      (0, import_obsidian34.setIcon)(icon, sec.icon);
+      (0, import_obsidian35.setIcon)(icon, sec.icon);
       btn.createSpan({ text: sec.label });
       btn.toggleClass("is-active", sec.id === this.active);
       btn.onclick = () => {
@@ -23843,7 +24129,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         this.navEl.findAll(".fs-settings-nav-item").forEach((el) => el.removeClass("is-active"));
         btn.addClass("is-active");
         this.renderBody();
-        if (import_obsidian34.Platform.isMobile) {
+        if (import_obsidian35.Platform.isMobile) {
           this.bodyEl.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       };
@@ -23895,7 +24181,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       chip: { text: `Media \u2192 ${s.mediaFolder}`, tone: "ok" }
     });
     const c = g.content;
-    const folder = new import_obsidian34.Setting(c).setName("Spots folder").setDesc("Vault folder where spot notes are created. Type to search existing folders.").addText((t) => {
+    const folder = new import_obsidian35.Setting(c).setName("Spots folder").setDesc("Vault folder where spot notes are created. Type to search existing folders.").addText((t) => {
       t.setPlaceholder("Food Spot").setValue(s.spotsFolder).onChange(async (v) => {
         s.spotsFolder = v.trim() || "Food Spot";
         await this.save();
@@ -23906,14 +24192,14 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       folder,
       "New spot notes are written here. Existing notes can live anywhere \u2014 the index follows the 'type: foodspot' frontmatter, not the folder."
     );
-    const org = new import_obsidian34.Setting(c).setName("Organize by country").setDesc("Create a per-country subfolder, e.g. Food Spots/Netherlands/.").addToggle(
+    const org = new import_obsidian35.Setting(c).setName("Organize by country").setDesc("Create a per-country subfolder, e.g. Food Spots/Netherlands/.").addToggle(
       (t) => t.setValue(s.organizeByCountry).onChange(async (v) => {
         s.organizeByCountry = v;
         await this.save();
       })
     );
     this.addHelp(org, "Only affects newly created notes. Moving a note never breaks it.");
-    const relocate = new import_obsidian34.Setting(c).setName("Apply folder layout to existing notes").setDesc(
+    const relocate = new import_obsidian35.Setting(c).setName("Apply folder layout to existing notes").setDesc(
       "Moves every spot note into the folder configured above (with per-country subfolders when enabled). Wiki-links keep working; subfolders of the spots folder that end up empty are cleaned up."
     );
     relocate.addButton(
@@ -23921,12 +24207,12 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         b.setDisabled(true);
         try {
           const res = await this.relocateNotes();
-          new import_obsidian34.Notice(
+          new import_obsidian35.Notice(
             `Relocated ${res.moved} notes; ${res.kept} were already in place${res.failed > 0 ? `; ${res.failed} failed` : ""}.`,
             8e3
           );
         } catch (e) {
-          new import_obsidian34.Notice(`Relocation failed: ${errMsg4(e)}`);
+          new import_obsidian35.Notice(`Relocation failed: ${errMsg4(e)}`);
         } finally {
           b.setDisabled(false);
         }
@@ -23936,7 +24222,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       relocate,
       "Use this after changing the spots folder or the per-country toggle. Notes are moved with Obsidian's rename (links and backlinks update automatically); nothing is copied or deleted. Folders outside the spots folder are never trashed, even when they end up empty."
     );
-    const media = new import_obsidian34.Setting(c).setName("Media folder").setDesc("Vault folder where photos fetched by Google enrichment are saved. Type to search existing folders.").addText((t) => {
+    const media = new import_obsidian35.Setting(c).setName("Media folder").setDesc("Vault folder where photos fetched by Google enrichment are saved. Type to search existing folders.").addText((t) => {
       t.setPlaceholder("Food Spot/_media").setValue(s.mediaFolder).onChange(async (v) => {
         s.mediaFolder = v.trim() || "Food Spot/_media";
         g.setChip(`Media \u2192 ${s.mediaFolder}`, "ok");
@@ -23948,7 +24234,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       media,
       "Enrichment downloads a spot's top Google photo as a .jpg into this folder and links it as the card image. The folder is created on first download; changing it later never moves already-saved files."
     );
-    new import_obsidian34.Setting(c).setName("Default country").setDesc("Pre-filled in the add form for new spots.").addDropdown((d) => {
+    new import_obsidian35.Setting(c).setName("Default country").setDesc("Pre-filled in the add form for new spots.").addDropdown((d) => {
       d.addOption("", "\u2014 none \u2014");
       const inLibrary = this.plugin.store.distinct("country");
       const seen = /* @__PURE__ */ new Set();
@@ -23964,7 +24250,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         await this.save();
       });
     });
-    new import_obsidian34.Setting(c).setName("Currency").setDesc("Symbol shown for price tiers and amounts spent on visits.").addDropdown((d) => {
+    new import_obsidian35.Setting(c).setName("Currency").setDesc("Symbol shown for price tiers and amounts spent on visits.").addDropdown((d) => {
       for (const [sym, label] of CURRENCIES) d.addOption(sym, label);
       if (!CURRENCIES.some(([sym]) => sym === s.currencySymbol))
         d.addOption(s.currencySymbol, s.currencySymbol);
@@ -23974,14 +24260,14 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         this.touch();
       });
     });
-    new import_obsidian34.Setting(c).setName("Date format").setDesc("How dates are displayed across the plugin.").addDropdown(
+    new import_obsidian35.Setting(c).setName("Date format").setDesc("How dates are displayed across the plugin.").addDropdown(
       (d) => d.addOption("european", "European (31-12-2026)").addOption("american", "American (12/31/2026)").addOption("iso", "ISO (2026-12-31)").setValue(s.dateFormat).onChange(async (v) => {
         s.dateFormat = v;
         await this.save();
         this.touch();
       })
     );
-    const half = new import_obsidian34.Setting(c).setName("Half-star ratings").setDesc("Allow 0.5 steps when rating spots and visits.").addToggle(
+    const half = new import_obsidian35.Setting(c).setName("Half-star ratings").setDesc("Allow 0.5 steps when rating spots and visits.").addToggle(
       (t) => t.setValue(s.halfStarRatings).onChange(async (v) => {
         s.halfStarRatings = v;
         await this.save();
@@ -23989,7 +24275,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       })
     );
     this.addHelp(half, "Existing half-star values are kept either way \u2014 this only changes the rating input.");
-    const stale = new import_obsidian34.Setting(c).setName("Stale rating threshold").setDesc(`External ratings older than ${s.staleRatingThresholdDays} days get a stale badge.`).addSlider(
+    const stale = new import_obsidian35.Setting(c).setName("Stale rating threshold").setDesc(`External ratings older than ${s.staleRatingThresholdDays} days get a stale badge.`).addSlider(
       (sl) => sl.setLimits(30, 720, 30).setValue(s.staleRatingThresholdDays).setDynamicTooltip().onChange(async (v) => {
         s.staleRatingThresholdDays = v;
         stale.setDesc(`External ratings older than ${v} days get a stale badge.`);
@@ -24014,19 +24300,19 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       chip: { text: `${spots.length} spots indexed`, tone: spots.length ? "ok" : "pending" }
     });
     const c = g.content;
-    const enrich = new import_obsidian34.Setting(c).setName("Enrich all spots from Google").setDesc("Fetch missing photos, ratings, coordinates and addresses for your spots in one run. An options dialog lets you pick what to fill and which spots to include.").addButton(
+    const enrich = new import_obsidian35.Setting(c).setName("Enrich all spots from Google").setDesc("Fetch missing photos, ratings, coordinates and addresses for your spots in one run. An options dialog lets you pick what to fill and which spots to include.").addButton(
       (b) => b.setButtonText("Enrich from Google").onClick(() => {
         const open = this.plugin.openEnrichModal;
         if (typeof open === "function") open.call(this.plugin);
-        else new import_obsidian34.Notice("Food Spot: bulk enrichment is not available yet.");
+        else new import_obsidian35.Notice("Food Spot: bulk enrichment is not available yet.");
       })
     );
     this.addHelp(
       enrich,
       "Uses the Google Places key from the API section at roughly 3 API calls per spot (lookup, details, photo download). Large libraries can eat into your Google quota \u2014 scope the run to missing-data-only in the options dialog to keep it cheap. By default only empty fields are filled; nothing you typed is overwritten."
     );
-    const exp = new import_obsidian34.Setting(c).setName("Export spots").setDesc(
-      import_obsidian34.Platform.isMobile ? "Writes all spots into a file inside your vault, ready to share from Files." : "Opens the system save dialog and writes all spots wherever you choose."
+    const exp = new import_obsidian35.Setting(c).setName("Export spots").setDesc(
+      import_obsidian35.Platform.isMobile ? "Writes all spots into a file inside your vault, ready to share from Files." : "Opens the system save dialog and writes all spots wherever you choose."
     );
     exp.settingEl.addClass("fs-setting-stack");
     exp.addButton(
@@ -24053,7 +24339,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       exp,
       `The export always contains every spot, regardless of any filters active in the Spots tab. On desktop it uses the system save dialog; on mobile there is none, so the file is written to ${this.plugin.settings.spotsFolder}/_exports inside your vault.`
     );
-    const bak = new import_obsidian34.Setting(c).setName("Backup & restore").setDesc(
+    const bak = new import_obsidian35.Setting(c).setName("Backup & restore").setDesc(
       "Full backup: every field, visits, notes AND the actual photo/menu files, embedded in one JSON. Restore recreates notes and images; existing spots are never overwritten."
     );
     bak.settingEl.addClass("fs-setting-stack");
@@ -24064,7 +24350,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
           const { json, suggestedName } = await buildBackupJson(this.plugin);
           await saveToDisk(suggestedName, json, this.exportTarget());
         } catch (e) {
-          new import_obsidian34.Notice(`Backup failed: ${errMsg4(e)}`);
+          new import_obsidian35.Notice(`Backup failed: ${errMsg4(e)}`);
         } finally {
           b.setDisabled(false);
         }
@@ -24092,7 +24378,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
             signal
           );
         } catch (e) {
-          new import_obsidian34.Notice(`Restore failed: ${errMsg4(e)}`);
+          new import_obsidian35.Notice(`Restore failed: ${errMsg4(e)}`);
         } finally {
           progress.finish();
           b.setDisabled(false);
@@ -24104,7 +24390,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       bak,
       `Export opens the system save dialog on desktop \u2014 put the file anywhere (it can get large: photos are embedded). On mobile it lands in ${this.plugin.settings.spotsFolder}/_exports inside your vault instead. To restore on another vault: install Food Spot there, then Import backup and pick the file. Media files are recreated at their original vault paths.`
     );
-    const dupes = new import_obsidian34.Setting(c).setName("Find duplicate spots").setDesc(
+    const dupes = new import_obsidian35.Setting(c).setName("Find duplicate spots").setDesc(
       "Finds spots that are the same restaurant \u2014 the same Google place, the same name within one city, or nearly identical coordinates \u2014 and lets you merge a pair into one note."
     );
     dupes.addButton(
@@ -24112,7 +24398,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         try {
           openDuplicatesModal(this.plugin);
         } catch (e) {
-          new import_obsidian34.Notice(`Duplicate scan failed: ${errMsg4(e)}`);
+          new import_obsidian35.Notice(`Duplicate scan failed: ${errMsg4(e)}`);
         }
       })
     );
@@ -24120,7 +24406,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       dupes,
       "Nothing is merged without asking. Each pair shows why it matched and what is on both notes; you pick which note survives, and the other one's visits, ratings, photos, cuisines and tags are folded into it before it goes to the trash. 'Not a duplicate' hides a pair until the next scan."
     );
-    const sweep = new import_obsidian34.Setting(c).setName("Clean up unused media").setDesc(
+    const sweep = new import_obsidian35.Setting(c).setName("Clean up unused media").setDesc(
       "Trashes files anywhere in the media folder (including dish photos) that no spot references any more \u2014 e.g. leftovers from deleted restaurants."
     );
     sweep.addButton(
@@ -24129,14 +24415,14 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         try {
           const plan = classifyMediaFolder(this.app, this.plugin.settings, this.spots());
           if (!plan) {
-            new import_obsidian34.Notice("No media folder yet \u2014 nothing to clean up.");
+            new import_obsidian35.Notice("No media folder yet \u2014 nothing to clean up.");
             return;
           }
           const spared = plan.leftAlone.length;
           const sparedNote = spared > 0 ? ` ${plural(spared, "other file")} in ${plan.folderPath} ${spared === 1 ? "is" : "are"} linked from other notes or not created by Food Spot \u2014 left alone.` : "";
           const orphans = plan.owned.filter((f) => !plan.referenced.has(f.path));
           if (orphans.length === 0) {
-            new import_obsidian34.Notice(
+            new import_obsidian35.Notice(
               spared > 0 ? `No unused Food Spot media.${sparedNote}` : "No unused media files \u2014 the folder is tidy.",
               spared > 0 ? 8e3 : void 0
             );
@@ -24161,12 +24447,12 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
             }
           }
           const problem = failed.length > 0 ? ` ${plural(failed.length, "file")} couldn't be trashed (${failed.slice(0, 5).join(", ")}) \u2014 they may be open elsewhere or read-only.` : "";
-          new import_obsidian34.Notice(
+          new import_obsidian35.Notice(
             `Trashed ${plural(n, "unused media file")}.${problem}${sparedNote}`,
             failed.length > 0 || spared > 0 ? 1e4 : void 0
           );
         } catch (e) {
-          new import_obsidian34.Notice(`Cleanup failed: ${errMsg4(e)}`);
+          new import_obsidian35.Notice(`Cleanup failed: ${errMsg4(e)}`);
         } finally {
           b.setDisabled(false);
         }
@@ -24176,7 +24462,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       sweep,
       "Cover photos, menu files and every dish photo embedded on a visit count as referenced \u2014 only genuinely orphaned files are listed. A file any other note in your vault links to, or that Food Spot cannot show it created, is never trashed \u2014 so pointing the media folder at a shared attachments folder is safe. Deleting a restaurant leaves its photo in place on purpose, so a mis-click never costs you an image; this sweeps the leftovers when you want the space back."
     );
-    const danger = new import_obsidian34.Setting(c).setName("Delete all restaurant data").setDesc(
+    const danger = new import_obsidian35.Setting(c).setName("Delete all restaurant data").setDesc(
       "Trashes every spot note (recoverable from the trash). Consider exporting a full backup first."
     );
     danger.settingEl.addClass("fs-danger-setting");
@@ -24198,8 +24484,8 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         continue;
       }
       const countrySeg = s.organizeByCountry && spot.country.trim() !== "" ? `/${sanitizeFileName2(spot.country)}` : "";
-      const dir = (0, import_obsidian34.normalizePath)(`${s.spotsFolder}${countrySeg}`);
-      const target = (0, import_obsidian34.normalizePath)(`${dir}/${file.name}`);
+      const dir = (0, import_obsidian35.normalizePath)(`${s.spotsFolder}${countrySeg}`);
+      const target = (0, import_obsidian35.normalizePath)(`${dir}/${file.name}`);
       if (file.path === target) {
         res.kept++;
         continue;
@@ -24232,11 +24518,11 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
    */
   async relocateMedia() {
     const s = this.plugin.settings;
-    const media = (0, import_obsidian34.normalizePath)(s.mediaFolder);
-    const spotsRoot = (0, import_obsidian34.normalizePath)(s.spotsFolder);
+    const media = (0, import_obsidian35.normalizePath)(s.mediaFolder);
+    const spotsRoot = (0, import_obsidian35.normalizePath)(s.spotsFolder);
     if (media === spotsRoot || media.startsWith(`${spotsRoot}/`)) return;
     const oldFolder = this.app.vault.getFolderByPath(media);
-    const newMedia = (0, import_obsidian34.normalizePath)(`${spotsRoot}/_media`);
+    const newMedia = (0, import_obsidian35.normalizePath)(`${spotsRoot}/_media`);
     if (oldFolder) {
       const before = this.spots().map((spot) => ({
         path: spot.path,
@@ -24246,18 +24532,18 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       const moved = /* @__PURE__ */ new Map();
       const blocked = [];
       const moveInto = async (dir, relative) => {
-        const targetDir = (0, import_obsidian34.normalizePath)(relative ? `${newMedia}/${relative}` : newMedia);
+        const targetDir = (0, import_obsidian35.normalizePath)(relative ? `${newMedia}/${relative}` : newMedia);
         if (this.app.vault.getFolderByPath(targetDir) === null) {
           await this.app.vault.createFolder(targetDir).catch(() => void 0);
         }
         for (const child of [...dir.children]) {
-          if (child instanceof import_obsidian34.TFolder) {
+          if (child instanceof import_obsidian35.TFolder) {
             await moveInto(child, relative ? `${relative}/${child.name}` : child.name);
             continue;
           }
-          if (!(child instanceof import_obsidian34.TFile)) continue;
+          if (!(child instanceof import_obsidian35.TFile)) continue;
           const from = child.path;
-          const target = (0, import_obsidian34.normalizePath)(`${targetDir}/${child.name}`);
+          const target = (0, import_obsidian35.normalizePath)(`${targetDir}/${child.name}`);
           if (this.app.vault.getAbstractFileByPath(target) !== null) {
             blocked.push(child.name);
             continue;
@@ -24274,8 +24560,8 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       const rewriteFailures = [];
       for (const rec of before) {
         const patch = {};
-        const photoTarget = rec.photo ? moved.get((0, import_obsidian34.normalizePath)(rec.photo)) : void 0;
-        const menuTarget = rec.menu ? moved.get((0, import_obsidian34.normalizePath)(rec.menu)) : void 0;
+        const photoTarget = rec.photo ? moved.get((0, import_obsidian35.normalizePath)(rec.photo)) : void 0;
+        const menuTarget = rec.menu ? moved.get((0, import_obsidian35.normalizePath)(rec.menu)) : void 0;
         if (photoTarget) patch.photo = photoTarget;
         if (menuTarget) patch.menu = menuTarget;
         if (Object.keys(patch).length === 0) continue;
@@ -24286,13 +24572,13 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         }
       }
       if (blocked.length > 0) {
-        new import_obsidian34.Notice(
+        new import_obsidian35.Notice(
           `${plural(blocked.length, "media file")} stayed in ${media} \u2014 a file with the same name already exists in ${newMedia} (${blocked.slice(0, 5).join(", ")}). Their notes still point at the old folder.`,
           1e4
         );
       }
       if (rewriteFailures.length > 0) {
-        new import_obsidian34.Notice(
+        new import_obsidian35.Notice(
           `${plural(rewriteFailures.length, "note")} kept a photo/menu path in ${media}: ${rewriteFailures.slice(0, 5).join(", ")}. Fix the path in the note or run the relocation again.`,
           1e4
         );
@@ -24300,7 +24586,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     }
     s.mediaFolder = newMedia;
     await this.save();
-    new import_obsidian34.Notice(`Media folder moved to ${newMedia}.`);
+    new import_obsidian35.Notice(`Media folder moved to ${newMedia}.`);
   }
   /**
    * Trash folders that relocation emptied — bounded to the configured spots
@@ -24310,7 +24596,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
    */
   async sweepEmptyFolders(candidates) {
     const s = this.plugin.settings;
-    const roots = [(0, import_obsidian34.normalizePath)(s.spotsFolder), (0, import_obsidian34.normalizePath)(s.mediaFolder)];
+    const roots = [(0, import_obsidian35.normalizePath)(s.spotsFolder), (0, import_obsidian35.normalizePath)(s.mediaFolder)];
     const inside = (path) => roots.some((root) => path !== root && path.startsWith(`${root}/`));
     for (const parentPath of candidates) {
       if (!inside(parentPath)) continue;
@@ -24386,11 +24672,11 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       cls: "fs-provider-eye",
       attr: { "aria-label": "Show or hide key" }
     });
-    (0, import_obsidian34.setIcon)(eye, "eye");
+    (0, import_obsidian35.setIcon)(eye, "eye");
     eye.onclick = () => {
       const hidden = input.type === "password";
       input.type = hidden ? "text" : "password";
-      (0, import_obsidian34.setIcon)(eye, hidden ? "eye-off" : "eye");
+      (0, import_obsidian35.setIcon)(eye, hidden ? "eye-off" : "eye");
     };
     const testBtn = row.createEl("button", { text: "Test" });
     testBtn.onclick = async () => {
@@ -24415,7 +24701,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     links.createEl("a", { text: "Get a key", href: GOOGLE_KEY_URL });
     const warn = card2.createDiv({ cls: "fs-provider-warning" });
     const warnIcon = warn.createSpan();
-    (0, import_obsidian34.setIcon)(warnIcon, "alert-triangle");
+    (0, import_obsidian35.setIcon)(warnIcon, "alert-triangle");
     warn.createSpan({
       text: "The key is stored in plain text in this vault's plugin data.json. Anyone (or anything) with access to your vault files can read it."
     });
@@ -24436,14 +24722,14 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     const paintSwatches = () => {
       const dw = CARD_WIDTHS[s.cardSizeDesktop + 3] ?? 160;
       const mw = CARD_WIDTHS[s.cardSizeMobile + 3] ?? 140;
-      if (!import_obsidian34.Platform.isPhone) {
+      if (!import_obsidian35.Platform.isPhone) {
         desktopSwatch.style.width = `${dw}px`;
         mobileSwatch.style.width = `${mw}px`;
       }
       desktopSwatch.setText(`${dw}px`);
       mobileSwatch.setText(`${mw}px`);
     };
-    new import_obsidian34.Setting(cc).setName("Card size \u2014 desktop").setDesc("Minimum card width in the grid (7 steps).").addSlider(
+    new import_obsidian35.Setting(cc).setName("Card size \u2014 desktop").setDesc("Minimum card width in the grid (7 steps).").addSlider(
       (sl) => sl.setLimits(-3, 3, 1).setValue(s.cardSizeDesktop).setDynamicTooltip().onChange(async (v) => {
         s.cardSizeDesktop = v;
         await this.save();
@@ -24451,7 +24737,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
         this.touch();
       })
     );
-    new import_obsidian34.Setting(cc).setName("Card size \u2014 mobile").setDesc("Separate size used on phones and tablets.").addSlider(
+    new import_obsidian35.Setting(cc).setName("Card size \u2014 mobile").setDesc("Separate size used on phones and tablets.").addSlider(
       (sl) => sl.setLimits(-3, 3, 1).setValue(s.cardSizeMobile).setDynamicTooltip().onChange(async (v) => {
         s.cardSizeMobile = v;
         await this.save();
@@ -24467,14 +24753,14 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     mItem.createSpan({ text: "Mobile" });
     mobileSwatch = mItem.createDiv({ cls: "fs-size-swatch" });
     paintSwatches();
-    new import_obsidian34.Setting(cc).setName("Card text placement").setDesc("Name and meta inside the photo (gradient scrim) or underneath it.").addDropdown(
+    new import_obsidian35.Setting(cc).setName("Card text placement").setDesc("Name and meta inside the photo (gradient scrim) or underneath it.").addDropdown(
       (d) => d.addOption("inside", "Inside the photo").addOption("under", "Under the photo").setValue(s.cardTextPlacement).onChange(async (v) => {
         s.cardTextPlacement = v;
         await this.save();
         this.touch();
       })
     );
-    new import_obsidian34.Setting(cc).setName("Dashboard stat cards").setDesc("Animated rings or plain rectangles on the Dashboard tab.").addDropdown(
+    new import_obsidian35.Setting(cc).setName("Dashboard stat cards").setDesc("Animated rings or plain rectangles on the Dashboard tab.").addDropdown(
       (d) => d.addOption("rings", "Rings").addOption("rectangles", "Rectangles").setValue(s.dashboardCardStyle).onChange(async (v) => {
         s.dashboardCardStyle = v;
         await this.save();
@@ -24487,28 +24773,28 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       subtitle: "Status colors and rating tiers"
     });
     const col = colors.content;
-    new import_obsidian34.Setting(col).setName("Want-to-try color").setDesc("Status badges and dots on cards and suggestions.").addColorPicker(
+    new import_obsidian35.Setting(col).setName("Want-to-try color").setDesc("Status badges and dots on cards and suggestions.").addColorPicker(
       (cp) => cp.setValue(s.statusColors.wantToTry).onChange(async (v) => {
         s.statusColors.wantToTry = v;
         await this.save();
         this.touch();
       })
     );
-    new import_obsidian34.Setting(col).setName("Visited color").setDesc("Status badges and dots on cards and suggestions.").addColorPicker(
+    new import_obsidian35.Setting(col).setName("Visited color").setDesc("Status badges and dots on cards and suggestions.").addColorPicker(
       (cp) => cp.setValue(s.statusColors.visited).onChange(async (v) => {
         s.statusColors.visited = v;
         await this.save();
         this.touch();
       })
     );
-    new import_obsidian34.Setting(col).setName("Favorite color").setDesc("The \u2605 favorite marker.").addColorPicker(
+    new import_obsidian35.Setting(col).setName("Favorite color").setDesc("The \u2605 favorite marker.").addColorPicker(
       (cp) => cp.setValue(s.statusColors.favorite).onChange(async (v) => {
         s.statusColors.favorite = v;
         await this.save();
         this.touch();
       })
     );
-    const tiersSetting = new import_obsidian34.Setting(col).setName("Rating tiers").setDesc("Label and color for each star level, with a live preview.");
+    const tiersSetting = new import_obsidian35.Setting(col).setName("Rating tiers").setDesc("Label and color for each star level, with a live preview.");
     this.addHelp(
       tiersSetting,
       "Tier 1 colors ratings up to 1\u2605, tier 2 up to 2\u2605, and so on. Labels show next to the stars wherever ratings are displayed."
@@ -24565,7 +24851,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       }
     });
     const c = g.content;
-    const dup = new import_obsidian34.Setting(c).setName("Duplicate detection").setDesc("Warn when an imported spot looks like one already in your library.").addToggle(
+    const dup = new import_obsidian35.Setting(c).setName("Duplicate detection").setDesc("Warn when an imported spot looks like one already in your library.").addToggle(
       (t) => t.setValue(s.duplicateDetectionEnabled).onChange(async (v) => {
         s.duplicateDetectionEnabled = v;
         await this.save();
@@ -24575,14 +24861,14 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       dup,
       "Matching is name-similarity AND distance aware: two branches of the same chain in different cities are not flagged as duplicates."
     );
-    const radius = new import_obsidian34.Setting(c).setName("Duplicate radius").setDesc(`Spots within ${s.duplicateDetectionRadiusMeters} m of each other can be duplicates.`).addSlider(
+    const radius = new import_obsidian35.Setting(c).setName("Duplicate radius").setDesc(`Spots within ${s.duplicateDetectionRadiusMeters} m of each other can be duplicates.`).addSlider(
       (sl) => sl.setLimits(10, 500, 5).setValue(s.duplicateDetectionRadiusMeters).setDynamicTooltip().onChange(async (v) => {
         s.duplicateDetectionRadiusMeters = v;
         radius.setDesc(`Spots within ${v} m of each other can be duplicates.`);
         await this.save();
       })
     );
-    const review = new import_obsidian34.Setting(c).setName("Review before save").setDesc("Show an editable review form for every import before the note is created.").addToggle(
+    const review = new import_obsidian35.Setting(c).setName("Review before save").setDesc("Show an editable review form for every import before the note is created.").addToggle(
       (t) => t.setValue(s.reviewBeforeSave).onChange(async (v) => {
         s.reviewBeforeSave = v;
         await this.save();
@@ -24628,11 +24914,11 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       head.createSpan({ cls: "fs-example-title", text: title });
       const copy = head.createEl("button", { cls: "fs-btn fs-small-btn" });
       const ic = copy.createSpan({ cls: "fs-btn-icon" });
-      (0, import_obsidian34.setIcon)(ic, "copy");
+      (0, import_obsidian35.setIcon)(ic, "copy");
       copy.createSpan({ text: " Copy" });
       copy.addEventListener("click", () => {
         void navigator.clipboard.writeText(block + "\n").then(() => {
-          new import_obsidian34.Notice(`Copied "${title}" \u2014 paste it into any note.`);
+          new import_obsidian35.Notice(`Copied "${title}" \u2014 paste it into any note.`);
         });
       });
       card2.createEl("pre", { text: block });
@@ -24708,7 +24994,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
       const box = c.createDiv({ cls: "fs-qi" });
       const head = box.createDiv({ cls: "fs-qi-head" });
       const chev = head.createDiv({ cls: "fs-qi-chev" });
-      (0, import_obsidian34.setIcon)(chev, "chevron-right");
+      (0, import_obsidian35.setIcon)(chev, "chevron-right");
       head.createSpan({ text: title });
       const bodyEl = box.createDiv({ cls: "fs-qi-body" });
       for (const p of paragraphs) bodyEl.createEl("p", { text: p });
@@ -24737,7 +25023,7 @@ var FoodSpotSettingTab = class extends import_obsidian34.PluginSettingTab {
     ]);
   }
 };
-var FolderSuggest = class extends import_obsidian34.AbstractInputSuggest {
+var FolderSuggest = class extends import_obsidian35.AbstractInputSuggest {
   constructor(app, inputEl) {
     super(app, inputEl);
     this.inputEl = inputEl;
@@ -24747,7 +25033,7 @@ var FolderSuggest = class extends import_obsidian34.AbstractInputSuggest {
     const folders = [];
     const walk = (f) => {
       for (const child of f.children) {
-        if (child instanceof import_obsidian34.TFolder) {
+        if (child instanceof import_obsidian35.TFolder) {
           if (child.path.toLowerCase().includes(q)) folders.push(child);
           walk(child);
         }
@@ -24964,7 +25250,7 @@ var CURRENCIES = [
   ["\u20BA", "\u20BA Turkish Lira"],
   ["\u062F.\u0625", "\u062F.\u0625 UAE Dirham"]
 ];
-var DeleteAllModal = class extends import_obsidian34.Modal {
+var DeleteAllModal = class extends import_obsidian35.Modal {
   constructor(app, plugin) {
     super(app);
     this.plugin = plugin;
@@ -24995,7 +25281,7 @@ var DeleteAllModal = class extends import_obsidian34.Modal {
       const plan = classifyMediaFolder(this.app, this.plugin.settings, spots);
       mediaNote.empty();
       const icon = mediaNote.createSpan();
-      (0, import_obsidian34.setIcon)(icon, "alert-triangle");
+      (0, import_obsidian35.setIcon)(icon, "alert-triangle");
       let text;
       if (!plan) {
         text = `No ${this.plugin.settings.mediaFolder} folder yet \u2014 there is nothing to trash.`;
@@ -25058,7 +25344,7 @@ var DeleteAllModal = class extends import_obsidian34.Modal {
         }
         if (cancelled) {
           progress.finish();
-          new import_obsidian34.Notice(
+          new import_obsidian35.Notice(
             `Cancelled after ${trashed} of ${all.length} spot notes \u2014 nothing else was touched.`,
             1e4
           );
@@ -25079,19 +25365,19 @@ var DeleteAllModal = class extends import_obsidian34.Modal {
         }
         if (cancelled) {
           progress.finish();
-          new import_obsidian34.Notice(
+          new import_obsidian35.Notice(
             `Cancelled after ${trashed} spot notes and ${mediaTrashed} of ${media.length} media files \u2014 the folder cleanup was skipped.`,
             1e4
           );
           return;
         }
         const root = this.app.vault.getFolderByPath(
-          (0, import_obsidian34.normalizePath)(this.plugin.settings.spotsFolder)
+          (0, import_obsidian35.normalizePath)(this.plugin.settings.spotsFolder)
         );
         if (root) {
           const sweep = async (folder) => {
             for (const child of [...folder.children]) {
-              if (child instanceof import_obsidian34.TFolder) await sweep(child);
+              if (child instanceof import_obsidian35.TFolder) await sweep(child);
             }
             if (folder !== root && folder.children.length === 0) {
               await this.app.fileManager.trashFile(folder).catch(() => void 0);
@@ -25110,7 +25396,7 @@ var DeleteAllModal = class extends import_obsidian34.Modal {
         if (plan && plan.leftAlone.length > 0) {
           message += ` ${plural(plan.leftAlone.length, "file")} in ${plan.folderPath} ${plan.leftAlone.length === 1 ? "was" : "were"} left alone \u2014 linked from another note or not created by Food Spot.`;
         }
-        new import_obsidian34.Notice(message, 1e4);
+        new import_obsidian35.Notice(message, 1e4);
       })();
     });
     window.setTimeout(() => input.focus(), 0);
@@ -25121,7 +25407,7 @@ var DeleteAllModal = class extends import_obsidian34.Modal {
 };
 
 // src/widgets/widgets.ts
-var import_obsidian35 = require("obsidian");
+var import_obsidian36 = require("obsidian");
 var VIEWS = ["cards", "list", "table", "stat", "random", "shortlist"];
 var STATS = ["visited-ratio", "counts", "top-cuisines"];
 var SORT_KEYS2 = [
@@ -25244,7 +25530,7 @@ function renderError(el, errors) {
   const box = el.createDiv({ cls: "fs-widget-error" });
   const head = box.createDiv({ cls: "fs-widget-error-title" });
   const icon = head.createSpan();
-  (0, import_obsidian35.setIcon)(icon, "alert-triangle");
+  (0, import_obsidian36.setIcon)(icon, "alert-triangle");
   head.createSpan({ text: "Food Spot widget \u2014 invalid block" });
   const ul = box.createEl("ul");
   for (const e of errors) ul.createEl("li", { text: e });
@@ -25313,7 +25599,7 @@ function renderShortlist(plugin, el, items) {
   for (const s of items) {
     const row = box.createDiv({ cls: "fs-widget-shortlist-row" });
     const icon = row.createSpan();
-    (0, import_obsidian35.setIcon)(icon, s.status === "visited" ? "check-circle-2" : "circle");
+    (0, import_obsidian36.setIcon)(icon, s.status === "visited" ? "check-circle-2" : "circle");
     row.createSpan({ cls: "fs-widget-name", text: s.name });
     if (s.city) row.createSpan({ cls: "fs-widget-shortlist-city", text: s.city });
     row.onclick = () => openDetailModal(plugin, s.path);
@@ -25323,7 +25609,7 @@ function renderRandom(plugin, el, pool, entry) {
   const wrap = el.createDiv({ cls: "fs-widget-random" });
   const btn = wrap.createEl("button", { cls: "fs-widget-shuffle" });
   const btnIcon = btn.createSpan();
-  (0, import_obsidian35.setIcon)(btnIcon, "shuffle");
+  (0, import_obsidian36.setIcon)(btnIcon, "shuffle");
   btn.createSpan({ text: "Shuffle" });
   const slot = wrap.createDiv({ cls: "fs-widget-random-slot" });
   if (!pool.length) {
@@ -25476,7 +25762,7 @@ function registerWidgets(plugin) {
     const { params, errors } = parseSource(source);
     const entry = { params, errors, state: {} };
     registry.set(el, entry);
-    const child = new import_obsidian35.MarkdownRenderChild(el);
+    const child = new import_obsidian36.MarkdownRenderChild(el);
     child.onunload = () => {
       registry.delete(el);
       releaseLazyPhotos(el);
@@ -25501,7 +25787,7 @@ function registerWidgets(plugin) {
 }
 
 // src/widgets/insertPalette.ts
-var import_obsidian36 = require("obsidian");
+var import_obsidian37 = require("obsidian");
 function mostCommon(values, fallback) {
   const counts = /* @__PURE__ */ new Map();
   for (const v of values) {
@@ -25562,7 +25848,7 @@ var VARIANTS = [
     make: (c) => fence(["view: list", `cuisine: ${c.cuisine}`, "sort: name", "direction: asc"])
   }
 ];
-var WidgetPaletteModal = class extends import_obsidian36.FuzzySuggestModal {
+var WidgetPaletteModal = class extends import_obsidian37.FuzzySuggestModal {
   constructor(plugin, editor) {
     super(plugin.app);
     this.plugin = plugin;
@@ -25593,7 +25879,7 @@ function openWidgetPalette(plugin, editor) {
 }
 
 // src/ui/modals/enrich.ts
-var import_obsidian37 = require("obsidian");
+var import_obsidian38 = require("obsidian");
 function openEnrichModal(plugin, preset) {
   new EnrichOptionsModal(plugin, preset).open();
 }
@@ -25615,7 +25901,7 @@ var SCOPE_LABELS = {
   "missing-coords": "Only spots without coordinates"
 };
 var SCOPE_ORDER = ["all", "missing", "filter", "missing-coords"];
-var EnrichOptionsModal = class extends import_obsidian37.Modal {
+var EnrichOptionsModal = class extends import_obsidian38.Modal {
   constructor(plugin, preset) {
     super(plugin.app);
     this.plugin = plugin;
@@ -25640,7 +25926,7 @@ var EnrichOptionsModal = class extends import_obsidian37.Modal {
     if (!this.hasKey) {
       const banner = this.contentEl.createDiv({ cls: "fs-import-warnings" });
       const icon = banner.createSpan({ cls: "fs-dup-icon" });
-      (0, import_obsidian37.setIcon)(icon, "key-round");
+      (0, import_obsidian38.setIcon)(icon, "key-round");
       banner.createDiv({
         cls: "fs-import-warning",
         text: "The Google-backed fields need a Places API key \u2014 add one under Settings \u2192 Food Spot \u2192 Import. Menu-link discovery reads each spot's own website and works without a key."
@@ -25691,7 +25977,7 @@ var EnrichOptionsModal = class extends import_obsidian37.Modal {
     if (this.hasKey) {
       const quota = this.contentEl.createDiv({ cls: "fs-enrich-quota" });
       const qIcon = quota.createSpan({ cls: "fs-info-icon" });
-      (0, import_obsidian37.setIcon)(qIcon, "info");
+      (0, import_obsidian38.setIcon)(qIcon, "info");
       quota.createSpan({
         text: "Uses your Google API quota \u2014 roughly 3 Google API calls per spot."
       });
@@ -25759,7 +26045,7 @@ var EnrichOptionsModal = class extends import_obsidian37.Modal {
     this.contentEl.empty();
   }
 };
-var EnrichProgressModal = class extends import_obsidian37.Modal {
+var EnrichProgressModal = class extends import_obsidian38.Modal {
   constructor(plugin, total, signal) {
     super(plugin.app);
     this.total = total;
@@ -25812,7 +26098,7 @@ async function runBulkEnrich(plugin, spots, opts) {
   } catch (e) {
     inline?.finish();
     modal?.close();
-    new import_obsidian37.Notice(`Enrichment failed \u2014 ${errorMessage9(e)}`);
+    new import_obsidian38.Notice(`Enrichment failed \u2014 ${errorMessage9(e)}`);
     return;
   }
   const cancelled = signal.cancelled;
@@ -25823,7 +26109,7 @@ async function runBulkEnrich(plugin, spots, opts) {
     const names = result.failed.slice(0, 5).join(", ");
     parts.push(`${result.failed.length} failed (${names}${result.failed.length > 5 ? ", \u2026" : ""})`);
   }
-  new import_obsidian37.Notice(
+  new import_obsidian38.Notice(
     `${cancelled ? "Enrichment cancelled" : "Enrichment done"} \u2014 ${parts.join(" \xB7 ")}.`,
     1e4
   );
@@ -25833,7 +26119,7 @@ function errorMessage9(e) {
 }
 
 // src/diagnostics.ts
-var import_obsidian38 = require("obsidian");
+var import_obsidian39 = require("obsidian");
 async function dumpDashboardDiagnostics(plugin) {
   const lines = [];
   const push = (s) => lines.push(s);
@@ -25891,17 +26177,17 @@ async function dumpDashboardDiagnostics(plugin) {
   push("```html");
   push(dash ? dash.outerHTML.slice(0, 3e4) : "(no .fs-view in DOM)");
   push("```");
-  const folder = (0, import_obsidian38.normalizePath)(plugin.settings.spotsFolder || "Food Spot");
+  const folder = (0, import_obsidian39.normalizePath)(plugin.settings.spotsFolder || "Food Spot");
   await ensureFolder(plugin.app, folder);
-  const path = (0, import_obsidian38.normalizePath)(`${folder}/foodspot-diagnostics.md`);
+  const path = (0, import_obsidian39.normalizePath)(`${folder}/foodspot-diagnostics.md`);
   const existing = plugin.app.vault.getFileByPath(path);
   if (existing) await plugin.app.vault.modify(existing, lines.join("\n"));
   else await plugin.app.vault.create(path, lines.join("\n"));
-  new import_obsidian38.Notice(`Food Spot: diagnostics written to ${path}`);
+  new import_obsidian39.Notice(`Food Spot: diagnostics written to ${path}`);
 }
 
 // src/main.ts
-var FoodSpotPlugin = class extends import_obsidian39.Plugin {
+var FoodSpotPlugin = class extends import_obsidian40.Plugin {
   constructor() {
     super(...arguments);
     this.settings = { ...DEFAULT_SETTINGS };
@@ -26017,7 +26303,7 @@ var FoodSpotPlugin = class extends import_obsidian39.Plugin {
   /** Sequential source discovery over the whole library, with progress Notices. */
   async discoverSourcesForAll() {
     if (this.discoveringAll) {
-      new import_obsidian39.Notice("Source discovery is already running.");
+      new import_obsidian40.Notice("Source discovery is already running.");
       return;
     }
     this.discoveringAll = true;
@@ -26030,13 +26316,13 @@ var FoodSpotPlugin = class extends import_obsidian39.Plugin {
       }
       const spots = this.store.getSpots();
       if (spots.length === 0) {
-        new import_obsidian39.Notice("No spots indexed yet \u2014 open the Food Spot view first, then retry.");
+        new import_obsidian40.Notice("No spots indexed yet \u2014 open the Food Spot view first, then retry.");
         log.push("Aborted: index was empty after 20s.");
         return;
       }
       let attachedCount = 0;
       let done = 0;
-      new import_obsidian39.Notice(`Discovering rating sources for ${spots.length} spots\u2026`);
+      new import_obsidian40.Notice(`Discovering rating sources for ${spots.length} spots\u2026`);
       for (const spot of spots) {
         try {
           const res = await this.importer.discoverSources(spot);
@@ -26055,11 +26341,11 @@ var FoodSpotPlugin = class extends import_obsidian39.Plugin {
         }
         done++;
         if (done % 20 === 0)
-          new import_obsidian39.Notice(`Source discovery: ${done}/${spots.length} (${attachedCount} updated)\u2026`);
+          new import_obsidian40.Notice(`Source discovery: ${done}/${spots.length} (${attachedCount} updated)\u2026`);
         await new Promise((r) => setTimeout(r, 700));
       }
       log.splice(1, 0, `${attachedCount} of ${spots.length} spots updated.`);
-      new import_obsidian39.Notice(
+      new import_obsidian40.Notice(
         `Source discovery finished: ${attachedCount} of ${spots.length} spots got new sources.`,
         1e4
       );

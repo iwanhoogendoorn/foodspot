@@ -10,6 +10,8 @@ import { Notice, Platform, TFile, normalizePath } from "obsidian";
 import type { FoodSpot, FoodSpotPluginApi } from "../../types";
 import { ensureFolder } from "../../store/noteWriter";
 import { embedRefPath } from "../../store/visitsParser";
+import { openLightbox } from "./lightbox";
+import type { LightboxItem } from "./lightbox";
 
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|avif)$/i;
 
@@ -195,6 +197,13 @@ export function renderDishThumbs(
 ): void {
   if (photos.length === 0) return;
   const strip = parent.createDiv({ cls: "fs-dish-strip" });
+  // Every resolvable photo in this strip, so the viewer can page through them
+  // rather than reopening one at a time.
+  const set: LightboxItem[] = [];
+  for (const ref of photos) {
+    const found = resolveDishFile(plugin, ref, sourcePath);
+    if (found) set.push({ file: found });
+  }
   for (const ref of photos) {
     const cell = strip.createDiv({ cls: "fs-dish-thumb" });
     const file = resolveDishFile(plugin, ref, sourcePath);
@@ -204,7 +213,10 @@ export function renderDishThumbs(
       img.alt = file.basename;
       cell.title = file.name;
       cell.addEventListener("click", () => {
-        void plugin.app.workspace.openLinkText(file.path, sourcePath);
+        // The zoomable viewer, not openLinkText — that opened the image as a
+        // document tab, which cannot zoom and buries the modal behind it.
+        const at = set.findIndex((i) => i.file.path === file.path);
+        openLightbox(plugin, set, at < 0 ? 0 : at);
       });
     } else {
       cell.addClass("fs-dish-missing");

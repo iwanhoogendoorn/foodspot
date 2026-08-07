@@ -10,10 +10,11 @@
  * — a library with hundreds of dishes must not decode them all up front, and
  * an observer must never outlive the modal that made it.
  */
-import { Modal, TFile } from "obsidian";
+import { Modal } from "obsidian";
 import type { DateFormat, FoodSpot, FoodSpotPluginApi } from "../../types";
 import { resolveDishFile } from "../components/dishPhotos";
-import { openDetailModal } from "./detail";
+import { openLightbox } from "../components/lightbox";
+import type { LightboxItem } from "../components/lightbox";
 
 export function openGalleryModal(plugin: FoodSpotPluginApi, path?: string): void {
   new GalleryModal(plugin, path).open();
@@ -59,6 +60,8 @@ class GalleryModal extends Modal {
   private observer: IntersectionObserver | null = null;
   /** Tile -> "load me now", consumed once the tile scrolls into view. */
   private readonly loaders = new WeakMap<Element, () => void>();
+  /** The rendered set, in display order — the viewer pages through it. */
+  private entries: DishEntry[] = [];
 
   constructor(
     private readonly plugin: FoodSpotPluginApi,
@@ -74,6 +77,7 @@ class GalleryModal extends Modal {
     this.titleEl.setText(spot ? `Dish photos — ${spot.name}` : "Dish photos");
 
     const entries = collect(spot ? [spot] : this.plugin.store.getSpots());
+    this.entries = entries;
     const body = this.contentEl;
     if (entries.length === 0) {
       body.createDiv({
@@ -129,15 +133,29 @@ class GalleryModal extends Modal {
     });
     this.observer?.observe(frame);
 
-    tile.addEventListener("click", () => {
-      if (showSpotName) openDetailModal(this.plugin, entry.sourcePath);
-      else void this.openImage(file, entry.sourcePath);
-    });
+    tile.addEventListener("click", () => this.openViewer(entry));
   }
 
-  private async openImage(file: TFile, sourcePath: string): Promise<void> {
-    this.close();
-    await this.plugin.app.workspace.openLinkText(file.path, sourcePath);
+  /**
+   * Open the zoomable viewer on the whole gallery, positioned at the tapped
+   * photo, so it pages through the set rather than showing one dead-end image.
+   *
+   * Previously a tile either jumped to the spot's detail modal or handed the
+   * file to `openLinkText`, which opens it as a document tab: no zoom at all.
+   */
+  private openViewer(entry: DishEntry): void {
+    const items: LightboxItem[] = [];
+    let start = 0;
+    for (const e of this.entries) {
+      const f = resolveDishFile(this.plugin, e.ref, e.sourcePath);
+      if (!f) continue;
+      if (e === entry) start = items.length;
+      items.push({
+        file: f,
+        caption: `${e.spotName} · ${formatDate(e.date, this.plugin.settings.dateFormat)}`,
+      });
+    }
+    openLightbox(this.plugin, items, start);
   }
 
   override onClose(): void {
