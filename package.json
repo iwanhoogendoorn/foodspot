@@ -1,7 +1,7 @@
 {
   "name": "foodspot",
-  "version": "2.1.0",
-  "description": "Food Spot \u2014 restaurant tracker for Obsidian with markdown-note storage",
+  "version": "2.2.0",
+  "description": "Food Spot — restaurant tracker for Obsidian with markdown-note storage",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",

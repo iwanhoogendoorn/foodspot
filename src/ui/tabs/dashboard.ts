@@ -9,7 +9,11 @@
 import { setIcon } from "obsidian";
 import type { FoodSpot, FoodSpotPluginApi, TabHandle, Visit } from "../../types";
 import { buildSpotCard, releaseLazyPhotos } from "../components/card";
-import { daysSinceCalendar, parseCalendarDate } from "../../util/dates";
+import {
+  daysBetweenCalendar,
+  daysSinceCalendar,
+  parseCalendarDate,
+} from "../../util/dates";
 import { openDetailModal } from "../modals/detail";
 import { openAddChooser } from "../modals/addChooser";
 import { openImportModal } from "../modals/importFlow";
@@ -26,6 +30,17 @@ type StatTone = "accent" | "muted" | "faint";
 
 function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
+}
+
+/**
+ * Size step for a ring's centre value. The ring's inner hole is 78px wide
+ * (r=45, stroke 12), so the text has to shrink as the library grows —
+ * measured in characters because CSS cannot size on content width.
+ */
+function ringValueSizeClass(text: string): string {
+  if (text.length >= 9) return "is-xlong";
+  if (text.length >= 6) return "is-long";
+  return "";
 }
 
 /**
@@ -226,9 +241,13 @@ export function mountDashboardTab(
       },
     });
     const center = wrap.createDiv({ cls: "fs-ring-center" });
+    // "141 / 153" is three times the width of "7 / 9", but the hole in the
+    // ring is a fixed 78px. Step the size down as the text grows, or a large
+    // library renders its own count straight across the stroke.
+    const valueText = `${o.visited} / ${o.total}`;
     center.createDiv({
-      cls: "fs-ring-value",
-      text: `${o.visited} / ${o.total}`,
+      cls: ["fs-ring-value", ringValueSizeClass(valueText)].filter(Boolean).join(" "),
+      text: valueText,
     });
     center.createDiv({ cls: "fs-ring-label", text: "Visited" });
     const sub = card.createDiv({ cls: "fs-stat-sub fs-progress-legend" });
@@ -288,6 +307,24 @@ export function mountDashboardTab(
       maximumFractionDigits: decimals,
     })}`;
   };
+
+  /** Visit date in the user's chosen display format (see settings.dateFormat). */
+  const fmtStatDate = (iso: string): string => {
+    const [y, m, d] = iso.split("-");
+    if (!y || !m || !d) return iso;
+    switch (plugin.settings.dateFormat) {
+      case "american":
+        return `${m}/${d}/${y}`;
+      case "iso":
+        return iso;
+      default:
+        return `${d}-${m}-${y}`;
+    }
+  };
+
+  /** "€27.41" — or a dash, since a visit with no amount is not a €0 visit. */
+  const spentLabel = (v: Visit): string =>
+    v.spent === undefined ? "—" : money(v.spent);
 
   const listRow = (
     parent: HTMLElement,
@@ -393,6 +430,47 @@ export function mountDashboardTab(
         barRow(p, e.label, `${e.visited}/${e.total}`, e.total ? e.visited / e.total : 0);
       }
     };
+
+    // -- Milestones ----------------------------------------------------------
+    // Where the log starts and ends. Sorted on the ISO date string, which is
+    // lexicographically ordered — no Date objects, so no timezone drift.
+    {
+      const p = panel("Milestones");
+      const dated: { spot: FoodSpot; visit: Visit }[] = [];
+      for (const s of spots) {
+        for (const v of s.visits) if (v.date) dated.push({ spot: s, visit: v });
+      }
+      if (!dated.length) {
+        emptyLine(p, "No visits logged yet — log one to start your history.");
+      } else {
+        dated.sort((a, b) => a.visit.date.localeCompare(b.visit.date));
+        const first = dated[0];
+        const last = dated[dated.length - 1];
+        const span = daysBetweenCalendar(first.visit.date, last.visit.date);
+        const years = span / 365.25;
+        const where = (e: { spot: FoodSpot }) =>
+          e.spot.city ? `${e.spot.name} · ${e.spot.city}` : e.spot.name;
+        listRow(p, "First visit", fmtStatDate(first.visit.date), () =>
+          openDetailModal(plugin, first.spot.path),
+        );
+        listRow(p, where(first), spentLabel(first.visit), () =>
+          openDetailModal(plugin, first.spot.path),
+        );
+        listRow(p, "Latest visit", fmtStatDate(last.visit.date), () =>
+          openDetailModal(plugin, last.spot.path),
+        );
+        listRow(p, where(last), spentLabel(last.visit), () =>
+          openDetailModal(plugin, last.spot.path),
+        );
+        listRow(
+          p,
+          "History spans",
+          years >= 1
+            ? `${years.toFixed(1)} years · ${dated.length} visits`
+            : `${span} days · ${dated.length} visits`,
+        );
+      }
+    }
 
     coveragePanel(
       "By country",

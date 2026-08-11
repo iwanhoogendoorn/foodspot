@@ -33,6 +33,50 @@ export type MountEnrichProgress = (signal: {
 
 export interface EnrichPreset {
   scope?: EnrichScope;
+  /**
+   * Overrides the default field selection. The Spots toolbar's "Enrich"
+   * button uses it to open on exactly the fields its badge counted, so the
+   * number on the button and the number on Start can never disagree.
+   */
+  fields?: Partial<Omit<EnrichOptions, "overwrite">>;
+}
+
+/**
+ * The Google-backed fields that make a spot "filled in". Menu links and
+ * source discovery are deliberately out: plenty of restaurants simply have
+ * no menu URL, so counting them would leave the badge permanently lit.
+ */
+export const CORE_ENRICH_FIELDS: Omit<EnrichOptions, "overwrite"> = {
+  photo: true,
+  ratings: true,
+  coords: true,
+  address: true,
+  menu: false,
+  discoverSources: false,
+};
+
+/** True when `s` lacks at least one of the requested fields. */
+export function missingAnyOf(
+  s: FoodSpot,
+  f: Partial<Omit<EnrichOptions, "overwrite">>
+): boolean {
+  return (
+    (f.photo === true && !s.photo) ||
+    (f.ratings === true && s.external.googleRating === undefined) ||
+    (f.coords === true && !s.coordinates) ||
+    (f.address === true && !s.address) ||
+    (f.menu === true && !s.menu) ||
+    (f.discoverSources === true &&
+      (s.external.tripadvisorRating === undefined ||
+        s.external.theforkRating === undefined))
+  );
+}
+
+/** How many spots the toolbar's "Enrich" button would work on. */
+export function countNeedingEnrichment(spots: FoodSpot[]): number {
+  let n = 0;
+  for (const s of spots) if (missingAnyOf(s, CORE_ENRICH_FIELDS)) n++;
+  return n;
 }
 
 export function openEnrichModal(plugin: FoodSpotPluginApi, preset?: EnrichPreset): void {
@@ -94,7 +138,15 @@ class EnrichOptionsModal extends Modal {
       menu: true,
       // Off by default: 6 web searches per spot is a deliberate opt-in.
       discoverSources: false,
+      ...preset?.fields,
     };
+    // A preset can only ask for fields the session can actually fetch.
+    if (!this.hasKey) {
+      this.fields.photo = false;
+      this.fields.ratings = false;
+      this.fields.coords = false;
+      this.fields.address = false;
+    }
     this.hasFilterHook =
       typeof (this.plugin as unknown as { getCurrentFilteredPaths?: unknown })
         .getCurrentFilteredPaths === "function";
@@ -216,17 +268,7 @@ class EnrichOptionsModal extends Modal {
 
   /** True when the spot lacks at least one of the REQUESTED fields. */
   private missingAny(s: FoodSpot): boolean {
-    const f = this.fields;
-    return (
-      (f.photo === true && !s.photo) ||
-      (f.ratings === true && s.external.googleRating === undefined) ||
-      (f.coords === true && !s.coordinates) ||
-      (f.address === true && !s.address) ||
-      (f.menu === true && !s.menu) ||
-      (f.discoverSources === true &&
-        (s.external.tripadvisorRating === undefined ||
-          s.external.theforkRating === undefined))
-    );
+    return missingAnyOf(s, this.fields);
   }
 
   private updateStart(): void {

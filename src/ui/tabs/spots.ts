@@ -26,6 +26,11 @@ import { cardMinWidth, createVirtualGrid } from "../components/virtualGrid";
 import { createEditableTable } from "./list";
 import type { VirtualHandle } from "../components/virtualGrid";
 import type { MountEnrichProgress } from "../modals/enrich";
+import {
+  CORE_ENRICH_FIELDS,
+  countNeedingEnrichment,
+  openEnrichModal,
+} from "../modals/enrich";
 import { openAddChooser } from "../modals/addChooser";
 import { openImportModal } from "../modals/importFlow";
 import { openDetailModal } from "../modals/detail";
@@ -150,6 +155,31 @@ export function mountSpotsTab(container: HTMLElement, plugin: FoodSpotPluginApi)
   });
 
   toolbar.createDiv({ cls: "fs-toolbar-spacer" });
+
+  // One-click bulk fill-in for every spot still missing address / coords /
+  // public rating / photo — the alternative was enriching them one by one.
+  // Hidden entirely when the library is already complete, so a finished
+  // collection does not carry a permanent "something to do" button.
+  const enrichBtn = iconButton(toolbar, {
+    icon: "sparkles",
+    label: "Fetch missing info for all spots",
+    text: "Enrich",
+    onClick: () =>
+      openEnrichModal(plugin, { scope: "missing", fields: CORE_ENRICH_FIELDS }),
+  });
+  const enrichLabel = enrichBtn.querySelector<HTMLElement>(".fs-btn-label");
+  const syncEnrichBtn = (): void => {
+    const n = countNeedingEnrichment(plugin.store.getSpots());
+    enrichBtn.toggleClass("is-hidden", n === 0);
+    if (enrichLabel) enrichLabel.setText(n > 0 ? `Enrich ${n}` : "Enrich");
+    enrichBtn.setAttribute(
+      "title",
+      n > 0
+        ? `Fetch address, coordinates, rating and photo for ${n} spot${n === 1 ? "" : "s"}`
+        : "Every spot already has its details"
+    );
+  };
+  syncEnrichBtn();
 
   iconButton(toolbar, {
     icon: "link",
@@ -531,7 +561,13 @@ export function mountSpotsTab(container: HTMLElement, plugin: FoodSpotPluginApi)
   renderResults();
 
   return {
-    refresh: () => renderResults(),
+    // Only the button's own label is touched here, never the toolbar's
+    // structure — the focus rule stays intact, and the count stays honest
+    // as an enrich run fills spots in.
+    refresh: () => {
+      syncEnrichBtn();
+      renderResults();
+    },
     destroy: () => {
       if (activeController === controller) activeController = null;
       if (pathsCarrier.getCurrentFilteredPaths === getFilteredPaths) {
