@@ -446,3 +446,11 @@
   font-style: italic;
   padding: 8px 0;
 }
+
+/* Rating histogram columns are drillable when they hold something. */
+.fs-dist-col.is-clickable {
+  cursor: pointer;
+}
+.fs-dist-col.is-clickable:hover .fs-dist-bar {
+  filter: brightness(1.15);
+}

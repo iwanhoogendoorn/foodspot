@@ -17,6 +17,8 @@ import {
 import { openDetailModal } from "../modals/detail";
 import { openAddChooser } from "../modals/addChooser";
 import { openImportModal } from "../modals/importFlow";
+import { openStatDrill } from "../modals/statDrill";
+import type { DrillVisit } from "../modals/statDrill";
 
 const RING_R = 45;
 const RING_C = 2 * Math.PI * RING_R;
@@ -414,20 +416,51 @@ export function mountDashboardTab(
   };
 
   const buildStats = (el: HTMLElement, spots: FoodSpot[]): void => {
+    /**
+     * Every visit passing `pred`, paired with its spot. Counting panels use
+     * this so a drill-down shows ALL matching visits, including the ones
+     * without an amount — the spend panels deliberately use `entries`
+     * instead, which is amount-only.
+     */
+    const visitsMatching = (pred: (v: Visit) => boolean): DrillVisit[] => {
+      const out: DrillVisit[] = [];
+      for (const s of spots) {
+        for (const v of s.visits) if (pred(v)) out.push({ spot: s, visit: v });
+      }
+      return out;
+    };
+
     const grid = el.createDiv({ cls: "fs-stats-grid" });
     const panel = (title: string): HTMLElement => {
       const p = grid.createDiv({ cls: "fs-stats-panel" });
       p.createDiv({ cls: "fs-stats-panel-title", text: title });
       return p;
     };
-    const coveragePanel = (title: string, entries: CoverageEntry[], empty: string) => {
+    /**
+     * `keys` doubles as the drill-down predicate: a row lists exactly the
+     * spots that produced the key it was built from, so the bar and the list
+     * behind it can never disagree about what the bucket holds.
+     */
+    const coveragePanel = (
+      title: string,
+      entries: CoverageEntry[],
+      empty: string,
+      keys: (s: FoodSpot) => (string | undefined)[],
+    ) => {
       const p = panel(title);
       if (!entries.length) {
         emptyLine(p, empty);
         return;
       }
       for (const e of entries.slice(0, 10)) {
-        barRow(p, e.label, `${e.visited}/${e.total}`, e.total ? e.visited / e.total : 0);
+        barRow(p, e.label, `${e.visited}/${e.total}`, e.total ? e.visited / e.total : 0, () =>
+          openStatDrill(plugin, {
+            title: `${title} · ${e.label}`,
+            spots: spots.filter((s) =>
+              keys(s).some((k) => (k ?? "").trim() === e.label),
+            ),
+          }),
+        );
       }
     };
 
@@ -476,38 +509,50 @@ export function mountDashboardTab(
       "By country",
       coverageBy(spots, (s) => [s.country]),
       "No countries yet — spots without a country don't show here.",
+      (s) => [s.country],
     );
     coveragePanel(
       "By city",
       coverageBy(spots, (s) => [s.city]),
       "No cities recorded yet — add a city to your spots to see this.",
+      (s) => [s.city],
     );
     coveragePanel(
       "By cuisine",
       coverageBy(spots, (s) => s.cuisines),
       "No cuisines recorded yet — tag your spots with a cuisine to see this.",
+      (s) => s.cuisines,
     );
 
     // By price tier.
     {
       const p = panel("By price");
-      const rows: { label: string; count: number }[] = [];
+      const rows: { label: string; count: number; match: (s: FoodSpot) => boolean }[] = [];
       const symbol = plugin.settings.currencySymbol || "€";
       for (let t = 1; t <= 4; t++) {
         rows.push({
           label: symbol.repeat(t),
           count: spots.filter((s) => s.price === t).length,
+          match: (s) => s.price === t,
         });
       }
       rows.push({
         label: "No price",
         count: spots.filter((s) => s.price === undefined).length,
+        match: (s) => s.price === undefined,
       });
       const max = Math.max(1, ...rows.map((r) => r.count));
       if (rows.every((r) => r.count === 0 || r.label === "No price")) {
         emptyLine(p, "No price tiers set yet — set a € tier on a spot to see this.");
       } else {
-        for (const r of rows) barRow(p, r.label, String(r.count), r.count / max);
+        for (const r of rows) {
+          barRow(p, r.label, String(r.count), r.count / max, () =>
+            openStatDrill(plugin, {
+              title: `By price · ${r.label}`,
+              spots: spots.filter(r.match),
+            }),
+          );
+        }
       }
     }
 
@@ -534,6 +579,18 @@ export function mountDashboardTab(
           bar.style.height = `${Math.max(2, Math.round((count / max) * 100))}%`;
           if (!count) bar.style.opacity = "0.25";
           col.createDiv({ cls: "fs-dist-label", text: Number.isInteger(v) ? String(v) : "" });
+          // Only bars with something behind them react — an empty bucket that
+          // opens an empty list reads as a broken click.
+          if (count) {
+            col.addClass("is-clickable");
+            col.onclick = () =>
+              openStatDrill(plugin, {
+                title: `My ratings · ${v}★`,
+                spots: rated.filter(
+                  (s) => Math.max(0.5, Math.min(5, Math.round((s.rating ?? 0) * 2) / 2)) === v,
+                ),
+              });
+          }
         }
       }
     }
@@ -563,7 +620,14 @@ export function mountDashboardTab(
           }
         }
         const max = Math.max(1, ...rows.map((r) => r.count));
-        for (const r of rows) barRow(p, r.label, String(r.count), r.count / max);
+        for (const r of rows) {
+          barRow(p, r.label, String(r.count), r.count / max, () =>
+            openStatDrill(plugin, {
+              title: `Visits · ${r.label}`,
+              visits: visitsMatching((v) => v.date.startsWith(r.key)),
+            }),
+          );
+        }
       }
     }
 
@@ -582,7 +646,14 @@ export function mountDashboardTab(
       } else {
         const years = [...byYear.entries()].sort((a, b) => a[0].localeCompare(b[0]));
         const max = Math.max(1, ...years.map(([, n]) => n));
-        for (const [y, n] of years) barRow(p, y, String(n), n / max);
+        for (const [y, n] of years) {
+          barRow(p, y, String(n), n / max, () =>
+            openStatDrill(plugin, {
+              title: `Visits · ${y}`,
+              visits: visitsMatching((v) => v.date.startsWith(y)),
+            }),
+          );
+        }
       }
     }
 
@@ -675,13 +746,23 @@ export function mountDashboardTab(
         for (const [key, n] of months) {
           const d = new Date(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, 1);
           const label = d.toLocaleDateString(undefined, { month: "short", year: "2-digit" });
-          barRow(p, label, money(n), max ? n / max : 0);
+          barRow(p, label, money(n), max ? n / max : 0, () =>
+            openStatDrill(plugin, {
+              // Only the visits that carried an amount, so the list adds up
+              // to the figure on the bar the user just clicked.
+              title: `Spend · ${label}`,
+              visits: entries
+                .filter((e) => e.visit.date.slice(0, 7) === key)
+                .map((e) => ({ spot: e.spot, visit: e.visit })),
+            }),
+          );
         }
       }
     }
 
-    // Spend by city (top 8). Rows stay static: this file has no jump-to-city
-    // helper — the Spots location filter is only reachable from spots.ts.
+    // Spend by city (top 8). Rows open the visits behind the figure — the
+    // Spots location filter still lives in spots.ts, but a bar is no longer
+    // a dead end.
     {
       const p = panel("Spend by city");
       const byCity = new Map<string, number>();
@@ -697,7 +778,16 @@ export function mountDashboardTab(
         emptyLine(p, "No spend recorded against a city yet — add a city to your spots.");
       } else {
         const max = Math.max(...cities.map(([, n]) => n));
-        for (const [city, n] of cities) barRow(p, city, money(n), max ? n / max : 0);
+        for (const [city, n] of cities) {
+          barRow(p, city, money(n), max ? n / max : 0, () =>
+            openStatDrill(plugin, {
+              title: `Spend · ${city}`,
+              visits: entries
+                .filter((e) => (e.spot.city ?? "").trim() === city)
+                .map((e) => ({ spot: e.spot, visit: e.visit })),
+            }),
+          );
+        }
       }
     }
 
