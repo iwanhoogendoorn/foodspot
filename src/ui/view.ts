@@ -1,6 +1,6 @@
 /**
  * Food Spot — the single ItemView shell: tab bar (Dashboard / Spots /
- * Discover / Locations / Map / Visits) with Lucide icons, a visits-this-month badge, icon-only tabs with
+ * Discover / Locations / Map / Visits / Stats) with Lucide icons, a visits-this-month badge, icon-only tabs with
  * dot badges on mobile, lazily mounted tabs, store-driven refresh, and
  * persisted active tab.
  */
@@ -13,6 +13,7 @@ import { mountDiscoverTab } from "./tabs/discover";
 import { mountPlacesTab } from "./tabs/places";
 import { mountMapTab } from "./tabs/map";
 import { mountVisitsTab } from "./tabs/visits";
+import { mountStatsTab } from "./tabs/stats";
 import { mountDashboardTab } from "./tabs/dashboard";
 
 interface TabDef {
@@ -29,6 +30,7 @@ const TABS: TabDef[] = [
   { id: "places", label: "Locations", icon: "list-tree", mount: mountPlacesTab },
   { id: "map", label: "Map", icon: "map", mount: mountMapTab },
   { id: "visits", label: "Visits", icon: "history", mount: mountVisitsTab },
+  { id: "stats", label: "Stats", icon: "bar-chart-3", mount: mountStatsTab },
 ];
 
 export class FoodSpotView extends ItemView {
