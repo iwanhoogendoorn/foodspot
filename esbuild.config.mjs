@@ -59,7 +59,10 @@ const context = await esbuild.context({
     "@lezer/common",
     "@lezer/highlight",
     "@lezer/lr",
+    // Node's own modules stay external in both spellings — Obsidian provides
+    // them at run time (the API server requires "node:http").
     ...builtins,
+    ...builtins.map((b) => `node:${b}`),
   ],
   format: "cjs",
   target: "es2020",

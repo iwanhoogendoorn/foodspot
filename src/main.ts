@@ -22,11 +22,18 @@ import { openGalleryModal } from "./ui/modals/gallery";
 import { disposePhotoObserver } from "./ui/components/card";
 import { ensureFolder } from "./store/noteWriter";
 import { dumpDashboardDiagnostics } from "./diagnostics";
+import { randomToken, startApiServer, type ApiServer } from "./api/server";
+import { todayISO } from "./store/legacyMap";
 
 export default class FoodSpotPlugin extends Plugin implements FoodSpotPluginApi {
   settings: FoodSpotSettings = { ...DEFAULT_SETTINGS };
   store!: SpotStore;
   importer!: ImportPipeline;
+  /** The local HTTP server, when settings.apiEnabled and the start succeeded. */
+  api?: ApiServer;
+  /** Why the API is not running, for the settings screen. */
+  apiError?: string;
+  private storeReady = false;
 
   async onload() {
     await this.loadSettings();
@@ -99,13 +106,58 @@ export default class FoodSpotPlugin extends Plugin implements FoodSpotPluginApi 
 
     this.app.workspace.onLayoutReady(async () => {
       await this.store.initialize();
+      this.storeReady = true;
+      await this.restartApi();
     });
   }
 
   async onunload() {
+    this.api?.close();
+    this.api = undefined;
     this.store?.dispose();
     // Module-level lazy-photo observer would otherwise outlive the plugin.
     disposePhotoObserver();
+  }
+
+  /** A fresh API token. The caller stores it in settings and saves. */
+  newApiToken(): string {
+    return randomToken();
+  }
+
+  /**
+   * (Re)start the local HTTP API from current settings — or stop it when
+   * disabled. Loopback-only, bearer-token; see src/api/server.ts.
+   */
+  async restartApi(): Promise<void> {
+    this.api?.close();
+    this.api = undefined;
+    this.apiError = undefined;
+    if (!this.settings.apiEnabled) return;
+    if (this.settings.apiToken === "") {
+      this.apiError = "no token";
+      return;
+    }
+    try {
+      this.api = await startApiServer({
+        port: this.settings.apiPort,
+        token: this.settings.apiToken,
+        log: (m) => console.log(`[foodspot/api] ${m}`),
+        deps: {
+          store: this.store,
+          settings: () => this.settings,
+          today: () => todayISO(),
+          version: this.manifest.version,
+          ready: () => this.storeReady,
+        },
+      });
+    } catch (e) {
+      this.apiError =
+        e instanceof Error && /EADDRINUSE/.test(e.message)
+          ? `port ${this.settings.apiPort} is taken`
+          : "could not start";
+      console.error("[foodspot/api]", e);
+      new Notice(`Food Spot API: ${this.apiError}.`);
+    }
   }
 
   async loadSettings() {

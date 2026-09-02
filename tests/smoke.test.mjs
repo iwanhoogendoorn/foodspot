@@ -32,6 +32,9 @@
  *      UTC-based idioms they replaced shifted the day by one
  *  16. source guard: spotStore.updateSpot's merged literal carries `menu` and
  *      `hours`, and keeps its compile-time CompleteSpotInput gate
+ *  17. HTTP API routes (src/api/routes.ts, pure): health counts, list filters,
+ *      ref resolution (name / folder path / basename), ambiguous-name 400,
+ *      visit + patch + create validation, flat visit list, stats totals
  *
  * noteWriter.ts imports `obsidian` for types only, so the bundle aliases
  * `obsidian` to an empty stub — the tested fns are pure.
@@ -66,6 +69,7 @@ writeFileSync(
     `export { buildGuideHtml } from ${JSON.stringify(join(root, "src/tools/guideHtml.ts"))};`,
     `export { frontmatterFromInput, buildSpot, computeDerived, extractSection, replaceSection } from ${JSON.stringify(join(root, "src/store/noteWriter.ts"))};`,
     `export { DEFAULT_SETTINGS, EMPTY_FILTER_STATE } from ${JSON.stringify(join(root, "src/types.ts"))};`,
+    `export { handle as apiHandle, API_BASE } from ${JSON.stringify(join(root, "src/api/routes.ts"))};`,
   ].join("\n"),
 );
 
@@ -143,6 +147,8 @@ const {
   daysBetweenCalendar,
   DEFAULT_SETTINGS,
   EMPTY_FILTER_STATE,
+  apiHandle,
+  API_BASE,
 } = mod;
 
 let passed = 0;
@@ -1191,6 +1197,227 @@ ok("updateSpot's merged SpotInput carries every optional field, `hours` included
     /type CompleteSpotInput = SpotInput & Record<keyof SpotInput, unknown>/,
     "CompleteSpotInput gate is still declared",
   );
+});
+
+// ---------------------------------------------------------------------------
+console.log("HTTP API routes (pure handler)");
+// ---------------------------------------------------------------------------
+
+/** ok(), for the async API handler. */
+async function okA(name, fn) {
+  await fn();
+  passed++;
+  console.log(`  ok - ${name}`);
+}
+
+
+function apiFixture() {
+  const mkSpot = (o) => ({
+    cuisines: [],
+    city: undefined,
+    status: "visited",
+    favorite: false,
+    ratingLocked: false,
+    source: "manual",
+    external: {},
+    tags: [],
+    visits: [],
+    visitCount: 0,
+    lastVisit: undefined,
+    created: "2026-01-01",
+    updated: "2026-01-01",
+    notes: "",
+    ...o,
+  });
+  const spots = [
+    mkSpot({
+      path: "60 FOOD/Food Spot/Netherlands/Harput (Den Haag).md",
+      name: "Harput",
+      country: "Netherlands",
+      city: "Den Haag",
+      cuisines: ["Turkish"],
+      rating: 4,
+      visits: [
+        { date: "2026-08-08", spent: 50, note: "" },
+        { date: "2026-07-01", spent: 33.5, rating: 4, note: "terrace" },
+      ],
+      visitCount: 2,
+      lastVisit: "2026-08-08",
+    }),
+    mkSpot({
+      path: "60 FOOD/Food Spot/Netherlands/Vapiano (Rotterdam).md",
+      name: "Vapiano",
+      country: "Netherlands",
+      city: "Rotterdam",
+    }),
+    mkSpot({
+      path: "60 FOOD/Food Spot/Netherlands/Vapiano (Den Haag).md",
+      name: "Vapiano",
+      country: "Netherlands",
+      city: "Den Haag",
+      status: "want-to-try",
+    }),
+  ];
+  const calls = { addVisit: [], updateSpot: [], created: [] };
+  const store = {
+    getSpots: () => spots,
+    getByPath: (p) => spots.find((s) => s.path === p),
+    addVisit: async (path, visit) => {
+      calls.addVisit.push([path, visit]);
+      const s = store.getByPath(path);
+      return { ...s, visitCount: s.visitCount + 1, lastVisit: visit.date };
+    },
+    updateSpot: async (path, fields) => {
+      calls.updateSpot.push([path, fields]);
+      return { ...store.getByPath(path), ...fields };
+    },
+    createSpot: async (input) => {
+      calls.created.push(input);
+      return {
+        ...input,
+        path: `60 FOOD/Food Spot/${input.country}/${input.name}.md`,
+        visitCount: 0,
+        created: "2026-09-02",
+        updated: "2026-09-02",
+      };
+    },
+    deleteSpot: async () => {},
+    setNotes: async () => {},
+  };
+  const deps = {
+    store,
+    settings: () => ({ ...DEFAULT_SETTINGS, spotsFolder: "60 FOOD/Food Spot", defaultCountry: "Netherlands" }),
+    today: () => "2026-09-02",
+    version: "0.0.0-test",
+    ready: () => true,
+  };
+  return { deps, calls };
+}
+
+const req = (method, path, { query = {}, body } = {}) => ({ method, path, query, body });
+
+await okA("base path constant matches the spec", () => {
+  assert.equal(API_BASE, "/foodspot/v1");
+});
+
+await okA("health reports counts and readiness", async () => {
+  const { deps } = apiFixture();
+  const r = await apiHandle(req("GET", "health"), deps);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.ok, true);
+  assert.deepEqual(r.body.counts, { spots: 3, visited: 2, wantToTry: 1, visits: 2, countries: 1 });
+});
+
+await okA("spot list filters by status and city", async () => {
+  const { deps } = apiFixture();
+  const all = await apiHandle(req("GET", "spots"), deps);
+  assert.equal(all.body.spots.length, 3);
+  const visited = await apiHandle(req("GET", "spots", { query: { status: "visited", city: "Den Haag" } }), deps);
+  assert.deepEqual(visited.body.spots.map((s) => s.name), ["Harput"]);
+  assert.equal(visited.body.spots[0].totalSpent, 83.5);
+});
+
+await okA("a spot resolves by unique name, spots-folder path, and basename", async () => {
+  const { deps } = apiFixture();
+  for (const ref of ["spots/Harput", "spots/Netherlands/Harput (Den Haag).md", "spots/Harput (Den Haag)"]) {
+    const r = await apiHandle(req("GET", ref), deps);
+    assert.equal(r.status, 200, ref);
+    assert.equal(r.body.name, "Harput");
+  }
+  const full = await apiHandle(req("GET", "spots/Harput"), deps);
+  assert.equal(full.body.visits.length, 2);
+});
+
+await okA("an ambiguous name is a 400 listing candidates, not a guess", async () => {
+  const { deps } = apiFixture();
+  const r = await apiHandle(req("GET", "spots/Vapiano"), deps);
+  assert.equal(r.status, 400);
+  assert.match(r.body.error, /Vapiano \(Rotterdam\)\.md/);
+  assert.match(r.body.error, /Vapiano \(Den Haag\)\.md/);
+});
+
+await okA("unknown spot and unknown route are 404, JSON error shape", async () => {
+  const { deps } = apiFixture();
+  const spot = await apiHandle(req("GET", "spots/Nope"), deps);
+  assert.equal(spot.status, 404);
+  assert.equal(typeof spot.body.error, "string");
+  const route = await apiHandle(req("GET", "nope"), deps);
+  assert.equal(route.status, 404);
+});
+
+await okA("POST visit validates and defaults the date to today", async () => {
+  const { deps, calls } = apiFixture();
+  const badRating = await apiHandle(
+    req("POST", "spots/Harput/visits", { body: { rating: 4.2 } }),
+    deps,
+  );
+  assert.equal(badRating.status, 400);
+  const badDate = await apiHandle(
+    req("POST", "spots/Harput/visits", { body: { date: "2026-13-40" } }),
+    deps,
+  );
+  assert.equal(badDate.status, 400);
+  const r = await apiHandle(
+    req("POST", "spots/Harput/visits", { body: { spent: 47.5, rating: 4, note: "api" } }),
+    deps,
+  );
+  assert.equal(r.status, 201);
+  assert.deepEqual(calls.addVisit, [
+    ["60 FOOD/Food Spot/Netherlands/Harput (Den Haag).md", { date: "2026-09-02", spent: 47.5, rating: 4, note: "api" }],
+  ]);
+  assert.equal(r.body.spot.visitCount, 3);
+});
+
+await okA("PATCH validates; rating null clears and unlocks", async () => {
+  const { deps, calls } = apiFixture();
+  const badStatus = await apiHandle(
+    req("PATCH", "spots/Harput", { body: { status: "closed" } }),
+    deps,
+  );
+  assert.equal(badStatus.status, 400);
+  const empty = await apiHandle(req("PATCH", "spots/Harput", { body: {} }), deps);
+  assert.equal(empty.status, 400);
+  const r = await apiHandle(
+    req("PATCH", "spots/Harput", { body: { rating: null, favorite: true } }),
+    deps,
+  );
+  assert.equal(r.status, 200);
+  const [, fields] = calls.updateSpot[0];
+  assert.equal(fields.favorite, true);
+  assert.equal(fields.ratingLocked, false);
+  assert.ok("rating" in fields && fields.rating === undefined);
+});
+
+await okA("POST /spots needs a name and falls back to the default country", async () => {
+  const { deps, calls } = apiFixture();
+  const noName = await apiHandle(req("POST", "spots", { body: {} }), deps);
+  assert.equal(noName.status, 400);
+  const r = await apiHandle(
+    req("POST", "spots", { body: { name: "Test Kitchen", city: "Delft", cuisines: "Korean" } }),
+    deps,
+  );
+  assert.equal(r.status, 201);
+  assert.equal(calls.created[0].country, "Netherlands");
+  assert.deepEqual(calls.created[0].cuisines, ["Korean"]);
+  assert.equal(calls.created[0].status, "want-to-try");
+});
+
+await okA("flat visit list is newest-first and honours from/to", async () => {
+  const { deps } = apiFixture();
+  const all = await apiHandle(req("GET", "visits"), deps);
+  assert.deepEqual(all.body.visits.map((v) => v.date), ["2026-08-08", "2026-07-01"]);
+  assert.equal(all.body.visits[0].spot.name, "Harput");
+  const ranged = await apiHandle(req("GET", "visits", { query: { from: "2026-08-01" } }), deps);
+  assert.equal(ranged.body.visits.length, 1);
+});
+
+await okA("stats totals match the fixture", async () => {
+  const { deps } = apiFixture();
+  const r = await apiHandle(req("GET", "stats"), deps);
+  assert.equal(r.body.spots, 3);
+  assert.equal(r.body.visits, 2);
+  assert.equal(r.body.totalSpent, 83.5);
+  assert.deepEqual(r.body.topVisited.map((t) => t.name), ["Harput"]);
 });
 
 console.log(`\nall ${passed} asserts groups passed`);

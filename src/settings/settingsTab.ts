@@ -1017,6 +1017,113 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     warn.createSpan({
       text: "The key is stored in plain text in this vault's plugin data.json. Anyone (or anything) with access to your vault files can read it.",
     });
+
+    this.renderHttpApi(body);
+  }
+
+  /** Local HTTP API — the Helm pattern: loopback-only, bearer token, off by default. */
+  private renderHttpApi(body: HTMLElement): void {
+    const s = this.plugin.settings;
+    const chip = (): { text: string; tone: ChipTone } => {
+      if (!s.apiEnabled) return { text: "Off", tone: "pending" };
+      if (this.plugin.api) return { text: `Running on 127.0.0.1:${this.plugin.api.port}`, tone: "ok" };
+      return { text: this.plugin.apiError ?? "not running", tone: "warn" };
+    };
+    const g = this.group(body, {
+      icon: "radio-tower",
+      title: "Local HTTP API",
+      subtitle: "Drive Food Spot from scripts and tools on this machine",
+      chip: chip(),
+    });
+    const c = g.content;
+    if (Platform.isMobile) {
+      c.createEl("p", {
+        cls: "fs-api-hint",
+        text: "The HTTP API is desktop-only — mobile Obsidian has no local server.",
+      });
+      return;
+    }
+    c.createEl("p", {
+      cls: "fs-api-hint",
+      text: "Food Spot serves JSON on 127.0.0.1 only — never a network interface — and every request must carry the token below. Calls go through the same store code the views use, so visit counts, derived fields and change events stay consistent.",
+    });
+    new Setting(c)
+      .setName("Serve the API")
+      .setDesc("Starts when you switch it on, and whenever Obsidian starts.")
+      .addToggle((t) =>
+        t.setValue(s.apiEnabled).onChange((v) =>
+          void (async () => {
+            if (v && s.apiToken === "") s.apiToken = this.plugin.newApiToken();
+            s.apiEnabled = v;
+            await this.save();
+            await this.plugin.restartApi();
+            this.renderBody();
+          })(),
+        ),
+      );
+    new Setting(c)
+      .setName("Port")
+      .setDesc("Change it if something else already uses this one. Helm sits on 27125.")
+      .addText((t) =>
+        t
+          .setPlaceholder("27126")
+          .setValue(String(s.apiPort))
+          .onChange((v) =>
+            void (async () => {
+              const n = Number(v);
+              if (!Number.isInteger(n) || n < 1024 || n > 65535) return;
+              s.apiPort = n;
+              await this.save();
+              await this.plugin.restartApi();
+              g.setChip(chip().text, chip().tone);
+            })(),
+          ),
+      );
+    new Setting(c)
+      .setName("Token")
+      .setDesc("Send it as “Authorization: Bearer <token>”. Treat it like a password.")
+      .addText((t) => {
+        t.setValue(s.apiToken).setDisabled(true);
+        t.inputEl.type = "password";
+        t.inputEl.addClass("fs-api-token");
+      })
+      .addButton((b) =>
+        b.setButtonText("Copy").onClick(() => {
+          if (s.apiToken === "") {
+            new Notice("No token yet — enable the API first.");
+            return;
+          }
+          void navigator.clipboard.writeText(s.apiToken);
+          new Notice("Token copied.");
+        }),
+      )
+      .addButton((b) =>
+        b
+          .setButtonText("New token")
+          .setWarning()
+          .onClick(() =>
+            void (async () => {
+              this.plugin.settings.apiToken = this.plugin.newApiToken();
+              await this.save();
+              await this.plugin.restartApi();
+              this.renderBody();
+              new Notice("New token — anything using the old one has to be updated.");
+            })(),
+          ),
+      );
+    const base = `http://127.0.0.1:${this.plugin.api?.port ?? s.apiPort}/foodspot/v1`;
+    c.createEl("p", { cls: "fs-api-hint", text: "Try it from a terminal:" });
+    c.createEl("pre", {
+      cls: "fs-api-example",
+      text: [
+        `TOKEN=<copy it with the button above>`,
+        `curl -s ${base}/health -H "Authorization: Bearer $TOKEN"`,
+        `curl -s "${base}/spots?status=visited&country=Netherlands&limit=5" -H "Authorization: Bearer $TOKEN"`,
+        `curl -s -X POST "${base}/spots/Harput/visits" -H "Authorization: Bearer $TOKEN" \\`,
+        `  -H 'content-type: application/json' -d '{"spent": 47.5, "rating": 4}'`,
+      ].join("\n"),
+    });
+    c.createEl("p", { cls: "fs-api-hint", text: "Every route is listed in docs/api.md in the Food Spot repository." });
   }
 
   // -------------------------------------------------------------------------

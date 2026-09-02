@@ -208,6 +208,11 @@ export interface FoodSpotSettings {
   duplicateDetectionRadiusMeters: number;
   reviewBeforeSave: boolean;
   apiKeys: { googlePlaces?: string };
+  // Local HTTP API (mirrors Helm): loopback-only, bearer-token, desktop-only.
+  apiEnabled: boolean;
+  apiPort: number;
+  /** Generated on first enable; never hard-coded, committed, or logged. */
+  apiToken: string;
   // Customize
   cardSizeDesktop: number; // -3..3
   cardSizeMobile: number; // -3..3
@@ -249,6 +254,9 @@ export const DEFAULT_SETTINGS: FoodSpotSettings = {
   duplicateDetectionRadiusMeters: 75,
   reviewBeforeSave: true,
   apiKeys: {},
+  apiEnabled: false,
+  apiPort: 27126, // Helm uses 27125; a different default so they can run together
+  apiToken: "",
   cardSizeDesktop: 0,
   cardSizeMobile: -1,
   cardTextPlacement: "inside",
@@ -406,6 +414,11 @@ export interface FoodSpotPluginApi {
   importer: ImportPipelineApi;
   /** Open the main view and switch to a tab; optionally apply a location filter. */
   activateView(tab?: string): Promise<void>;
+  // Local HTTP API (src/api/) — running server handle, last failure, controls.
+  api?: { close(): void; port: number };
+  apiError?: string;
+  restartApi(): Promise<void>;
+  newApiToken(): string;
 }
 
 // ---------------------------------------------------------------------------

@@ -431,3 +431,24 @@
 .fs-qi-body p {
   margin: 4px 0;
 }
+
+/* --- Local HTTP API (Helm pattern) ----------------------------------------- */
+.fs-api-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 6px 0;
+}
+.fs-api-token {
+  font-family: var(--font-monospace);
+  font-size: 12px;
+}
+.fs-api-example {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-x: auto;
+  user-select: text;
+}
