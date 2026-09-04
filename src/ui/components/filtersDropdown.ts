@@ -9,6 +9,7 @@
  */
 import { App, Menu, Modal, Notice, setIcon } from "obsidian";
 import type {
+  ClosedFilter,
   FoodSpotPluginApi,
   SavedFilterPreset,
   SortSpec,
@@ -28,12 +29,16 @@ export function cloneFilters(f: SpotFilterState): SpotFilterState {
     excludedPrices: [...f.excludedPrices],
     minRating: f.minRating,
     favoritesOnly: f.favoritesOnly,
+    // Saved presets and settings written before this facet existed have no
+    // `closed` at all — normalize here so every consumer sees a real value.
+    closed: f.closed ?? "any",
   };
 }
 
 export function isFilterActive(f: SpotFilterState): boolean {
   return (
     f.favoritesOnly ||
+    (f.closed ?? "any") !== "any" ||
     f.minRating > 0 ||
     f.excludedStatuses.length > 0 ||
     f.excludedCuisines.length > 0 ||
@@ -277,6 +282,38 @@ export function buildFiltersControl(
     ratingSec.createDiv({
       cls: "fs-filter-note",
       text: "Unrated spots are always shown.",
+    });
+
+    // Permanently closed — single-choice, same shape as Minimum rating. The
+    // library keeps closed places on purpose (they are still places you have
+    // been), so "Include" is the default and the other two are the views:
+    // "where can I eat tonight" and "the graveyard".
+    const closedSec = panel.createDiv({ cls: "fs-filter-section" });
+    closedSec
+      .createDiv({ cls: "fs-filter-section-head" })
+      .createSpan({ text: "Permanently closed" });
+    const cChips = closedSec.createDiv({ cls: "fs-filter-chips" });
+    const closedOptions: { value: ClosedFilter; label: string }[] = [
+      { value: "any", label: "Include" },
+      { value: "hide", label: "Hide" },
+      { value: "only", label: "Only closed" },
+    ];
+    const closedChipEls: HTMLElement[] = [];
+    for (const o of closedOptions) {
+      const chip = makeChip(cChips, o.label);
+      chip.toggleClass("is-on", (opts.getState().closed ?? "any") === o.value);
+      chip.addEventListener("click", () => {
+        const next = cloneFilters(opts.getState());
+        next.closed = o.value;
+        commit(next);
+        for (const el of closedChipEls) el.removeClass("is-on");
+        chip.addClass("is-on");
+      });
+      closedChipEls.push(chip);
+    }
+    closedSec.createDiv({
+      cls: "fs-filter-note",
+      text: "Marked from Google when a pull finds the listing closed.",
     });
 
     // Exclusion-set facets

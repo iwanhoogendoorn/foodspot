@@ -365,6 +365,7 @@ function spot(over = {}) {
     country: "Netherlands",
     status: "want-to-try",
     favorite: false,
+    permanentlyClosed: false,
     ratingLocked: false,
     source: "manual",
     external: {},
@@ -381,10 +382,30 @@ function spot(over = {}) {
 const spots = [
   spot({ name: "Momiji", cuisines: ["Japanese", "Sushi"], city: "Den Haag", rating: 4.5, price: 3, external: { googleRating: 4.6 }, visits: [{ date: "2026-07-12", note: "omakase" }], visitCount: 1 }),
   spot({ name: "Little V", cuisines: ["Vietnamese"], city: "Rotterdam", rating: 3, price: 2 }),
-  spot({ name: "Moong", cuisines: ["Indian"], city: "Rotterdam", tags: ["date-night"] }),
+  spot({ name: "Moong", cuisines: ["Indian"], city: "Rotterdam", tags: ["date-night"], permanentlyClosed: true }),
   spot({ name: "Sushi Ran", cuisines: ["Japanese"], city: "Amsterdam", rating: 5, external: { googleRating: 4.2 } }),
 ];
 const F = EMPTY_FILTER_STATE;
+
+ok("permanently-closed facet: any / hide / only", () => {
+  const names = (f) => filterSpots(spots, "", f).map((s) => s.name).sort();
+  assert.equal(F.closed, "any", "default keeps closed spots — the library is a history");
+  assert.deepEqual(names(F), ["Little V", "Momiji", "Moong", "Sushi Ran"]);
+  assert.deepEqual(names({ ...F, closed: "hide" }), ["Little V", "Momiji", "Sushi Ran"]);
+  assert.deepEqual(names({ ...F, closed: "only" }), ["Moong"]);
+  // A state saved before the facet existed has no `closed` key at all.
+  const legacy = { ...F };
+  delete legacy.closed;
+  assert.deepEqual(names(legacy), ["Little V", "Momiji", "Moong", "Sushi Ran"]);
+});
+
+ok("closed:yes / closed:no work as search terms", () => {
+  assert.deepEqual(filterSpots(spots, "closed:yes", F).map((s) => s.name), ["Moong"]);
+  assert.deepEqual(
+    filterSpots(spots, "closed:no", F).map((s) => s.name).sort(),
+    ["Little V", "Momiji", "Sushi Ran"],
+  );
+});
 
 ok("field scopes: cuisine:/city:/tag: narrow correctly", () => {
   assert.deepEqual(filterSpots(spots, "cuisine:japanese", F).map((s) => s.name).sort(), ["Momiji", "Sushi Ran"]);
@@ -689,6 +710,17 @@ ok("frontmatterFromInput writes every new snake_case key", () => {
   assert.equal(fm.thefork_rating, 9.2);
   assert.equal(fm.thefork_rating_count, 145);
   assert.equal(fm.thefork_url, "https://www.thefork.nl/restaurant/momiji-r12345");
+});
+
+ok("permanently_closed is written only when true and round-trips", () => {
+  const derived = computeDerived([], false, undefined);
+  const dates = { created: "2026-09-04", updated: "2026-09-04" };
+  const open = frontmatterFromInput({ ...v11Input, permanentlyClosed: false }, derived, dates);
+  assert.equal(open.permanently_closed, undefined, "false must not litter every note");
+  const gone = frontmatterFromInput({ ...v11Input, permanentlyClosed: true }, derived, dates);
+  assert.equal(gone.permanently_closed, true);
+  assert.equal(buildSpot("Food Spot/x.md", gone, "").permanentlyClosed, true);
+  assert.equal(buildSpot("Food Spot/x.md", open, "").permanentlyClosed, false);
 });
 
 ok("buildSpot(frontmatterFromInput(x)) round-trips the new fields", () => {
@@ -1172,6 +1204,7 @@ ok("updateSpot's merged SpotInput carries every optional field, `hours` included
     "favorite",
     "rating",
     "ratingLocked",
+    "permanentlyClosed",
     "price",
     "url",
     "phone",
@@ -1217,6 +1250,7 @@ function apiFixture() {
     city: undefined,
     status: "visited",
     favorite: false,
+    permanentlyClosed: false,
     ratingLocked: false,
     source: "manual",
     external: {},
@@ -1315,6 +1349,7 @@ await okA("spot list filters by status and city", async () => {
   const visited = await apiHandle(req("GET", "spots", { query: { status: "visited", city: "Den Haag" } }), deps);
   assert.deepEqual(visited.body.spots.map((s) => s.name), ["Harput"]);
   assert.equal(visited.body.spots[0].totalSpent, 83.5);
+  assert.equal(visited.body.spots[0].permanentlyClosed, false, "closed flag is exposed over HTTP");
 });
 
 await okA("a spot resolves by unique name, spots-folder path, and basename", async () => {

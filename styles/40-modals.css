@@ -1301,3 +1301,12 @@ a.fs-info-text {
   color: var(--text-muted);
   padding: 12px 0;
 }
+
+/* Permanently-closed row in the detail info block. */
+.fs-info-gone .fs-info-text {
+  color: #e5484d;
+  font-weight: 600;
+}
+.fs-info-gone .fs-info-icon {
+  color: #e5484d;
+}

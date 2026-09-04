@@ -208,6 +208,7 @@ export class SpotStore implements SpotStoreApi {
         coordinates: "coordinates" in input ? input.coordinates : existing.coordinates,
         status: input.status ?? existing.status,
         favorite: input.favorite ?? existing.favorite,
+        permanentlyClosed: input.permanentlyClosed ?? existing.permanentlyClosed,
         rating: "rating" in input ? input.rating : existing.rating,
         ratingLocked: input.ratingLocked ?? existing.ratingLocked,
         price: "price" in input ? input.price : existing.price,

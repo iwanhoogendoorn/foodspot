@@ -474,6 +474,7 @@ export function mountDiscoverTab(
       coordinates: fields.coordinates ?? c.location,
       status: "want-to-try",
       favorite: false,
+      permanentlyClosed: false,
       ratingLocked: false,
       price: fields.price ?? c.priceLevel,
       url: fields.url,

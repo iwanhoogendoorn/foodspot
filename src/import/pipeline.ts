@@ -213,6 +213,9 @@ export class ImportPipeline implements ImportPipelineApi {
     setDraftField(draft, "url", details.website, "high");
     setDraftField(draft, "phone", details.phone, "high");
     setDraftField(draft, "hours", details.hours, "high");
+    if (details.businessStatus === "CLOSED_PERMANENTLY") {
+      setDraftField(draft, "permanentlyClosed", true, "high");
+    }
     // Fresh external ratings always win (v0.1 dropped these on save).
     mergeExternal(draft, {
       googlePlaceId: details.placeId,
@@ -429,6 +432,14 @@ export class ImportPipeline implements ImportPipelineApi {
 
     if (details !== null) {
       if (spot.external.googlePlaceId !== details.placeId) ext.googlePlaceId = details.placeId;
+      // business_status is a fact, freshened on every pull in BOTH directions
+      // (a reopened place heals) — no options checkbox and no overwrite gate.
+      // Closed spots stay in the library and stay pullable: this tool tracks
+      // where the user HAS been, so a dead listing is data, not an error.
+      if (details.businessStatus !== undefined) {
+        const closed = details.businessStatus === "CLOSED_PERMANENTLY";
+        if (closed !== spot.permanentlyClosed) out.permanentlyClosed = closed;
+      }
       if (opts.coords && details.location !== undefined && (overwrite || spot.coordinates === undefined)) {
         out.coordinates = details.location;
       }
@@ -463,11 +474,31 @@ export class ImportPipeline implements ImportPipelineApi {
         if (details.rating !== undefined) ext.googleRating = details.rating;
         if (details.ratingCount !== undefined) ext.googleRatingCount = details.ratingCount;
       }
-      if (opts.photo && details.photoReference !== undefined && (overwrite || isBlank(spot.photo))) {
-        try {
-          out.photo = await this.downloadPhoto(spot.name, details.photoReference);
-        } catch (e) {
-          photoError = errMsg(e);
+      if (opts.photo && (overwrite || isBlank(spot.photo))) {
+        if (details.photoReference !== undefined) {
+          try {
+            out.photo = await this.downloadPhoto(spot.name, details.photoReference);
+          } catch (e) {
+            photoError = errMsg(e);
+          }
+        } else {
+          // No place photos — usual for permanently closed listings, whose
+          // entries are husks. Fall back to a Street View façade of the
+          // address so the card isn't a blank tile forever. No imagery is a
+          // clean nothing (null); a failed download of imagery that exists
+          // is a real error and reported like any other photo failure.
+          const at = {
+            address: details.address ?? spot.address,
+            location: details.location ?? spot.coordinates,
+          };
+          if (at.address !== undefined || at.location !== undefined) {
+            try {
+              const shot = await this.places.fetchStreetViewPhoto(at);
+              if (shot !== null) out.photo = await this.saveMedia(spot.name, shot);
+            } catch (e) {
+              photoError = errMsg(e);
+            }
+          }
         }
       }
     }
@@ -580,7 +611,15 @@ export class ImportPipeline implements ImportPipelineApi {
 
   /** Download the place photo into settings.mediaFolder; returns the vault path. */
   private async downloadPhoto(spotName: string, photoReference: string): Promise<string> {
-    const { data, ext } = await this.places.fetchPlacePhoto(photoReference, PHOTO_MAX_WIDTH);
+    const shot = await this.places.fetchPlacePhoto(photoReference, PHOTO_MAX_WIDTH);
+    return this.saveMedia(spotName, shot);
+  }
+
+  /** Write an image payload into settings.mediaFolder; returns the vault path. */
+  private async saveMedia(
+    spotName: string,
+    { data, ext }: { data: ArrayBuffer; ext: string },
+  ): Promise<string> {
     const app = this.plugin.app;
     const folder = this.plugin.settings.mediaFolder.replace(/^\/+|\/+$/g, "");
     await ensureFolder(app, folder);

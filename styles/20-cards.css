@@ -758,3 +758,16 @@
     opacity: 1;
   }
 }
+
+/* Permanently closed (Google business_status) — a fact, not a clock claim. */
+.fs-open-chip.is-gone::before {
+  background: #e5484d;
+}
+.fs-open-chip.is-gone {
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 600;
+}
+.fs-card-nophoto .fs-open-chip.is-gone,
+.fs-card-text-under .fs-open-chip.is-gone {
+  color: var(--text-muted);
+}

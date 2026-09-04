@@ -47,6 +47,7 @@ const DETAILS_FIELDS = [
   "place_id",
   "photo",
   "opening_hours",
+  "business_status",
 ].join(",");
 
 const FIND_PLACE_FIELDS = [
@@ -89,6 +90,8 @@ export interface PlaceDetails {
   cuisines?: string[];
   /** Opening hours as readable per-day lines (see ui/components/hours.ts). */
   hours?: string[];
+  /** Google business_status: OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY. */
+  businessStatus?: string;
 }
 
 interface RawAddressComponent {
@@ -111,6 +114,7 @@ interface RawPlace {
   international_phone_number?: string;
   photos?: { photo_reference?: string }[];
   opening_hours?: { periods?: RawPeriod[] };
+  business_status?: string;
 }
 
 interface RawPeriod {
@@ -409,6 +413,7 @@ export class PlacesClient {
     if (typeof photoRef === "string" && photoRef !== "") details.photoReference = photoRef;
     const hours = mapOpeningHours(raw);
     if (hours !== undefined) details.hours = hours;
+    if (typeof raw.business_status === "string") details.businessStatus = raw.business_status;
     return details;
   }
 
@@ -437,31 +442,97 @@ export class PlacesClient {
     if (res.status >= 400) {
       throw new PlacesError(`Google Place Photo request failed (HTTP ${res.status}).`);
     }
-    const headers = res.headers ?? {};
-    let contentType = "";
-    for (const key of Object.keys(headers)) {
-      if (key.toLowerCase() === "content-type") {
-        contentType = (headers[key] ?? "").split(";")[0].trim().toLowerCase();
-        break;
-      }
-    }
-    if (!contentType.startsWith("image/")) {
-      throw new PlacesError(
-        `Google Place Photo returned ${contentType === "" ? "no content type" : contentType} instead of an image.`,
-      );
-    }
-    const data = res.arrayBuffer;
-    if (!data || data.byteLength === 0) {
-      throw new PlacesError("Google Place Photo returned an empty body.");
-    }
-    const EXT_BY_TYPE: Record<string, string> = {
-      "image/jpeg": "jpg",
-      "image/jpg": "jpg",
-      "image/png": "png",
-      "image/webp": "webp",
-      "image/gif": "gif",
-      "image/avif": "avif",
-    };
-    return { data, ext: EXT_BY_TYPE[contentType] ?? "jpg" };
+    return imageBody(res, "Google Place Photo");
   }
+
+  /**
+   * Street View façade of an address — the cover fallback for listings with
+   * no place photos (typically permanently closed spots whose Google entry is
+   * a husk). Metadata is checked first so the grey "no imagery available"
+   * placeholder never lands in the vault: null means Google has no outdoor
+   * imagery there, which is a clean nothing, not an error.
+   */
+  async fetchStreetViewPhoto(
+    at: { address?: string; location?: Coordinates },
+    sizePx = 640,
+  ): Promise<{ data: ArrayBuffer; ext: string } | null> {
+    // An ADDRESS query snaps to the official car pano facing the building;
+    // raw coordinates instead pick the nearest pano, which is regularly a
+    // user-contributed indoor photosphere (a jewelry display case, once).
+    const loc =
+      at.address && at.address.trim() !== ""
+        ? at.address.trim()
+        : at.location
+          ? `${at.location.lat},${at.location.lng}`
+          : null;
+    if (loc === null) return null;
+    const metaQs = new URLSearchParams({ location: loc, source: "outdoor", key: this.key() });
+    const meta = await fetchWithTimeout(`${STREETVIEW_BASE}/metadata?${metaQs.toString()}`, {
+      throw: false,
+      skipBotCheck: true,
+    });
+    let panoId: string | undefined;
+    try {
+      const m = JSON.parse(meta.text ?? "") as {
+        status?: string;
+        copyright?: string;
+        pano_id?: string;
+      };
+      // Official Google car imagery only — contributed photospheres are
+      // whatever a phone saw, not the façade this cover stands for.
+      if (m.status === "OK" && (m.copyright ?? "").includes("Google")) panoId = m.pano_id;
+    } catch {
+      panoId = undefined;
+    }
+    if (panoId === undefined) return null;
+    const qs = new URLSearchParams({
+      size: `${sizePx}x${sizePx}`,
+      pano: panoId,
+      key: this.key(),
+    });
+    const res = await fetchWithTimeout(`${STREETVIEW_BASE}?${qs.toString()}`, {
+      throw: false,
+      skipBotCheck: true,
+      headers: { accept: "image/*" },
+    });
+    if (res.status >= 400) {
+      throw new PlacesError(`Google Street View request failed (HTTP ${res.status}).`);
+    }
+    return imageBody(res, "Google Street View");
+  }
+}
+
+const STREETVIEW_BASE = "https://maps.googleapis.com/maps/api/streetview";
+
+/** Validated image payload of a response; throws on HTML error pages / empty bodies. */
+function imageBody(
+  res: { headers?: Record<string, string>; arrayBuffer?: ArrayBuffer },
+  label: string,
+): { data: ArrayBuffer; ext: string } {
+  const headers = res.headers ?? {};
+  let contentType = "";
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === "content-type") {
+      contentType = (headers[key] ?? "").split(";")[0].trim().toLowerCase();
+      break;
+    }
+  }
+  if (!contentType.startsWith("image/")) {
+    throw new PlacesError(
+      `${label} returned ${contentType === "" ? "no content type" : contentType} instead of an image.`,
+    );
+  }
+  const data = res.arrayBuffer;
+  if (!data || data.byteLength === 0) {
+    throw new PlacesError(`${label} returned an empty body.`);
+  }
+  const EXT_BY_TYPE: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "image/avif": "avif",
+  };
+  return { data, ext: EXT_BY_TYPE[contentType] ?? "jpg" };
 }

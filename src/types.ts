@@ -91,6 +91,12 @@ export interface FoodSpot {
   coordinates?: Coordinates;
   status: SpotStatus;
   favorite: boolean;
+  /**
+   * Google says the business is gone (business_status CLOSED_PERMANENTLY).
+   * A closed spot is still a valid library entry — this tool tracks where
+   * you HAVE been — it just stops pretending the listing is alive.
+   */
+  permanentlyClosed: boolean;
   /** Personal rating 0.5–5; derived from visit ratings unless ratingLocked. */
   rating?: number;
   /** When true, `rating` was set manually and is not recomputed from visits. */
@@ -183,7 +189,15 @@ export interface SpotFilterState {
   excludedPrices: number[]; // 0 encodes "no price"
   minRating: number; // 0 = off; unrated spots are NOT excluded by this
   favoritesOnly: boolean;
+  /**
+   * Permanently-closed facet. "any" (default) keeps the library whole — a
+   * closed place is still somewhere you have been; "hide" is the "where can
+   * I actually eat tonight" view; "only" is the graveyard.
+   */
+  closed: ClosedFilter;
 }
+
+export type ClosedFilter = "any" | "hide" | "only";
 
 export interface SavedFilterPreset {
   name: string;
@@ -239,6 +253,7 @@ export const EMPTY_FILTER_STATE: SpotFilterState = {
   excludedPrices: [],
   minRating: 0,
   favoritesOnly: false,
+  closed: "any",
 };
 
 export const DEFAULT_SETTINGS: FoodSpotSettings = {

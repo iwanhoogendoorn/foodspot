@@ -878,6 +878,9 @@ class AddEditModal extends Modal {
       coordinates,
       status: s.status,
       favorite: s.favorite,
+      // Not edited in this form; carried so the create path and the
+      // no-baseline fallback keep the truth (editPartial never diffs it).
+      permanentlyClosed: this.editBaseline?.permanentlyClosed ?? false,
       rating: s.rating,
       ratingLocked: s.ratingLocked,
       price: s.price,
@@ -1096,6 +1099,7 @@ function baselineFromSpot(spot: FoodSpot): SpotInput {
     coordinates: spot.coordinates ? { ...spot.coordinates } : undefined,
     status: spot.status,
     favorite: spot.favorite,
+    permanentlyClosed: spot.permanentlyClosed,
     rating: spot.rating,
     ratingLocked: spot.ratingLocked,
     price: spot.price,

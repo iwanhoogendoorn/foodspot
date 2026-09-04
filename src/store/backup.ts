@@ -495,6 +495,7 @@ export async function importBackup(
           coordinates: spot.coordinates,
           status: spot.status === "visited" ? "visited" : "want-to-try",
           favorite: spot.favorite === true,
+          permanentlyClosed: spot.permanentlyClosed === true,
           rating: spot.rating,
           ratingLocked: spot.ratingLocked === true,
           price: spot.price,

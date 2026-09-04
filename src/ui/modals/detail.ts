@@ -349,6 +349,16 @@ class DetailModal extends Modal {
   private renderInfo(parent: HTMLElement, spot: FoodSpot): void {
     const block = parent.createDiv({ cls: "fs-detail-info" });
 
+    // First fact about a dead listing: it IS dead. The spot stays — the
+    // library tracks where you have been — but nothing below should read as
+    // if the place still serves dinner.
+    if (spot.permanentlyClosed) {
+      const row = block.createDiv({ cls: "fs-info-row fs-info-gone" });
+      const icon = row.createSpan({ cls: "fs-info-icon" });
+      setIcon(icon, "store");
+      row.createSpan({ cls: "fs-info-text", text: "Permanently closed (per Google)" });
+    }
+
     // A formatted address usually already contains district/city/country —
     // only append the parts it doesn't mention ("…Delft, Netherlands, Delft,
     // Netherlands" was the old result).
@@ -432,25 +442,32 @@ class DetailModal extends Modal {
     if (!spot.hours || spot.hours.length === 0) return;
     // Same guard as the card: this machine's clock only speaks for spots in
     // the user's own country, so a Dubai spot gets the schedule without an
-    // open/closed claim rather than a confidently wrong one.
-    const state = localClockApplies(spot.country, this.plugin.settings.defaultCountry)
-      ? openState(spot.hours, new Date())
-      : null;
+    // open/closed claim rather than a confidently wrong one. A permanently
+    // closed place gets no clock claim at all — its row above says why.
+    const state =
+      !spot.permanentlyClosed &&
+      localClockApplies(spot.country, this.plugin.settings.defaultCountry)
+        ? openState(spot.hours, new Date())
+        : null;
 
-    const row = block.createDiv({ cls: "fs-info-row" });
-    const icon = row.createSpan({ cls: "fs-info-icon" });
-    setIcon(icon, "clock");
-    if (state) {
-      const text = row.createSpan({
-        cls: `fs-info-text fs-hours-state ${state.open ? "is-open" : "is-closed"}`,
-        text: state.label,
-      });
-      if (state.open) {
-        text.style.setProperty("--fs-open", this.plugin.settings.statusColors.visited);
+    // A closed place gets no clock row at all — its "Permanently closed" row
+    // already leads the block; the old schedule stays available below.
+    if (!spot.permanentlyClosed) {
+      const row = block.createDiv({ cls: "fs-info-row" });
+      const icon = row.createSpan({ cls: "fs-info-icon" });
+      setIcon(icon, "clock");
+      if (state) {
+        const text = row.createSpan({
+          cls: `fs-info-text fs-hours-state ${state.open ? "is-open" : "is-closed"}`,
+          text: state.label,
+        });
+        if (state.open) {
+          text.style.setProperty("--fs-open", this.plugin.settings.statusColors.visited);
+        }
+      } else {
+        row.addClass("fs-info-empty");
+        row.createSpan({ cls: "fs-info-text", text: "Opening hours (unreadable format)" });
       }
-    } else {
-      row.addClass("fs-info-empty");
-      row.createSpan({ cls: "fs-info-text", text: "Opening hours (unreadable format)" });
     }
 
     const details = block.createEl("details", { cls: "fs-hours-details" });

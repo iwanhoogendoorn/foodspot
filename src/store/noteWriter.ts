@@ -251,6 +251,8 @@ export function frontmatterFromInput(
     location: serializeLocation(input.coordinates),
     status: input.status,
     favorite: input.favorite,
+    // Written only when true — 195 notes don't need `permanently_closed: false`.
+    permanently_closed: input.permanentlyClosed ? true : undefined,
     rating: derived.rating,
     rating_locked: input.ratingLocked ? true : undefined,
     price: input.price,
@@ -358,6 +360,7 @@ export function buildSpot(
       ? (statusRaw as FoodSpot["status"])
       : "want-to-try",
     favorite: asBool(fm.favorite),
+    permanentlyClosed: asBool(fm.permanently_closed),
     rating: derived.rating,
     ratingLocked,
     price: asNum(fm.price),

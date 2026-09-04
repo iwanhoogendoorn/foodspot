@@ -7,7 +7,7 @@
  *   free terms        fuzzy-AND via Fuse.js (threshold 0.24, weighted fields)
  *   "quoted text"     exact (case/diacritic-insensitive) substring
  *   field:value       scoped: cuisine, city, country, district, tag, status,
- *                     dish (visit notes), name
+ *                     dish (visit notes), name, closed (yes/no)
  *   rating:>=4        numeric comparators on rating / google / price / visits
  *   -term             exclusion (substring, predictable)
  *   a | b             OR groups; terms inside a group AND together
@@ -38,6 +38,7 @@ const TEXT_FIELDS = new Set([
   "status",
   "dish",
   "name",
+  "closed",
 ]);
 const NUM_FIELDS = new Set(["rating", "google", "price", "visits"]);
 
@@ -112,6 +113,9 @@ function textFieldValues(spot: FoodSpot, field: string): string[] {
       return spot.visits.map((v) => v.note).filter((n) => n.length > 0);
     case "name":
       return [spot.name];
+    case "closed":
+      // `closed:yes` / `closed:no` — the search-box twin of the filter chip.
+      return [spot.permanentlyClosed ? "yes" : "no"];
     default:
       return [];
   }
@@ -228,6 +232,9 @@ function buildFuse(spots: FoodSpot[]): Fuse<FuzzyDoc> {
  */
 function passesFilters(s: FoodSpot, f: SpotFilterState): boolean {
   if (f.favoritesOnly && !s.favorite) return false;
+  // Older persisted states (and presets) predate this facet — absent is "any".
+  if (f.closed === "hide" && s.permanentlyClosed) return false;
+  if (f.closed === "only" && !s.permanentlyClosed) return false;
   if (f.excludedStatuses.includes(s.status)) return false;
   if (f.excludedCountries.includes(s.country ?? "")) return false;
   if (f.excludedCities.includes(s.city ?? "")) return false;

@@ -294,7 +294,15 @@ export async function pullSpotInfo(
     });
     if (patch && Object.keys(patch).length > 0) {
       await plugin.store.updateSpot(spot.path, patch);
-      new Notice(`Pulled Google info for "${spot.name}".`);
+      new Notice(
+        patch.permanentlyClosed === true
+          ? `Pulled Google info for "${spot.name}" — the listing is marked permanently closed.`
+          : `Pulled Google info for "${spot.name}".`,
+      );
+    } else if (spot.permanentlyClosed) {
+      // A dead listing keeps only its final ratings — an empty pull here is
+      // Google having nothing more, not the button failing.
+      new Notice(`Nothing new — Google lists "${spot.name}" as permanently closed.`);
     } else {
       new Notice(`Nothing new found for "${spot.name}".`);
     }
@@ -658,10 +666,20 @@ function buildFullCard(
     o.createSpan({ cls: "fs-meta-g", text: other.label });
     o.createSpan({ text: ` ${fmtRating(other.rating)}${other.scale10 ? "/10" : ""}` });
   }
+  // A permanently closed place outranks any clock-based claim: it stays in
+  // the library (this tool tracks where you HAVE been) but the card says the
+  // listing is dead instead of pretending "Closed … until 17:00".
+  if (spot.permanentlyClosed) {
+    meta.createSpan({
+      cls: "fs-open-chip is-gone",
+      attr: { title: "Google lists this place as permanently closed" },
+      text: "Permanently closed",
+    });
+  }
   // Open-now chip — only for spots whose hours we can actually read; unknown
   // hours leave the meta row exactly as it was. Spots in another country are
   // judged by this machine's clock, so they get no open/closed claim at all.
-  const hours = localClockApplies(spot.country, plugin.settings.defaultCountry)
+  const hours = !spot.permanentlyClosed && localClockApplies(spot.country, plugin.settings.defaultCountry)
     ? openState(spot.hours, new Date())
     : null;
   if (hours) {

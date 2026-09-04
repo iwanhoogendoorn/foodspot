@@ -332,6 +332,7 @@ function draftToInput(plugin: FoodSpotPluginApi, draft: ImportedSpotDraft): Spot
     coordinates: f.coordinates,
     status: f.status ?? "want-to-try",
     favorite: f.favorite ?? false,
+    permanentlyClosed: f.permanentlyClosed ?? false,
     rating: f.rating,
     ratingLocked: f.ratingLocked ?? false,
     price: f.price,

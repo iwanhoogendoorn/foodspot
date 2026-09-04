@@ -34,7 +34,7 @@ const SORT_KEYS: SortKey[] = [
 
 const VALID_KEYS = [
   "view", "country", "city", "district", "cuisine", "status", "tag",
-  "price", "minRating", "favorite", "limit", "sort", "direction", "stat",
+  "price", "minRating", "favorite", "closed", "limit", "sort", "direction", "stat",
 ];
 
 interface WidgetParams {
@@ -48,6 +48,8 @@ interface WidgetParams {
   price?: number;
   minRating?: number;
   favorite?: boolean;
+  /** Permanently closed: true = only closed, false = hide closed. */
+  closed?: boolean;
   limit?: number;
   sort?: SortKey;
   direction?: "asc" | "desc";
@@ -110,6 +112,10 @@ function parseSource(source: string): { params: WidgetParams; errors: string[] }
         if (value === "true" || value === "false") params.favorite = value === "true";
         else errors.push(`favorite: "${value}" — must be true or false.`);
         break;
+      case "closed":
+        if (value === "true" || value === "false") params.closed = value === "true";
+        else errors.push(`closed: "${value}" — must be true or false.`);
+        break;
       case "limit": {
         const n = Number(value);
         if (Number.isInteger(n) && n > 0) params.limit = n;
@@ -162,6 +168,7 @@ function applyFilters(spots: FoodSpot[], p: WidgetParams): FoodSpot[] {
     )
       return false;
     if (p.favorite !== undefined && s.favorite !== p.favorite) return false;
+    if (p.closed !== undefined && s.permanentlyClosed !== p.closed) return false;
     return true;
   });
 }

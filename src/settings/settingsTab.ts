@@ -1471,6 +1471,7 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     docRow(filters, "price", "Tier 1–4.");
     docRow(filters, "minRating", "Minimum personal rating, 0–5 (half steps allowed). Unrated spots are always shown.");
     docRow(filters, "favorite", "true or false.");
+    docRow(filters, "closed", "true = only permanently closed spots, false = hide them.");
     docRow(filters, "limit", "Maximum number of results.");
     docRow(filters, "sort", "name, rating, external-rating, price, date-added, last-visit, visit-count.");
     docRow(filters, "direction", "asc or desc.");
