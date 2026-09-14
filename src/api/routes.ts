@@ -17,6 +17,8 @@ export interface ApiRequest {
   path: string;
   query: Record<string, string>;
   body?: unknown;
+  /** True when the TCP peer is not this machine (see server.ts). */
+  remote?: boolean;
 }
 
 export interface ApiResponse {
@@ -31,12 +33,17 @@ export interface ApiDeps {
   version: string;
   /** False until the store's initial vault scan has finished. */
   ready: () => boolean;
+  /** Read live per request, so the settings toggle applies without a restart. */
+  allowRemoteWrites: () => boolean;
 }
 
 const ok = (body: unknown): ApiResponse => ({ status: 200, body });
 const made = (body: unknown): ApiResponse => ({ status: 201, body });
 const bad = (message: string): ApiResponse => ({ status: 400, body: { error: message } });
 const missing = (message: string): ApiResponse => ({ status: 404, body: { error: message } });
+
+/** The methods another device may use when network writes are not allowed. */
+const READ_METHODS = new Set(["GET", "HEAD"]);
 
 const asRecord = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
@@ -159,6 +166,19 @@ export async function handle(req: ApiRequest, d: ApiDeps): Promise<ApiResponse> 
   const head = parts[0];
   const body = asRecord(req.body);
   const method = req.method.toUpperCase();
+
+  // Other devices are read-only unless the user opted in: the API is plain
+  // HTTP, and a token sniffed off a café network should not be able to
+  // rewrite or delete the library. This machine is never limited.
+  if (req.remote === true && !READ_METHODS.has(method) && !d.allowRemoteWrites()) {
+    return {
+      status: 403,
+      body: {
+        error:
+          "Writes from other devices are disabled — turn on “Allow writes from other devices” in Food Spot settings",
+      },
+    };
+  }
 
   if (head === "health" && method === "GET") {
     const spots = d.store.getSpots();

@@ -22,8 +22,11 @@ import { openGalleryModal } from "./ui/modals/gallery";
 import { disposePhotoObserver } from "./ui/components/card";
 import { ensureFolder } from "./store/noteWriter";
 import { dumpDashboardDiagnostics } from "./diagnostics";
-import { randomToken, startApiServer, type ApiServer } from "./api/server";
+import { bindPlanFor, randomToken, startApiServer, type ApiServer } from "./api/server";
 import { todayISO } from "./store/legacyMap";
+
+/** How often Tailscale mode looks for the tailnet address while it is not up. */
+const API_RETRY_MS = 30_000;
 
 export default class FoodSpotPlugin extends Plugin implements FoodSpotPluginApi {
   settings: FoodSpotSettings = { ...DEFAULT_SETTINGS };
@@ -31,9 +34,13 @@ export default class FoodSpotPlugin extends Plugin implements FoodSpotPluginApi 
   importer!: ImportPipeline;
   /** The local HTTP server, when settings.apiEnabled and the start succeeded. */
   api?: ApiServer;
-  /** Why the API is not running, for the settings screen. */
+  /** Why the API is not (fully) running, for the settings screen. */
   apiError?: string;
   private storeReady = false;
+  private unloaded = false;
+  /** Tail of the serialized API (re)start chain. */
+  private apiChain: Promise<void> = Promise.resolve();
+  private apiRetryTimer: number | undefined;
 
   async onload() {
     await this.loadSettings();
@@ -112,7 +119,9 @@ export default class FoodSpotPlugin extends Plugin implements FoodSpotPluginApi 
   }
 
   async onunload() {
-    this.api?.close();
+    this.unloaded = true;
+    this.clearApiRetry();
+    void this.api?.close();
     this.api = undefined;
     this.store?.dispose();
     // Module-level lazy-photo observer would otherwise outlive the plugin.
@@ -126,20 +135,33 @@ export default class FoodSpotPlugin extends Plugin implements FoodSpotPluginApi 
 
   /**
    * (Re)start the local HTTP API from current settings — or stop it when
-   * disabled. Loopback-only, bearer-token; see src/api/server.ts.
+   * disabled. Serialized: the port field restarts on every keystroke, and two
+   * overlapping starts would orphan a listening server nothing can close.
    */
-  async restartApi(): Promise<void> {
-    this.api?.close();
+  restartApi(): Promise<void> {
+    this.apiChain = this.apiChain
+      .catch(() => undefined)
+      .then(() => this.applyApiSettings());
+    return this.apiChain;
+  }
+
+  private async applyApiSettings(): Promise<void> {
+    this.clearApiRetry();
+    const old = this.api;
     this.api = undefined;
     this.apiError = undefined;
-    if (!this.settings.apiEnabled) return;
+    await old?.close();
+    if (this.unloaded || !this.settings.apiEnabled) return;
     if (this.settings.apiToken === "") {
       this.apiError = "no token";
       return;
     }
+    const plan = bindPlanFor(this.settings.apiHost);
+    const port = this.settings.apiPort;
     try {
-      this.api = await startApiServer({
-        port: this.settings.apiPort,
+      const server = await startApiServer({
+        hosts: plan.hosts,
+        port,
         token: this.settings.apiToken,
         log: (m) => console.log(`[foodspot/api] ${m}`),
         deps: {
@@ -148,15 +170,47 @@ export default class FoodSpotPlugin extends Plugin implements FoodSpotPluginApi 
           today: () => todayISO(),
           version: this.manifest.version,
           ready: () => this.storeReady,
+          allowRemoteWrites: () => this.settings.apiAllowRemoteWrites,
         },
       });
+      if (this.unloaded) {
+        await server.close();
+        return;
+      }
+      this.api = server;
+      if (plan.waitingForTailscale) {
+        // Tailscale is often not up yet when Obsidian starts. Serve this Mac
+        // meanwhile and add the tailnet address once it appears.
+        this.apiError = "Tailscale is not up yet — this Mac only for now, retrying";
+        this.scheduleTailscaleRetry();
+      }
     } catch (e) {
-      this.apiError =
-        e instanceof Error && /EADDRINUSE/.test(e.message)
-          ? `port ${this.settings.apiPort} is taken`
+      const msg = e instanceof Error ? e.message : String(e);
+      this.apiError = /EADDRINUSE/.test(msg)
+        ? `port ${port} is taken`
+        : /EADDRNOTAVAIL/.test(msg)
+          ? `cannot listen on ${plan.hosts.join(", ")}`
           : "could not start";
       console.error("[foodspot/api]", e);
       new Notice(`Food Spot API: ${this.apiError}.`);
+    }
+  }
+
+  private scheduleTailscaleRetry(): void {
+    this.apiRetryTimer = window.setTimeout(() => {
+      this.apiRetryTimer = undefined;
+      if (this.unloaded || !this.settings.apiEnabled || this.settings.apiHost !== "tailscale") return;
+      // Restart only once there is something new to bind — a restart cuts
+      // this Mac's open connections.
+      if (bindPlanFor("tailscale").waitingForTailscale) this.scheduleTailscaleRetry();
+      else void this.restartApi();
+    }, API_RETRY_MS);
+  }
+
+  private clearApiRetry(): void {
+    if (this.apiRetryTimer !== undefined) {
+      window.clearTimeout(this.apiRetryTimer);
+      this.apiRetryTimer = undefined;
     }
   }
 

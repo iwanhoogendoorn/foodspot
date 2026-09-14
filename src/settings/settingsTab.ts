@@ -20,7 +20,7 @@ import {
   normalizePath,
   setIcon,
 } from "obsidian";
-import type { FoodSpot, FoodSpotPluginApi, FoodSpotSettings } from "../types";
+import type { ApiHostMode, FoodSpot, FoodSpotPluginApi, FoodSpotSettings } from "../types";
 import { DATA_CHANGED_EVENT } from "../types";
 import { confirmModal } from "../ui/modals/confirm";
 import { openDuplicatesModal } from "../ui/modals/duplicates";
@@ -31,6 +31,7 @@ import { sanitizeFileName } from "../import/pipeline";
 import { embedRefPath } from "../store/visitsParser";
 import { todayIso } from "../util/dates";
 import { ProgressModal } from "../ui/modals/progress";
+import { reachableAddresses } from "../api/server";
 
 type FoodSpotPlugin = Plugin & FoodSpotPluginApi;
 
@@ -1021,18 +1022,26 @@ export class FoodSpotSettingTab extends PluginSettingTab {
     this.renderHttpApi(body);
   }
 
-  /** Local HTTP API — the Helm pattern: loopback-only, bearer token, off by default. */
+  /**
+   * Local HTTP API — the Helm pattern (bearer token, off by default) plus an
+   * opt-in wider bind. Beyond this Mac, other devices are read-only unless
+   * "Allow writes from other devices" is on (enforced in src/api/routes.ts).
+   */
   private renderHttpApi(body: HTMLElement): void {
     const s = this.plugin.settings;
     const chip = (): { text: string; tone: ChipTone } => {
       if (!s.apiEnabled) return { text: "Off", tone: "pending" };
-      if (this.plugin.api) return { text: `Running on 127.0.0.1:${this.plugin.api.port}`, tone: "ok" };
-      return { text: this.plugin.apiError ?? "not running", tone: "warn" };
+      const api = this.plugin.api;
+      if (!api) return { text: this.plugin.apiError ?? "not running", tone: "warn" };
+      const where = `${api.hosts.join(" + ")}:${api.port}`;
+      if (this.plugin.apiError) return { text: `Running on ${where} — ${this.plugin.apiError}`, tone: "warn" };
+      // Every interface is a deliberate risk: keep the chip amber as a reminder.
+      return { text: `Running on ${where}`, tone: api.hosts.includes("0.0.0.0") ? "warn" : "ok" };
     };
     const g = this.group(body, {
       icon: "radio-tower",
       title: "Local HTTP API",
-      subtitle: "Drive Food Spot from scripts and tools on this machine",
+      subtitle: "Drive Food Spot from scripts and tools",
       chip: chip(),
     });
     const c = g.content;
@@ -1043,9 +1052,12 @@ export class FoodSpotSettingTab extends PluginSettingTab {
       });
       return;
     }
+    const mode = s.apiHost;
     c.createEl("p", {
       cls: "fs-api-hint",
-      text: "Food Spot serves JSON on 127.0.0.1 only — never a network interface — and every request must carry the token below. Calls go through the same store code the views use, so visit counts, derived fields and change events stay consistent.",
+      text:
+        (mode === "loopback" ? "Food Spot serves JSON on 127.0.0.1 — this Mac only, never the network. " : "") +
+        "Every request must carry the token below. Calls go through the same store code the views use, so visit counts, derived fields and change events stay consistent.",
     });
     new Setting(c)
       .setName("Serve the API")
@@ -1061,6 +1073,50 @@ export class FoodSpotSettingTab extends PluginSettingTab {
           })(),
         ),
       );
+    new Setting(c)
+      .setName("Listen on")
+      .setDesc("Who can reach the API. “This Mac only” is the safe default; the Tailscale option keeps 127.0.0.1 too.")
+      .addDropdown((d) =>
+        d
+          .addOption("loopback", "This Mac only (127.0.0.1)")
+          .addOption("tailscale", "This Mac + Tailscale address")
+          .addOption("all", "All interfaces (0.0.0.0)")
+          .setValue(mode)
+          .onChange((v) =>
+            void (async () => {
+              s.apiHost = v as ApiHostMode;
+              await this.save();
+              await this.plugin.restartApi();
+              this.renderBody();
+            })(),
+          ),
+      );
+    if (mode === "all") {
+      const warn = c.createDiv({ cls: "fs-provider-warning fs-api-warning" });
+      const warnIcon = warn.createSpan();
+      setIcon(warnIcon, "alert-triangle");
+      warn.createSpan({
+        text: "Plain HTTP on every network this Mac joins: the token travels unencrypted, and on hotel, conference or café Wi-Fi anyone watching traffic can copy it. On a laptop, “This Mac + Tailscale address” is the safer choice. macOS may ask once whether Obsidian may accept incoming connections.",
+      });
+    } else if (mode === "tailscale") {
+      c.createEl("p", {
+        cls: "fs-api-hint",
+        text: "Reachable from devices on your tailnet, encrypted by WireGuard. If Tailscale is not running yet, Food Spot serves this Mac meanwhile and checks again every 30 seconds.",
+      });
+    }
+    if (mode !== "loopback") {
+      new Setting(c)
+        .setName("Allow writes from other devices")
+        .setDesc("Off: other devices can read, but creating, changing and deleting spots is refused with HTTP 403. Requests from this Mac are never limited. Applies immediately.")
+        .addToggle((t) =>
+          t.setValue(s.apiAllowRemoteWrites).onChange((v) =>
+            void (async () => {
+              s.apiAllowRemoteWrites = v;
+              await this.save();
+            })(),
+          ),
+        );
+    }
     new Setting(c)
       .setName("Port")
       .setDesc("Change it if something else already uses this one. Helm sits on 27125.")
@@ -1111,8 +1167,10 @@ export class FoodSpotSettingTab extends PluginSettingTab {
             })(),
           ),
       );
-    const base = `http://127.0.0.1:${this.plugin.api?.port ?? s.apiPort}/foodspot/v1`;
-    c.createEl("p", { cls: "fs-api-hint", text: "Try it from a terminal:" });
+    const api = this.plugin.api;
+    const port = api?.port ?? s.apiPort;
+    const base = `http://127.0.0.1:${port}/foodspot/v1`;
+    c.createEl("p", { cls: "fs-api-hint", text: "Try it from a terminal on this Mac:" });
     c.createEl("pre", {
       cls: "fs-api-example",
       text: [
@@ -1123,6 +1181,16 @@ export class FoodSpotSettingTab extends PluginSettingTab {
         `  -H 'content-type: application/json' -d '{"spent": 47.5, "rating": 4}'`,
       ].join("\n"),
     });
+    const remote = api ? reachableAddresses(api.hosts) : [];
+    if (remote.length > 0) {
+      c.createEl("p", { cls: "fs-api-hint", text: "From another device:" });
+      c.createEl("pre", {
+        cls: "fs-api-example",
+        text: remote
+          .map((a) => `curl -s http://${a}:${port}/foodspot/v1/health -H "Authorization: Bearer $TOKEN"`)
+          .join("\n"),
+      });
+    }
     c.createEl("p", { cls: "fs-api-hint", text: "Every route is listed in docs/api.md in the Food Spot repository." });
   }
 

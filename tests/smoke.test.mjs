@@ -35,6 +35,9 @@
  *  17. HTTP API routes (src/api/routes.ts, pure): health counts, list filters,
  *      ref resolution (name / folder path / basename), ambiguous-name 400,
  *      visit + patch + create validation, flat visit list, stats totals
+ *  18. HTTP API network exposure (src/api/addresses.ts + the routes write
+ *      guard): loopback detection, Tailscale range, bind plan per Listen-on
+ *      choice, reachable addresses, other devices read-only by default
  *
  * noteWriter.ts imports `obsidian` for types only, so the bundle aliases
  * `obsidian` to an empty stub — the tested fns are pure.
@@ -70,6 +73,7 @@ writeFileSync(
     `export { frontmatterFromInput, buildSpot, computeDerived, extractSection, replaceSection } from ${JSON.stringify(join(root, "src/store/noteWriter.ts"))};`,
     `export { DEFAULT_SETTINGS, EMPTY_FILTER_STATE } from ${JSON.stringify(join(root, "src/types.ts"))};`,
     `export { handle as apiHandle, API_BASE } from ${JSON.stringify(join(root, "src/api/routes.ts"))};`,
+    `export { isLoopbackAddress, isTailscaleAddress, pickTailscaleAddress, externalIPv4, bindPlan, reachableFromNetwork } from ${JSON.stringify(join(root, "src/api/addresses.ts"))};`,
   ].join("\n"),
 );
 
@@ -149,6 +153,12 @@ const {
   EMPTY_FILTER_STATE,
   apiHandle,
   API_BASE,
+  isLoopbackAddress,
+  isTailscaleAddress,
+  pickTailscaleAddress,
+  externalIPv4,
+  bindPlan,
+  reachableFromNetwork,
 } = mod;
 
 let passed = 0;
@@ -1324,6 +1334,7 @@ function apiFixture() {
     today: () => "2026-09-02",
     version: "0.0.0-test",
     ready: () => true,
+    allowRemoteWrites: () => false,
   };
   return { deps, calls };
 }
@@ -1453,6 +1464,90 @@ await okA("stats totals match the fixture", async () => {
   assert.equal(r.body.visits, 2);
   assert.equal(r.body.totalSpent, 83.5);
   assert.deepEqual(r.body.topVisited.map((t) => t.name), ["Harput"]);
+});
+
+// ---------------------------------------------------------------------------
+console.log("HTTP API network exposure (bind plan + remote write guard)");
+// ---------------------------------------------------------------------------
+
+const ifacesFixture = {
+  lo0: [
+    { address: "127.0.0.1", family: "IPv4", internal: true },
+    { address: "::1", family: "IPv6", internal: true },
+  ],
+  en0: [{ address: "10.11.111.141", family: "IPv4", internal: false }],
+  utun4: [{ address: "100.67.202.68", family: "IPv4", internal: false }],
+};
+
+ok("loopback detection: 127/8 and ::1, mapped spelling too; unknown peers count as remote", () => {
+  for (const a of ["127.0.0.1", "127.1.2.3", "::1", "::ffff:127.0.0.1"]) {
+    assert.equal(isLoopbackAddress(a), true, a);
+  }
+  for (const a of ["10.11.111.141", "100.67.202.68", "::ffff:10.0.0.1", "", undefined]) {
+    assert.equal(isLoopbackAddress(a), false, String(a));
+  }
+});
+
+ok("Tailscale range is 100.64.0.0/10, picked from the interface list", () => {
+  assert.equal(isTailscaleAddress("100.64.0.1"), true);
+  assert.equal(isTailscaleAddress("100.127.255.254"), true);
+  assert.equal(isTailscaleAddress("100.63.255.255"), false);
+  assert.equal(isTailscaleAddress("100.128.0.1"), false);
+  assert.equal(pickTailscaleAddress(ifacesFixture), "100.67.202.68");
+  assert.equal(
+    pickTailscaleAddress({ utun4: [{ address: "100.67.202.68", family: 4, internal: false }] }),
+    "100.67.202.68",
+    "numeric family (older Node) still counts as IPv4",
+  );
+  assert.equal(pickTailscaleAddress({ en0: ifacesFixture.en0 }), undefined);
+});
+
+ok("bind plan per Listen-on choice", () => {
+  assert.deepEqual(bindPlan("loopback", ifacesFixture), { hosts: ["127.0.0.1"], waitingForTailscale: false });
+  assert.deepEqual(bindPlan("all", ifacesFixture), { hosts: ["0.0.0.0"], waitingForTailscale: false });
+  assert.deepEqual(
+    bindPlan("tailscale", ifacesFixture),
+    { hosts: ["127.0.0.1", "100.67.202.68"], waitingForTailscale: false },
+    "Tailscale mode keeps 127.0.0.1 for scripts on this Mac",
+  );
+  assert.deepEqual(
+    bindPlan("tailscale", { lo0: ifacesFixture.lo0, en0: ifacesFixture.en0 }),
+    { hosts: ["127.0.0.1"], waitingForTailscale: true },
+    "tailnet not up yet: this Mac only, waiting",
+  );
+  assert.deepEqual(
+    bindPlan("bogus", ifacesFixture),
+    { hosts: ["127.0.0.1"], waitingForTailscale: false },
+    "an unknown mode fails closed to loopback",
+  );
+});
+
+ok("addresses other devices can use", () => {
+  assert.deepEqual(reachableFromNetwork(["127.0.0.1"], ifacesFixture), []);
+  assert.deepEqual(reachableFromNetwork(["127.0.0.1", "100.67.202.68"], ifacesFixture), ["100.67.202.68"]);
+  assert.deepEqual(reachableFromNetwork(["0.0.0.0"], ifacesFixture), ["10.11.111.141", "100.67.202.68"]);
+  assert.deepEqual(externalIPv4(ifacesFixture), ["10.11.111.141", "100.67.202.68"]);
+});
+
+await okA("other devices are read-only unless network writes are allowed", async () => {
+  const { deps, calls } = apiFixture();
+  const patch = { body: { favorite: true } };
+  const remoteRead = await apiHandle({ ...req("GET", "spots/Harput"), remote: true }, deps);
+  assert.equal(remoteRead.status, 200, "reads are always fine");
+  const remoteWrite = await apiHandle({ ...req("PATCH", "spots/Harput", patch), remote: true }, deps);
+  assert.equal(remoteWrite.status, 403);
+  assert.match(remoteWrite.body.error, /Allow writes from other devices/);
+  const remoteDelete = await apiHandle({ ...req("DELETE", "spots/Harput"), remote: true }, deps);
+  assert.equal(remoteDelete.status, 403);
+  assert.equal(calls.updateSpot.length, 0, "a refused write touches nothing");
+  const localWrite = await apiHandle(req("PATCH", "spots/Harput", patch), deps);
+  assert.equal(localWrite.status, 200, "this Mac is never limited");
+  const allowed = await apiHandle(
+    { ...req("PATCH", "spots/Harput", patch), remote: true },
+    { ...deps, allowRemoteWrites: () => true },
+  );
+  assert.equal(allowed.status, 200, "opted in: other devices may write");
+  assert.equal(calls.updateSpot.length, 2);
 });
 
 console.log(`\nall ${passed} asserts groups passed`);

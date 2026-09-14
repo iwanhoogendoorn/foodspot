@@ -452,3 +452,11 @@
   overflow-x: auto;
   user-select: text;
 }
+/* 0.0.0.0 bind: the one warning in this section that should not be skimmed. */
+.fs-api-warning {
+  margin: 4px 0 10px;
+  color: var(--text-normal);
+}
+.fs-api-warning svg {
+  color: var(--color-red);
+}

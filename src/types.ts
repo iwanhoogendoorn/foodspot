@@ -153,6 +153,8 @@ export type DateFormat = "european" | "american" | "iso";
 export type CardTextPlacement = "inside" | "under";
 export type DashboardCardStyle = "rings" | "rectangles";
 export type SpotViewMode = "cards" | "table";
+/** Where the local HTTP API listens (see src/api/addresses.ts). */
+export type ApiHostMode = "loopback" | "tailscale" | "all";
 
 export interface RatingTier {
   label: string;
@@ -222,11 +224,15 @@ export interface FoodSpotSettings {
   duplicateDetectionRadiusMeters: number;
   reviewBeforeSave: boolean;
   apiKeys: { googlePlaces?: string };
-  // Local HTTP API (mirrors Helm): loopback-only, bearer-token, desktop-only.
+  // Local HTTP API (Helm pattern): bearer token, loopback by default, desktop-only.
   apiEnabled: boolean;
   apiPort: number;
   /** Generated on first enable; never hard-coded, committed, or logged. */
   apiToken: string;
+  /** Listen on this Mac only (default), this Mac + the Tailscale address, or 0.0.0.0. */
+  apiHost: ApiHostMode;
+  /** Let callers on other devices create/change/delete. Off: they are read-only. */
+  apiAllowRemoteWrites: boolean;
   // Customize
   cardSizeDesktop: number; // -3..3
   cardSizeMobile: number; // -3..3
@@ -272,6 +278,8 @@ export const DEFAULT_SETTINGS: FoodSpotSettings = {
   apiEnabled: false,
   apiPort: 27126, // Helm uses 27125; a different default so they can run together
   apiToken: "",
+  apiHost: "loopback",
+  apiAllowRemoteWrites: false,
   cardSizeDesktop: 0,
   cardSizeMobile: -1,
   cardTextPlacement: "inside",
@@ -430,7 +438,7 @@ export interface FoodSpotPluginApi {
   /** Open the main view and switch to a tab; optionally apply a location filter. */
   activateView(tab?: string): Promise<void>;
   // Local HTTP API (src/api/) — running server handle, last failure, controls.
-  api?: { close(): void; port: number };
+  api?: { close(): Promise<void>; port: number; hosts: string[] };
   apiError?: string;
   restartApi(): Promise<void>;
   newApiToken(): string;
