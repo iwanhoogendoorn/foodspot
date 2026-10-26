@@ -38,6 +38,10 @@
  *  18. HTTP API network exposure (src/api/addresses.ts + the routes write
  *      guard): loopback detection, Tailscale range, bind plan per Listen-on
  *      choice, reachable addresses, other devices read-only by default
+ *  19. visit ids and visit CRUD (src/api/visitIds.ts + the /visits routes):
+ *      id round-trip incl. same-date ordinals, malformed ids, ids exposed on
+ *      every visit read, PATCH validation/clearing/photo preservation/date
+ *      re-id, DELETE, and the remote-write guard on the new routes
  *
  * noteWriter.ts imports `obsidian` for types only, so the bundle aliases
  * `obsidian` to an empty stub — the tested fns are pure.
@@ -73,6 +77,7 @@ writeFileSync(
     `export { frontmatterFromInput, buildSpot, computeDerived, extractSection, replaceSection } from ${JSON.stringify(join(root, "src/store/noteWriter.ts"))};`,
     `export { DEFAULT_SETTINGS, EMPTY_FILTER_STATE } from ${JSON.stringify(join(root, "src/types.ts"))};`,
     `export { handle as apiHandle, API_BASE } from ${JSON.stringify(join(root, "src/api/routes.ts"))};`,
+    `export { encodeVisitId, decodeVisitId, visitIdsOf, findVisitIndex } from ${JSON.stringify(join(root, "src/api/visitIds.ts"))};`,
     `export { isLoopbackAddress, isTailscaleAddress, pickTailscaleAddress, externalIPv4, bindPlan, reachableFromNetwork } from ${JSON.stringify(join(root, "src/api/addresses.ts"))};`,
   ].join("\n"),
 );
@@ -159,6 +164,10 @@ const {
   externalIPv4,
   bindPlan,
   reachableFromNetwork,
+  encodeVisitId,
+  decodeVisitId,
+  visitIdsOf,
+  findVisitIndex,
 } = mod;
 
 let passed = 0;
@@ -1283,7 +1292,7 @@ function apiFixture() {
       rating: 4,
       visits: [
         { date: "2026-08-08", spent: 50, note: "" },
-        { date: "2026-07-01", spent: 33.5, rating: 4, note: "terrace" },
+        { date: "2026-07-01", spent: 33.5, rating: 4, note: "terrace", photos: ["dish.jpg"] },
       ],
       visitCount: 2,
       lastVisit: "2026-08-08",
@@ -1302,14 +1311,32 @@ function apiFixture() {
       status: "want-to-try",
     }),
   ];
-  const calls = { addVisit: [], updateSpot: [], created: [] };
+  const calls = { addVisit: [], updateSpot: [], created: [], updateVisit: [], deleteVisit: [] };
+  const recount = (s) => {
+    s.visitCount = s.visits.length;
+    s.lastVisit = s.visits.map((v) => v.date).sort().pop();
+    return s;
+  };
   const store = {
     getSpots: () => spots,
     getByPath: (p) => spots.find((s) => s.path === p),
     addVisit: async (path, visit) => {
       calls.addVisit.push([path, visit]);
       const s = store.getByPath(path);
-      return { ...s, visitCount: s.visitCount + 1, lastVisit: visit.date };
+      s.visits = [...s.visits, visit];
+      return recount(s);
+    },
+    updateVisit: async (path, index, visit) => {
+      calls.updateVisit.push([path, index, visit]);
+      const s = store.getByPath(path);
+      s.visits = s.visits.map((v, i) => (i === index ? visit : v));
+      return recount(s);
+    },
+    deleteVisit: async (path, index) => {
+      calls.deleteVisit.push([path, index]);
+      const s = store.getByPath(path);
+      s.visits = s.visits.filter((_, i) => i !== index);
+      return recount(s);
     },
     updateSpot: async (path, fields) => {
       calls.updateSpot.push([path, fields]);
@@ -1548,6 +1575,196 @@ await okA("other devices are read-only unless network writes are allowed", async
   );
   assert.equal(allowed.status, 200, "opted in: other devices may write");
   assert.equal(calls.updateSpot.length, 2);
+});
+
+// ---------------------------------------------------------------------------
+console.log("visit ids + visit CRUD");
+// ---------------------------------------------------------------------------
+
+const HARPUT = "60 FOOD/Food Spot/Netherlands/Harput (Den Haag).md";
+
+ok("visit ids round-trip, including unicode paths and same-date ordinals", () => {
+  const id = encodeVisitId(HARPUT, "2026-08-08", 1);
+  assert.match(id, /^[A-Za-z0-9_-]+$/, "must be URL-safe with no padding");
+  assert.deepEqual(decodeVisitId(id), { spotPath: HARPUT, date: "2026-08-08", occurrence: 1 });
+  const unicode = "60 FOOD/Food Spot/Türkiye/Köroğlu İşkembecisi (Istanbul).md";
+  assert.deepEqual(decodeVisitId(encodeVisitId(unicode, "2024-12-30", 2)), {
+    spotPath: unicode,
+    date: "2024-12-30",
+    occurrence: 2,
+  });
+  // Two visits on one day get distinct ids; a different date does not collide.
+  assert.notEqual(encodeVisitId(HARPUT, "2026-08-08", 1), encodeVisitId(HARPUT, "2026-08-08", 2));
+});
+
+ok("malformed ids decode to null rather than throwing", () => {
+  for (const bad of ["", "not base64!", "####", encodeVisitId("", "2026-08-08", 1)]) {
+    assert.equal(decodeVisitId(bad), null, JSON.stringify(bad));
+  }
+  // Right shape, impossible values.
+  const enc = (raw) => btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  assert.equal(decodeVisitId(enc("a\u0000not-a-date\u00001")), null, "date must be ISO");
+  assert.equal(decodeVisitId(enc("a\u00002026-08-08\u00000")), null, "occurrence is 1-based");
+  assert.equal(decodeVisitId(enc("a\u00002026-08-08")), null, "needs all three parts");
+});
+
+ok("ids are index-aligned and resolve back to the right visit", () => {
+  const spot = {
+    path: HARPUT,
+    visits: [
+      { date: "2026-08-08", note: "first that day" },
+      { date: "2026-07-01", note: "other day" },
+      { date: "2026-08-08", note: "second that day" },
+    ],
+  };
+  const ids = visitIdsOf(spot);
+  assert.equal(ids.length, 3);
+  assert.deepEqual(decodeVisitId(ids[0]), { spotPath: HARPUT, date: "2026-08-08", occurrence: 1 });
+  assert.deepEqual(decodeVisitId(ids[2]), { spotPath: HARPUT, date: "2026-08-08", occurrence: 2 });
+  assert.equal(findVisitIndex(spot, "2026-08-08", 2), 2);
+  assert.equal(findVisitIndex(spot, "2026-08-08", 3), -1, "absent occurrence is -1, not a wrong hit");
+  assert.equal(findVisitIndex(spot, "2020-01-01", 1), -1);
+});
+
+await okA("every visit read carries its id, and GET /visits/<id> returns that one", async () => {
+  const { deps } = apiFixture();
+  const list = await apiHandle(req("GET", "visits"), deps);
+  const first = list.body.visits[0];
+  assert.equal(typeof first.id, "string");
+  assert.deepEqual(decodeVisitId(first.id), { spotPath: HARPUT, date: "2026-08-08", occurrence: 1 });
+  const nested = await apiHandle(req("GET", "spots/Harput/visits"), deps);
+  assert.deepEqual(nested.body.visits.map((v) => v.id), list.body.visits.map((v) => v.id));
+  const full = await apiHandle(req("GET", "spots/Harput"), deps);
+  assert.deepEqual(full.body.visits.map((v) => v.id), nested.body.visits.map((v) => v.id));
+  const one = await apiHandle(req("GET", `visits/${first.id}`), deps);
+  assert.equal(one.status, 200);
+  assert.equal(one.body.date, "2026-08-08");
+  assert.equal(one.body.spot.name, "Harput");
+});
+
+await okA("PATCH /visits/<id> validates: unknown fields, bad id, empty body", async () => {
+  const { deps, calls } = apiFixture();
+  const list = await apiHandle(req("GET", "visits"), deps);
+  const id = list.body.visits[0].id;
+
+  const unknown = await apiHandle(req("PATCH", `visits/${id}`, { body: { sepnt: 10 } }), deps);
+  assert.equal(unknown.status, 400);
+  assert.match(unknown.body.error, /Unknown field: sepnt/);
+
+  const empty = await apiHandle(req("PATCH", `visits/${id}`, { body: {} }), deps);
+  assert.equal(empty.status, 400);
+  assert.match(empty.body.error, /Nothing to change/);
+
+  for (const payload of [{ date: "2026-13-40" }, { spent: -1 }, { rating: 4.2 }, { note: 7 }]) {
+    const r = await apiHandle(req("PATCH", `visits/${id}`, { body: payload }), deps);
+    assert.equal(r.status, 400, JSON.stringify(payload));
+  }
+
+  const gone = await apiHandle(
+    req("PATCH", `visits/${encodeVisitId(HARPUT, "1999-01-01", 1)}`, { body: { spent: 1 } }),
+    deps,
+  );
+  assert.equal(gone.status, 404);
+  const garbage = await apiHandle(req("PATCH", "visits/not-an-id", { body: { spent: 1 } }), deps);
+  assert.equal(garbage.status, 404);
+
+  assert.equal(calls.updateVisit.length, 0, "no rejected request reached the store");
+});
+
+await okA("PATCH edits in place, preserves photos, and re-ids on a date change", async () => {
+  const { deps, calls } = apiFixture();
+  const list = await apiHandle(req("GET", "visits"), deps);
+  // index 1 in document order is the 2026-07-01 visit, which carries a photo
+  const withPhoto = list.body.visits.find((v) => v.date === "2026-07-01");
+  assert.deepEqual(withPhoto.photos, ["dish.jpg"]);
+
+  const edited = await apiHandle(
+    req("PATCH", `visits/${withPhoto.id}`, { body: { spent: 41, note: "  moved inside  " } }),
+    deps,
+  );
+  assert.equal(edited.status, 200);
+  assert.equal(edited.body.visit.spent, 41);
+  assert.equal(edited.body.visit.note, "moved inside", "note is trimmed");
+  assert.equal(edited.body.visit.rating, 4, "untouched fields survive");
+  assert.deepEqual(edited.body.visit.photos, ["dish.jpg"], "photos survive a partial edit");
+  assert.equal(edited.body.visit.id, withPhoto.id, "same date, same id");
+  const [, index] = calls.updateVisit[0];
+  assert.equal(index, 1, "edited in place, by index");
+
+  const cleared = await apiHandle(
+    req("PATCH", `visits/${withPhoto.id}`, { body: { spent: null, rating: null } }),
+    deps,
+  );
+  assert.equal(cleared.body.visit.spent, null);
+  assert.equal(cleared.body.visit.rating, null);
+
+  const moved = await apiHandle(
+    req("PATCH", `visits/${withPhoto.id}`, { body: { date: "2026-06-05" } }),
+    deps,
+  );
+  assert.equal(moved.status, 200);
+  assert.notEqual(moved.body.visit.id, withPhoto.id, "a new date means a new id");
+  assert.deepEqual(decodeVisitId(moved.body.visit.id), {
+    spotPath: HARPUT,
+    date: "2026-06-05",
+    occurrence: 1,
+  });
+  const stale = await apiHandle(req("GET", `visits/${withPhoto.id}`), deps);
+  assert.equal(stale.status, 404, "the old id is dead");
+});
+
+await okA("DELETE /visits/<id> removes one visit and updates the spot's counters", async () => {
+  const { deps, calls } = apiFixture();
+  const before = await apiHandle(req("GET", "spots/Harput"), deps);
+  assert.equal(before.body.visitCount, 2);
+  const id = before.body.visits[0].id;
+
+  const gone = await apiHandle(req("DELETE", `visits/${encodeVisitId(HARPUT, "1999-01-01", 1)}`), deps);
+  assert.equal(gone.status, 404);
+  assert.equal(calls.deleteVisit.length, 0);
+
+  const r = await apiHandle(req("DELETE", `visits/${id}`), deps);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.deleted, id);
+  assert.equal(r.body.spot.visitCount, 1);
+  assert.deepEqual(calls.deleteVisit, [[HARPUT, 0]]);
+
+  const after = await apiHandle(req("GET", "spots/Harput"), deps);
+  assert.deepEqual(after.body.visits.map((v) => v.date), ["2026-07-01"]);
+  assert.equal(
+    (await apiHandle(req("GET", `visits/${id}`), deps)).status,
+    404,
+    "the deleted id no longer resolves",
+  );
+});
+
+await okA("the remote-write guard covers the new visit routes", async () => {
+  const { deps, calls } = apiFixture();
+  const list = await apiHandle(req("GET", "visits"), deps);
+  const id = list.body.visits[0].id;
+
+  assert.equal((await apiHandle({ ...req("GET", `visits/${id}`), remote: true }, deps)).status, 200);
+  const patch = await apiHandle(
+    { ...req("PATCH", `visits/${id}`, { body: { spent: 1 } }), remote: true },
+    deps,
+  );
+  assert.equal(patch.status, 403);
+  const del = await apiHandle({ ...req("DELETE", `visits/${id}`), remote: true }, deps);
+  assert.equal(del.status, 403);
+  assert.equal(calls.updateVisit.length + calls.deleteVisit.length, 0);
+
+  const allowed = { ...deps, allowRemoteWrites: () => true };
+  const okPatch = await apiHandle(
+    { ...req("PATCH", `visits/${id}`, { body: { spent: 1 } }), remote: true },
+    allowed,
+  );
+  assert.equal(okPatch.status, 200, "opted in: other devices may edit visits");
+});
+
+await okA("the visits collection itself rejects writes without an id", async () => {
+  const { deps } = apiFixture();
+  const r = await apiHandle(req("POST", "visits", { body: { date: "2026-09-02" } }), deps);
+  assert.equal(r.status, 405, "creating a visit needs a spot: POST /spots/<ref>/visits");
 });
 
 console.log(`\nall ${passed} asserts groups passed`);

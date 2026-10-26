@@ -8,6 +8,7 @@
 import type { FoodSpot, FoodSpotSettings, SpotInput, SpotStatus, SpotStoreApi, Visit } from "../types";
 import { SPOT_STATUSES } from "../types";
 import { parseCalendarDate } from "../util/dates";
+import { decodeVisitId, findVisitIndex, visitIdsOf } from "./visitIds";
 
 export const API_BASE = "/foodspot/v1";
 
@@ -45,6 +46,9 @@ const missing = (message: string): ApiResponse => ({ status: 404, body: { error:
 /** The methods another device may use when network writes are not allowed. */
 const READ_METHODS = new Set(["GET", "HEAD"]);
 
+/** Everything PATCH /visits/<id> accepts; anything else is a 400, not ignored. */
+const VISIT_FIELDS = ["date", "spent", "rating", "note"];
+
 const asRecord = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const str = (v: unknown): string | undefined =>
@@ -79,8 +83,9 @@ function totalSpent(s: FoodSpot): number | null {
   return any ? Math.round(sum * 100) / 100 : null;
 }
 
-function visitJson(v: Visit): Record<string, unknown> {
+function visitJson(v: Visit, id: string): Record<string, unknown> {
   return {
+    id,
     date: v.date,
     spent: spentOf(v) ?? null,
     rating: v.rating ?? null,
@@ -118,6 +123,7 @@ function spotJson(s: FoodSpot): Record<string, unknown> {
 }
 
 function spotJsonFull(s: FoodSpot): Record<string, unknown> {
+  const ids = visitIdsOf(s);
   return {
     ...spotJson(s),
     hours: s.hours ?? null,
@@ -127,7 +133,7 @@ function spotJsonFull(s: FoodSpot): Record<string, unknown> {
     sourceUrl: s.sourceUrl ?? null,
     external: s.external,
     notes: s.notes,
-    visits: s.visits.map(visitJson),
+    visits: s.visits.map((v, i) => visitJson(v, ids[i])),
   };
 }
 
@@ -160,6 +166,31 @@ function findSpot(ref: string, d: ApiDeps): FoodSpot | ApiResponse {
 
 const isResponse = (v: FoodSpot | ApiResponse): v is ApiResponse =>
   typeof (v as ApiResponse).status === "number" && "body" in v;
+
+interface LocatedVisit {
+  id: string;
+  spot: FoodSpot;
+  index: number;
+  visit: Visit;
+}
+
+const isVisitResponse = (v: LocatedVisit | ApiResponse): v is ApiResponse =>
+  typeof (v as ApiResponse).status === "number" && "body" in v;
+
+/**
+ * Resolve an id to a live visit. Malformed, unknown spot and "that date has no
+ * nth visit" all answer the same 404 — an id is opaque, so distinguishing them
+ * would only tell a caller which paths exist.
+ */
+function locateVisit(id: string, d: ApiDeps): LocatedVisit | ApiResponse {
+  const decoded = decodeVisitId(id);
+  if (decoded === null) return missing(`No visit ${id}`);
+  const spot = d.store.getByPath(decoded.spotPath);
+  if (spot === undefined) return missing(`No visit ${id}`);
+  const index = findVisitIndex(spot, decoded.date, decoded.occurrence);
+  if (index < 0) return missing(`No visit ${id}`);
+  return { id, spot, index, visit: spot.visits[index] };
+}
 
 export async function handle(req: ApiRequest, d: ApiDeps): Promise<ApiResponse> {
   const parts = req.path.replace(/^\/+|\/+$/g, "").split("/").filter(Boolean);
@@ -200,7 +231,21 @@ export async function handle(req: ApiRequest, d: ApiDeps): Promise<ApiResponse> 
 
   if (head === "stats" && method === "GET") return ok(stats(d));
 
-  if (head === "visits" && method === "GET") return ok({ visits: listVisits(req.query, d) });
+  if (head === "visits") {
+    const id = parts.slice(1).join("/");
+    if (id === "") {
+      if (method === "GET") return ok({ visits: listVisits(req.query, d) });
+      return { status: 405, body: { error: `Cannot ${method} ${req.path}` } };
+    }
+    const located = locateVisit(id, d);
+    if (isVisitResponse(located)) return located;
+    if (method === "GET") {
+      return ok({ spot: visitSpotJson(located.spot), ...visitJson(located.visit, located.id) });
+    }
+    if (method === "PATCH" || method === "PUT") return patchVisit(located, body, d);
+    if (method === "DELETE") return removeVisit(located, d);
+    return { status: 405, body: { error: `Cannot ${method} ${req.path}` } };
+  }
 
   if (head === "spots") {
     // Spot paths contain slashes, so the ref is everything after `spots/` —
@@ -221,7 +266,10 @@ export async function handle(req: ApiRequest, d: ApiDeps): Promise<ApiResponse> 
     if (isResponse(found)) return found;
 
     if (sub === "visits") {
-      if (method === "GET") return ok({ visits: found.visits.map(visitJson) });
+      if (method === "GET") {
+        const ids = visitIdsOf(found);
+        return ok({ visits: found.visits.map((v, i) => visitJson(v, ids[i])) });
+      }
       if (method === "POST") return addVisit(found, body, d);
       return { status: 405, body: { error: `Cannot ${method} ${req.path}` } };
     }
@@ -270,21 +318,19 @@ function listSpots(q: Record<string, string>, d: ApiDeps): Record<string, unknow
 
 function listVisits(q: Record<string, string>, d: ApiDeps): Record<string, unknown>[] {
   const limit = Math.min(Number(q["limit"] ?? 100) || 100, 1000);
-  const rows: { spot: FoodSpot; visit: Visit }[] = [];
+  const rows: { spot: FoodSpot; visit: Visit; id: string }[] = [];
   for (const spot of d.store.getSpots()) {
-    for (const visit of spot.visits) {
-      if (q["from"] && visit.date < q["from"]) continue;
-      if (q["to"] && visit.date > q["to"]) continue;
-      rows.push({ spot, visit });
-    }
+    const ids = visitIdsOf(spot);
+    spot.visits.forEach((visit, i) => {
+      if (q["from"] && visit.date < q["from"]) return;
+      if (q["to"] && visit.date > q["to"]) return;
+      rows.push({ spot, visit, id: ids[i] });
+    });
   }
   return rows
     .sort((a, b) => b.visit.date.localeCompare(a.visit.date) || a.spot.name.localeCompare(b.spot.name))
     .slice(0, limit)
-    .map((r) => ({
-      spot: { path: r.spot.path, name: r.spot.name, city: r.spot.city ?? null, country: r.spot.country },
-      ...visitJson(r.visit),
-    }));
+    .map((r) => ({ spot: visitSpotJson(r.spot), ...visitJson(r.visit, r.id) }));
 }
 
 function stats(d: ApiDeps): Record<string, unknown> {
@@ -481,5 +527,87 @@ async function addVisit(
     visit.note = (body["note"] as string).trim();
   }
   const after = await d.store.addVisit(spot.path, visit);
-  return made({ spot: { path: after.path, name: after.name, visitCount: after.visitCount, lastVisit: after.lastVisit ?? null }, visit: visitJson(visit) });
+  // The bullet is appended, so the new visit is last in document order.
+  const ids = visitIdsOf(after);
+  return made({
+    spot: visitOwnerJson(after),
+    visit: visitJson(visit, ids[after.visits.length - 1] ?? ""),
+  });
+}
+
+/** The spot stub carried alongside a visit in list and single-visit replies. */
+function visitSpotJson(s: FoodSpot): Record<string, unknown> {
+  return { path: s.path, name: s.name, city: s.city ?? null, country: s.country };
+}
+
+/** The owning spot's counters, for replies that changed them. */
+function visitOwnerJson(s: FoodSpot): Record<string, unknown> {
+  return {
+    path: s.path,
+    name: s.name,
+    visitCount: s.visitCount,
+    lastVisit: s.lastVisit ?? null,
+  };
+}
+
+async function patchVisit(
+  loc: LocatedVisit,
+  body: Record<string, unknown>,
+  d: ApiDeps,
+): Promise<ApiResponse> {
+  const unknown = Object.keys(body).filter((k) => !VISIT_FIELDS.includes(k));
+  if (unknown.length > 0) {
+    return bad(
+      `Unknown field${unknown.length > 1 ? "s" : ""}: ${unknown.join(", ")} — a visit has ${VISIT_FIELDS.join(", ")}`,
+    );
+  }
+  // Start from the existing visit so photos and untouched fields survive: the
+  // store replaces the whole bullet, it does not merge.
+  const next: Visit = { ...loc.visit };
+  let touched = false;
+  if (has(body, "date")) {
+    const date = day(body["date"]);
+    if (!date) return bad("date must be a date like 2026-09-02");
+    next.date = date;
+    touched = true;
+  }
+  if (has(body, "spent")) {
+    if (body["spent"] === null) delete next.spent;
+    else {
+      const a = num(body["spent"]);
+      if (a === undefined || a < 0) return bad("spent must be a non-negative number, or null to clear");
+      next.spent = a;
+    }
+    touched = true;
+  }
+  if (has(body, "rating")) {
+    if (body["rating"] === null) delete next.rating;
+    else {
+      const r = num(body["rating"]);
+      if (r === undefined || !isHalfStarRating(r)) {
+        return bad("rating must be 0.5–5 in half steps, or null to clear");
+      }
+      next.rating = r;
+    }
+    touched = true;
+  }
+  if (has(body, "note")) {
+    if (typeof body["note"] !== "string") return bad("note must be a string");
+    next.note = (body["note"] as string).trim();
+    touched = true;
+  }
+  if (!touched) return bad("Nothing to change");
+  const after = await d.store.updateVisit(loc.spot.path, loc.index, next);
+  // The visit keeps its position, but a changed date gives it a NEW id — the
+  // reply carries it so the caller does not keep using a dead one.
+  const ids = visitIdsOf(after);
+  return ok({
+    spot: visitOwnerJson(after),
+    visit: visitJson(after.visits[loc.index] ?? next, ids[loc.index] ?? ""),
+  });
+}
+
+async function removeVisit(loc: LocatedVisit, d: ApiDeps): Promise<ApiResponse> {
+  const after = await d.store.deleteVisit(loc.spot.path, loc.index);
+  return ok({ deleted: loc.id, spot: visitOwnerJson(after) });
 }

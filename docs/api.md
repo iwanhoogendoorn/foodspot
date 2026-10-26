@@ -58,9 +58,32 @@ spaces and parens are fine.
 | `GET /spots/<ref>` | Full spot, visits included |
 | `PATCH /spots/<ref>` | Update any of the POST fields plus `district`. `rating` locks the personal rating; `rating: null` unlocks it (back to visit-derived). Nullable fields clear with `null`. Renaming changes frontmatter only — the file path (the identity) stays |
 | `DELETE /spots/<ref>` | Trash-deletes the note → `{ deleted: path }` |
-| `GET /spots/<ref>/visits` | Just the visits |
-| `POST /spots/<ref>/visits` | Log a visit: `date` (default today), `spent` ≥ 0, `rating` 0.5–5 in half steps, `note` → `201` |
+| `GET /spots/<ref>/visits` | Just the visits, each with its `id` |
+| `POST /spots/<ref>/visits` | Log a visit: `date` (default today), `spent` ≥ 0, `rating` 0.5–5 in half steps, `note` → `201` with the new visit's `id` |
 | `GET /visits` | Flat visit list across all spots, newest first. Filters: `from`, `to` (ISO dates), `limit` (default 100) |
+| `GET /visits/<id>` | One visit plus the spot it belongs to |
+| `PATCH /visits/<id>` | Edit `date`, `spent`, `rating` or `note`. Any other field is a `400`, not silently ignored. `spent` and `rating` take `null` to clear them; `note` is trimmed. Untouched fields and dish photos survive |
+| `DELETE /visits/<id>` | Remove one visit → `{ deleted: id, spot: { … } }` |
+
+## Visit ids
+
+A visit is a markdown bullet inside a note and has no id of its own, so the API
+derives one from the spot path, the date, and which visit that day it is. It is
+opaque — read it from any visit response, don't build it yourself:
+
+```json
+{ "id": "NjAgRk9PRC9Gb29kIFNwb3Qv…", "date": "2026-08-08", "spent": 50, "rating": null, "note": "" }
+```
+
+- Logging new visits never invalidates an existing id.
+- Editing a visit's **date** mints a new id; the reply carries it, and the old
+  one then answers `404`.
+- Deleting one of several visits on the *same date* renumbers the later ones
+  for that date only.
+
+Anything unparseable, a spot that no longer exists, and "that date has no nth
+visit" all answer the same `404` — the id is opaque, so a finer error would
+only reveal which spots exist.
 
 ## Examples
 
@@ -78,6 +101,13 @@ curl -s -X POST "$BASE/spots/Harput/visits" \
   -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
   -d '{"spent": 47.5, "rating": 4, "note": "iskender"}'
 
+# Fix last night's bill, then drop a mistaken visit
+ID=$(curl -s "$BASE/visits?limit=1" -H "Authorization: Bearer $TOKEN" | jq -r '.visits[0].id')
+curl -s -X PATCH "$BASE/visits/$ID" \
+  -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"spent": 52.5, "note": "split the bill"}'
+curl -s -X DELETE "$BASE/visits/$ID" -H "Authorization: Bearer $TOKEN"
+
 # A new place to try
 curl -s -X POST $BASE/spots \
   -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
@@ -89,5 +119,7 @@ curl -s -X POST $BASE/spots \
 - `src/api/server.ts` — plumbing: bind, auth, body limits (mirrors Helm's).
 - `src/api/addresses.ts` — pure bind plan and loopback/Tailscale detection;
   tested in `tests/smoke.test.mjs` (group 18).
+- `src/api/visitIds.ts` — pure visit id encode/decode/resolve; tested in
+  `tests/smoke.test.mjs` (group 19).
 - `src/api/routes.ts` — the routes, a pure function; tested in
   `tests/smoke.test.mjs` (group 17).
