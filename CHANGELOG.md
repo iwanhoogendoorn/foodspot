@@ -8,6 +8,8 @@ Releases before this file existed are summarised from their release commits.
 
 ## [Unreleased]
 
+## [2.7.0] — 2026-10-26
+
 ### Added
 
 - Visits are now full CRUD over the local HTTP API. Every visit carries a
@@ -93,7 +95,8 @@ Releases before this file existed are summarised from their release commits.
 
 - Mobile support, visit photos and the photo viewer.
 
-[Unreleased]: https://github.com/iwanhoogendoorn/foodspot/compare/2.6.0...HEAD
+[Unreleased]: https://github.com/iwanhoogendoorn/foodspot/compare/2.7.0...HEAD
+[2.7.0]: https://github.com/iwanhoogendoorn/foodspot/releases/tag/2.7.0
 [2.6.0]: https://github.com/iwanhoogendoorn/foodspot/releases/tag/2.6.0
 [2.5.1]: https://github.com/iwanhoogendoorn/foodspot/releases/tag/2.5.1
 [2.5.0]: https://github.com/iwanhoogendoorn/foodspot/releases/tag/2.5.0
